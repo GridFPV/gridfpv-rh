@@ -19,6 +19,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: make setup
+      - run: make build
       - run: make lint
       - run: make check
       - run: make test

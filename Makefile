@@ -34,7 +34,8 @@ build: ## Build the SPA into $(STATIC_DIR)
 	cd frontend && npm run build
 
 check: ## Type-check the frontend and byte-compile the plugin
-	cd frontend && npm run check
+	# The app's types resolve against the component library's built dist/, so build it first.
+	cd frontend && npm run build --workspace @gridfpv/components && npm run check
 	python3 -m py_compile $(PLUGIN_DIR)/__init__.py
 
 lint: ## ESLint + Prettier (check only)
