@@ -6,6 +6,8 @@
   import { href, link, route } from './lib/router.svelte.js';
   import Home from './screens/Home.svelte';
   import Seats from './screens/Seats.svelte';
+  import Pilots from './screens/Pilots.svelte';
+  import Heats from './screens/Heats.svelte';
 
   let { autoconnect = true }: { autoconnect?: boolean } = $props();
 
@@ -34,7 +36,9 @@
   const tuneMatch = $derived(/^seats\/(\d+)$/.exec(current));
   const NAV = [
     { path: '', label: 'Home' },
-    { path: 'seats', label: 'Seats' }
+    { path: 'seats', label: 'Seats' },
+    { path: 'pilots', label: 'Pilots' },
+    { path: 'heats', label: 'Heats' }
   ];
   const active = (path: string) =>
     path === '' ? current === '' : current === path || current.startsWith(path + '/');
@@ -71,6 +75,10 @@
       <Home />
     {:else if current === 'seats' || tuneMatch}
       <Seats />
+    {:else if current === 'pilots'}
+      <Pilots />
+    {:else if current === 'heats'}
+      <Heats />
     {:else}
       <p class="muted">
         Nothing at <code>/grid/{current}</code>. <a href={href('')} onclick={link}>Home</a>.

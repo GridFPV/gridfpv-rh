@@ -21,6 +21,15 @@ import {
 } from './seats.js';
 import type { Crossing } from './crossings.js';
 import { fromWire, type Preset, type PresetSeat, type WirePreset } from './presets.js';
+import {
+  applyClassData,
+  applyFormatData,
+  applyHeatData,
+  applyPilotData,
+  emptySetup,
+  SLOT_METHOD,
+  type Setup
+} from './setup.js';
 
 export type HelloAck = {
   plugin_version: string;
@@ -70,7 +79,11 @@ const state = $state({
   profiles: { list: [], currentId: null, name: '', description: '' } as Profiles,
   capture: null as Capture | null,
   /** Custom channel presets the plugin keeps in RotorHazard's database. */
-  presets: [] as Preset[]
+  presets: [] as Preset[],
+  /** Pilots, classes, heats, formats — RotorHazard's setup entities. */
+  setup: emptySetup() as Setup,
+  /** Class ranking methods RotorHazard offers (its own plus plugins'), by name. */
+  rankMethods: [] as Array<{ name: string; label: string }>
 });
 
 /** Read-only view of the connection and timer state for screens. */
@@ -131,7 +144,17 @@ export function connect(): Socket {
   socket.on('connect', () => {
     state.connection = 'connected';
     socket?.emit('gridfpv_hello', { client: 'plugin-ui' });
-    loadData('frequency_data', 'enter_and_exit_at_levels', 'node_tuning', 'node_data');
+    loadData(
+      'frequency_data',
+      'enter_and_exit_at_levels',
+      'node_tuning',
+      'node_data',
+      'pilot_data',
+      'class_data',
+      'heat_data',
+      'format_data',
+      'raceclass_rank_method_list'
+    );
     socket?.emit('gridfpv_capture_get');
     socket?.emit('gridfpv_presets_get');
   });
@@ -166,6 +189,31 @@ export function connect(): Socket {
     state.profiles = applyNodeTuning(p);
     checkWaiters();
   });
+
+  // RotorHazard's setup entities. Each is the whole list; RotorHazard broadcasts after any
+  // change it makes, and we also re-request after our own writes.
+  socket.on('pilot_data', (p: Parameters<typeof applyPilotData>[1]) => {
+    state.setup = applyPilotData(state.setup, p);
+    checkWaiters();
+  });
+  socket.on('heat_data', (p: Parameters<typeof applyHeatData>[1]) => {
+    state.setup = applyHeatData(state.setup, p);
+    checkWaiters();
+  });
+  socket.on('class_data', (p: Parameters<typeof applyClassData>[1]) => {
+    state.setup = applyClassData(state.setup, p);
+    checkWaiters();
+  });
+  socket.on('format_data', (p: Parameters<typeof applyFormatData>[1]) => {
+    state.setup = applyFormatData(state.setup, p);
+    checkWaiters();
+  });
+  socket.on(
+    'raceclass_rank_method_list',
+    (p: { methods: Array<{ name: string; label: string }> }) => {
+      state.rankMethods = (p.methods ?? []).map((m) => ({ name: m.name, label: m.label }));
+    }
+  );
 
   socket.on('gridfpv_presets', (p: { presets: WirePreset[] }) => {
     state.presets = (p.presets ?? []).map(fromWire);
@@ -326,4 +374,231 @@ export function savePreset(name: string, seats: PresetSeat[]): Promise<WriteResu
 export function deletePreset(id: string): Promise<WriteResult> {
   socket?.emit('gridfpv_presets_delete', { id });
   return awaitState('Delete preset', () => !state.presets.some((p) => p.id === id));
+}
+
+// ---- pilots -----------------------------------------------------------------------
+
+/** RotorHazard adds a blank pilot; resolves with the new pilot's id. */
+export async function addPilot(): Promise<WriteResult & { id?: number }> {
+  const before = new Set(state.setup.pilots.map((p) => p.id));
+  socket?.emit('add_pilot');
+  window.setTimeout(() => loadData('pilot_data'), 200);
+  const r = await awaitState('New pilot', () => state.setup.pilots.some((p) => !before.has(p.id)));
+  const added = state.setup.pilots.find((p) => !before.has(p.id));
+  return { ...r, id: added?.id };
+}
+
+export type PilotFields = {
+  callsign?: string;
+  name?: string;
+  phonetic?: string;
+  team?: string;
+  color?: string;
+};
+
+/** Change a pilot's own fields (RHData.alter_pilot: callsign, name, phonetic, team_name, color). */
+export function alterPilot(id: number, fields: PilotFields): Promise<WriteResult> {
+  const payload: Record<string, unknown> = { pilot_id: id };
+  if (fields.callsign !== undefined) payload.callsign = fields.callsign;
+  if (fields.name !== undefined) payload.name = fields.name;
+  if (fields.phonetic !== undefined) payload.phonetic = fields.phonetic;
+  if (fields.team !== undefined) payload.team_name = fields.team;
+  if (fields.color !== undefined) payload.color = fields.color;
+  socket?.emit('alter_pilot', payload);
+  window.setTimeout(() => loadData('pilot_data'), 200);
+  return awaitState(`Pilot ${fields.callsign ?? ''}`.trim(), () => {
+    const p = state.setup.pilots.find((x) => x.id === id);
+    if (!p) return false;
+    return (
+      (fields.callsign === undefined || p.callsign === fields.callsign) &&
+      (fields.name === undefined || p.name === fields.name) &&
+      (fields.phonetic === undefined || p.phonetic === fields.phonetic) &&
+      (fields.team === undefined || p.team === fields.team) &&
+      (fields.color === undefined || p.color.toLowerCase() === fields.color.toLowerCase())
+    );
+  });
+}
+
+/** Set one plugin attribute on a pilot (RotorHazard takes one per call). */
+export function setPilotAttribute(id: number, name: string, value: string): Promise<WriteResult> {
+  socket?.emit('alter_pilot', { pilot_id: id, pilot_attr: name, value });
+  window.setTimeout(() => loadData('pilot_data'), 200);
+  return awaitState(`Pilot attribute ${name}`, () => {
+    const p = state.setup.pilots.find((x) => x.id === id);
+    return !!p && String(p.attributes[name] ?? '') === value;
+  });
+}
+
+/** RotorHazard refuses to delete a pilot who is in a saved race; the readback reports it. */
+export function deletePilot(id: number): Promise<WriteResult> {
+  socket?.emit('delete_pilot', { pilot: id });
+  window.setTimeout(() => loadData('pilot_data'), 200);
+  return awaitState('Delete pilot', () => !state.setup.pilots.some((p) => p.id === id)).then((r) =>
+    r.ok
+      ? r
+      : {
+          ok: false,
+          message: 'RotorHazard kept the pilot — pilots in a saved race cannot be deleted.'
+        }
+  );
+}
+
+// ---- classes ----------------------------------------------------------------------
+
+export async function addClass(): Promise<WriteResult & { id?: number }> {
+  const before = new Set(state.setup.classes.map((c) => c.id));
+  socket?.emit('add_race_class');
+  window.setTimeout(() => loadData('class_data'), 200);
+  const r = await awaitState('New class', () => state.setup.classes.some((c) => !before.has(c.id)));
+  return { ...r, id: state.setup.classes.find((c) => !before.has(c.id))?.id };
+}
+
+export type ClassFields = {
+  name?: string;
+  description?: string;
+  formatId?: number;
+  winCondition?: string;
+  rounds?: number;
+  heatAdvanceType?: number;
+  roundType?: number;
+};
+
+export function alterClass(id: number, fields: ClassFields): Promise<WriteResult> {
+  const payload: Record<string, unknown> = { class_id: id };
+  if (fields.name !== undefined) payload.class_name = fields.name;
+  if (fields.description !== undefined) payload.class_description = fields.description;
+  if (fields.formatId !== undefined) payload.class_format = fields.formatId;
+  if (fields.winCondition !== undefined) payload.win_condition = fields.winCondition;
+  if (fields.rounds !== undefined) payload.rounds = fields.rounds;
+  if (fields.heatAdvanceType !== undefined) payload.heat_advance_type = fields.heatAdvanceType;
+  if (fields.roundType !== undefined) payload.round_type = fields.roundType;
+  socket?.emit('alter_race_class', payload);
+  window.setTimeout(() => loadData('class_data'), 200);
+  return awaitState('Class', () => {
+    const c = state.setup.classes.find((x) => x.id === id);
+    if (!c) return false;
+    return (
+      (fields.name === undefined || c.name === fields.name) &&
+      (fields.description === undefined || c.description === fields.description) &&
+      (fields.formatId === undefined || c.formatId === fields.formatId) &&
+      (fields.winCondition === undefined || c.winCondition === fields.winCondition) &&
+      (fields.rounds === undefined || c.rounds === fields.rounds) &&
+      (fields.heatAdvanceType === undefined || c.heatAdvanceType === fields.heatAdvanceType) &&
+      (fields.roundType === undefined || c.roundType === fields.roundType)
+    );
+  });
+}
+
+export function duplicateClass(id: number): Promise<WriteResult> {
+  const before = state.setup.classes.length;
+  socket?.emit('duplicate_race_class', { class: id });
+  window.setTimeout(() => loadData('class_data', 'heat_data'), 300);
+  return awaitState('Duplicate class', () => state.setup.classes.length > before);
+}
+
+export function deleteClass(id: number): Promise<WriteResult> {
+  socket?.emit('delete_class', { class: id });
+  window.setTimeout(() => loadData('class_data', 'heat_data'), 200);
+  return awaitState('Delete class', () => !state.setup.classes.some((c) => c.id === id)).then(
+    (r) =>
+      r.ok
+        ? r
+        : {
+            ok: false,
+            message: 'RotorHazard kept the class — classes with saved races cannot be deleted.'
+          }
+  );
+}
+
+// ---- heats ------------------------------------------------------------------------
+
+export async function addHeat(classId: number): Promise<WriteResult & { id?: number }> {
+  const before = new Set(state.setup.heats.map((h) => h.id));
+  socket?.emit('add_heat', classId ? { class: classId } : {});
+  window.setTimeout(() => loadData('heat_data'), 200);
+  const r = await awaitState('New heat', () => state.setup.heats.some((h) => !before.has(h.id)));
+  return { ...r, id: state.setup.heats.find((h) => !before.has(h.id))?.id };
+}
+
+export function duplicateHeat(id: number): Promise<WriteResult> {
+  const before = state.setup.heats.length;
+  socket?.emit('duplicate_heat', { heat: id });
+  window.setTimeout(() => loadData('heat_data'), 300);
+  return awaitState('Duplicate heat', () => state.setup.heats.length > before);
+}
+
+export type HeatFields = { name?: string; classId?: number; autoFrequency?: boolean };
+
+export function alterHeat(id: number, fields: HeatFields): Promise<WriteResult> {
+  const payload: Record<string, unknown> = { heat: id };
+  if (fields.name !== undefined) payload.name = fields.name;
+  if (fields.classId !== undefined) payload.class = fields.classId;
+  if (fields.autoFrequency !== undefined) payload.auto_frequency = fields.autoFrequency;
+  socket?.emit('alter_heat', payload);
+  window.setTimeout(() => loadData('heat_data'), 200);
+  return awaitState('Heat', () => {
+    const h = state.setup.heats.find((x) => x.id === id);
+    if (!h) return false;
+    return (
+      (fields.name === undefined || h.name === fields.name) &&
+      (fields.classId === undefined || h.classId === fields.classId) &&
+      (fields.autoFrequency === undefined || h.autoFrequency === fields.autoFrequency)
+    );
+  });
+}
+
+export function deleteHeat(id: number): Promise<WriteResult> {
+  socket?.emit('delete_heat', { heat: id });
+  window.setTimeout(() => loadData('heat_data'), 200);
+  return awaitState('Delete heat', () => !state.setup.heats.some((h) => h.id === id)).then((r) =>
+    r.ok
+      ? r
+      : {
+          ok: false,
+          message: 'RotorHazard kept the heat — heats with saved races cannot be deleted.'
+        }
+  );
+}
+
+/** What a slot should hold. One of: a pilot, a heat result, a class rank, or nothing. */
+export type SlotSeating =
+  | { method: typeof SLOT_METHOD.NONE }
+  | { method: typeof SLOT_METHOD.ASSIGN; pilotId: number }
+  | { method: typeof SLOT_METHOD.HEAT_RESULT; heatId: number; rank: number }
+  | { method: typeof SLOT_METHOD.CLASS_RESULT; classId: number; rank: number };
+
+/** Seat one slot (RHData.alter_heat: slot_id + method / pilot / seed_heat_id / seed_class_id / seed_rank). */
+export function seatSlot(
+  heatId: number,
+  slotId: number,
+  seating: SlotSeating
+): Promise<WriteResult> {
+  const payload: Record<string, unknown> = {
+    heat: heatId,
+    slot_id: slotId,
+    method: seating.method
+  };
+  if (seating.method === SLOT_METHOD.ASSIGN) payload.pilot = seating.pilotId;
+  if (seating.method === SLOT_METHOD.HEAT_RESULT) {
+    payload.seed_heat_id = seating.heatId;
+    payload.seed_rank = seating.rank;
+  }
+  if (seating.method === SLOT_METHOD.CLASS_RESULT) {
+    payload.seed_class_id = seating.classId;
+    payload.seed_rank = seating.rank;
+  }
+  if (seating.method === SLOT_METHOD.NONE) payload.pilot = 0;
+  socket?.emit('alter_heat', payload);
+  window.setTimeout(() => loadData('heat_data'), 200);
+  return awaitState('Seat', () => {
+    const slot = state.setup.heats.find((h) => h.id === heatId)?.slots.find((s) => s.id === slotId);
+    if (!slot) return false;
+    if (slot.method !== seating.method) return false;
+    if (seating.method === SLOT_METHOD.ASSIGN) return slot.pilotId === seating.pilotId;
+    if (seating.method === SLOT_METHOD.HEAT_RESULT)
+      return slot.seedId === seating.heatId && slot.seedRank === seating.rank;
+    if (seating.method === SLOT_METHOD.CLASS_RESULT)
+      return slot.seedId === seating.classId && slot.seedRank === seating.rank;
+    return true;
+  });
 }
