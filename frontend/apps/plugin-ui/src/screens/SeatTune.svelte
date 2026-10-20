@@ -6,7 +6,7 @@
   import { Badge, Banner, Button, Card } from '@gridfpv/components';
   import RssiTrace from '../components/RssiTrace.svelte';
   import { channelLabel, tagFor } from '../lib/channels.js';
-  import { detectCrossings, sortedTrace } from '../lib/crossings.js';
+  import { detectCrossings, mergeTraces, sortedTrace } from '../lib/crossings.js';
   import {
     captureStart,
     captureStop,
@@ -43,8 +43,15 @@
     }
   });
 
-  const trace = $derived(sortedTrace({ times: cap?.times ?? [], values: cap?.values ?? [] }));
-  const computed = $derived(detectCrossings(trace, enter, exit));
+  // Drawn: the steady current-RSSI samples. Detected on: samples plus RotorHazard's history
+  // extrema, so a peak between two samples still counts (as it does on the Marshal page).
+  const trace = $derived(
+    sortedTrace({ times: cap?.sampleTimes ?? [], values: cap?.sampleValues ?? [] })
+  );
+  const detectOn = $derived(
+    mergeTraces(trace, { times: cap?.times ?? [], values: cap?.values ?? [] })
+  );
+  const computed = $derived(detectCrossings(detectOn, enter, exit));
   const firmware = $derived(cap ? firmwareCrossings(cap) : []);
 
   let busy = $state(false);
@@ -146,7 +153,15 @@
       {#if trace.times.length === 0}
         <p class="muted">No recording yet{recording ? ' — samples arrive every second' : ''}.</p>
       {:else}
-        <RssiTrace {trace} bind:enter bind:exit {firmware} readonly={recording} oncommit={commit} />
+        <RssiTrace
+          {trace}
+          {detectOn}
+          bind:enter
+          bind:exit
+          {firmware}
+          readonly={recording}
+          oncommit={commit}
+        />
       {/if}
       <div class="tune">
         <div class="level">

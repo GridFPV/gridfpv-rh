@@ -44,8 +44,12 @@ export type CaptureSummary = {
 export type FirmwareCrossing = { enter: number | null; exit: number | null; peak: number | null };
 
 export type Capture = CaptureSummary & {
+  /** RotorHazard's history extrema (peak/nadir per node read), backdated and unordered. */
   times: number[];
   values: number[];
+  /** Current RSSI sampled at a steady rate: the drawn trace. */
+  sampleTimes: number[];
+  sampleValues: number[];
   crossings: FirmwareCrossing[];
   /** The seat's thresholds when the capture ended, if the plugin knew them. */
   enter?: number | null;
@@ -174,22 +178,34 @@ export function connect(): Socket {
       state.capture = null;
       return;
     }
-    const full = p as Capture;
+    const full = p as Capture & { sample_times?: number[]; sample_values?: number[] };
     state.capture = {
       ...full,
       times: full.times ?? [],
       values: full.values ?? [],
+      sampleTimes: full.sample_times ?? [],
+      sampleValues: full.sample_values ?? [],
       crossings: full.crossings ?? []
     };
     checkWaiters();
   });
   socket.on(
     'gridfpv_capture_chunk',
-    (p: { seat: number; times: number[]; values: number[]; samples: number; seconds: number }) => {
+    (p: {
+      seat: number;
+      times: number[];
+      values: number[];
+      sample_times?: number[];
+      sample_values?: number[];
+      samples: number;
+      seconds: number;
+    }) => {
       const cap = state.capture;
       if (!cap || cap.seat !== p.seat || cap.state !== 'recording') return;
       cap.times.push(...p.times);
       cap.values.push(...p.values);
+      cap.sampleTimes.push(...(p.sample_times ?? []));
+      cap.sampleValues.push(...(p.sample_values ?? []));
       cap.samples = p.samples;
       cap.seconds = p.seconds;
     }
@@ -284,7 +300,11 @@ export function firmwareCrossings(cap: Capture): Crossing[] {
     .filter((c) => c.enter != null)
     .map((c) => ({
       start: c.enter as number,
-      end: c.exit ?? cap.times[cap.times.length - 1] ?? (c.enter as number),
+      end:
+        c.exit ??
+        cap.sampleTimes[cap.sampleTimes.length - 1] ??
+        cap.times[cap.times.length - 1] ??
+        (c.enter as number),
       at: c.exit != null ? ((c.enter as number) + c.exit) / 2 : (c.enter as number),
       peak: c.peak ?? 0,
       open: c.exit == null

@@ -17,7 +17,8 @@
     firmware = [],
     height = 260,
     readonly = false,
-    oncommit = undefined
+    oncommit = undefined,
+    detectOn = undefined
   }: {
     trace: Trace;
     enter: number;
@@ -28,6 +29,8 @@
     readonly?: boolean;
     /** Fires when a threshold edit is complete: a drag released, or a key nudge. */
     oncommit?: (enter: number, exit: number) => void;
+    /** Trace to detect crossings on, when it differs from the drawn one (samples + extrema). */
+    detectOn?: Trace;
   } = $props();
 
   const W = 1000; // viewBox units; the SVG scales to its container
@@ -42,7 +45,7 @@
   // the line would rescale the plot, which moves the line under the cursor, which
   // rescales again.
   const liveRange = $derived.by(() => {
-    const r = traceRange(trace) ?? { min: 0, max: 100 };
+    const r = traceRange(detectOn ?? trace) ?? { min: 0, max: 100 };
     const lo = Math.max(0, Math.min(r.min, exit) - 8);
     const hi = Math.min(255, Math.max(r.max, enter) + 12);
     return { lo, hi: Math.max(hi, lo + 10) };
@@ -60,7 +63,7 @@
     trace.times.map((t, i) => `${x(t).toFixed(1)},${y(trace.values[i]).toFixed(1)}`).join(' ')
   );
 
-  const computed = $derived(detectCrossings(trace, enter, exit));
+  const computed = $derived(detectCrossings(detectOn ?? trace, enter, exit));
 
   // Gridlines at sensible RSSI steps.
   const yTicks = $derived.by(() => {

@@ -18,6 +18,7 @@ class FakeNode:
         self.history_times = []
         self.history_values = []
         self.crossing_flag = False
+        self.current_rssi = 0
         self.pass_peak_rssi = 0
         self.enter_at_level = 70
         self.exit_at_level = 50
@@ -99,7 +100,8 @@ class CaptureTests(unittest.TestCase):
         cap.stop()
         self.assertFalse(cap.recording)
         full = cap.full(node)
-        self.assertEqual((full["seat"], full["state"], full["samples"]), (2, "done", 1))
+        self.assertEqual((full["seat"], full["state"]), (2, "done"))
+        self.assertEqual(full["values"], [1])
         self.assertEqual((full["enter"], full["exit"], full["frequency"]), (70, 50, 5658))
 
     def test_sample_cap_stops_the_capture(self):
@@ -109,6 +111,20 @@ class CaptureTests(unittest.TestCase):
         cap = capture.Capture(seat=0)
         cap.absorb(node)
         self.assertFalse(cap.recording)
+
+    def test_current_rssi_is_sampled_as_its_own_stream(self):
+        node = FakeNode()
+        node.current_rssi = 44
+        cap = capture.Capture(seat=0)
+        cap.sample(node)
+        node.current_rssi = 120
+        cap.sample(node)
+        self.assertEqual(cap.sample_values, [44, 120])
+        self.assertEqual(len(cap.sample_times), 2)
+        self.assertEqual(cap.times, [])  # history untouched
+        full = cap.full(node)
+        self.assertEqual(full["sample_values"], [44, 120])
+        self.assertEqual(full["samples"], 2)
 
 
 class RecorderTests(unittest.TestCase):
@@ -135,9 +151,11 @@ class RecorderTests(unittest.TestCase):
     def test_tick_absorbs_and_stop_broadcasts_the_full_trace(self):
         self.rec.start(0)
         self.nodes[0].sample(1.0, 80)
+        self.nodes[0].current_rssi = 80
         self.nodes[0].crossing_flag = True
         self.rec.tick()
         self.nodes[0].sample(2.0, 20)
+        self.nodes[0].current_rssi = 20
         self.nodes[0].crossing_flag = False
         self.nodes[0].pass_peak_rssi = 80
         self.rec.tick()
@@ -145,6 +163,8 @@ class RecorderTests(unittest.TestCase):
         self.assertEqual(summary["state"], "done")
         (full,) = self.done
         self.assertEqual(full["values"], [80, 20])
+        # start, two ticks, stop → four current-RSSI samples
+        self.assertEqual(full["sample_values"], [0, 80, 20, 20])
         self.assertEqual(full["crossings"], [{"enter": 1.0, "exit": 2.0, "peak": 80}])
         self.assertEqual(full["enter"], 70)
         self.rec.tick()  # idle: no error, nothing more broadcast
@@ -157,6 +177,7 @@ class RecorderTests(unittest.TestCase):
         self.rec.tick()
         (chunk,) = self.chunks
         self.assertEqual((chunk["seat"], chunk["values"]), (0, [5]))
+        self.assertEqual(len(chunk["sample_values"]), 2)  # the start sample + this tick's
         self.rec.tick()  # too soon for another
         self.assertEqual(len(self.chunks), 1)
 
@@ -183,6 +204,7 @@ class SocketWiringTests(unittest.TestCase):
         event, payload = rhapi.ui.socket_broadcast.call_args_list[-1][0]
         self.assertEqual(event, gridfpv.EVT_CAPTURE)
         self.assertEqual((payload["state"], payload["values"]), ("done", [11]))
+        self.assertIn("sample_values", payload)
 
         rhapi.listeners[gridfpv.EVT_CAPTURE_GET]({})
         self.assertEqual(rhapi.sent[-1][1]["state"], "done")

@@ -87,6 +87,11 @@ export function sortedTrace(trace: Trace): Trace {
   return { times: idx.map((i) => trace.times[i]), values: idx.map((i) => trace.values[i]) };
 }
 
+/** Two traces merged and ordered by time (e.g. steady samples plus history extrema). */
+export function mergeTraces(a: Trace, b: Trace): Trace {
+  return sortedTrace({ times: [...a.times, ...b.times], values: [...a.values, ...b.values] });
+}
+
 /** Min and max RSSI over a trace, or null for an empty one. */
 export function traceRange(trace: Trace): { min: number; max: number } | null {
   if (trace.values.length === 0) return null;

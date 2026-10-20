@@ -24,7 +24,7 @@ from . import auth, capture, presets
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_VERSION = "0.2.0"
+PLUGIN_VERSION = "0.2.1"
 
 #: Where the SPA is mounted inside RotorHazard's web server.
 URL_PREFIX = "/grid"

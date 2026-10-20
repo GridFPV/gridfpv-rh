@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectCrossings, sortedTrace, traceRange } from '../src/lib/crossings.js';
+import { detectCrossings, mergeTraces, sortedTrace, traceRange } from '../src/lib/crossings.js';
 
 /** Build a trace from (time, rssi) pairs. */
 function trace(pairs: Array<[number, number]>) {
@@ -96,5 +96,17 @@ describe('sortedTrace', () => {
     const t = sortedTrace({ times: [9.998, 9.999, 9.997, 9.998], values: [150, 150, 30, 30] });
     expect(t.times).toEqual([9.997, 9.998, 9.998, 9.999]);
     expect(t.values).toEqual([30, 150, 30, 150]);
+  });
+});
+
+describe('mergeTraces', () => {
+  it('interleaves a steady sample stream with history extrema so a peak between samples counts', () => {
+    const samples = { times: [0, 0.1, 0.2], values: [30, 60, 30] };
+    const extrema = { times: [0.15], values: [120] };
+    const merged = mergeTraces(samples, extrema);
+    expect(merged.times).toEqual([0, 0.1, 0.15, 0.2]);
+    expect(merged.values).toEqual([30, 60, 120, 30]);
+    expect(detectCrossings(samples, 90, 50)).toHaveLength(0);
+    expect(detectCrossings(merged, 90, 50)).toHaveLength(1);
   });
 });

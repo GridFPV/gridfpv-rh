@@ -1,10 +1,21 @@
-"""Capture-mode tuning: record one seat's dense RSSI trace outside a race.
+"""Capture-mode tuning: record one seat's RSSI outside a race.
 
-RotorHazard keeps a rolling window of dense RSSI history per node while no race is running
+Two streams, because they answer different questions:
+
+- **Samples** — ``node.current_rssi`` read on every tick (20 Hz). This is the level the node
+  reports, the same thing RotorHazard's own tuning page plots from the heartbeat, and it is
+  what the trace draws: a steady line.
+- **History** — RotorHazard's dense history (``node.history_values``), which on real
+  hardware is the peak and the nadir of each ~100 ms node read, backdated by the node's own
+  offsets. It zigzags between extremes, so it is wrong to draw as "the signal", but it is
+  what the Marshal page recalculates laps from and it catches a peak that falls between two
+  samples — so detection runs on samples and history merged.
+
+RotorHazard keeps that history as a rolling window while no race is running
 (``BaseHardwareInterface.process_history`` prunes to the last 60 s), and the node's
-``crossing_flag`` still flips as the firmware sees passes. A capture copies that window out
-on a timer for as long as the director wants, so they can fly a handful of passes, stop,
-and tune enter/exit on the recording the way Marshal works on a saved race.
+``crossing_flag`` still flips as the firmware sees passes. A capture runs for as long as the
+director wants, so they can fly a handful of passes, stop, and tune enter/exit on the
+recording the way Marshal works on a saved race.
 
 One capture at a time per server. Everything here is plain data in; the socket wiring is
 in ``__init__``. Times are RotorHazard's monotonic seconds, as the node reports them.
@@ -15,8 +26,9 @@ from time import monotonic
 
 logger = logging.getLogger(__name__)
 
-#: How often the recorder copies new history samples and checks the crossing flag.
-TICK_SECONDS = 0.1
+#: How often the recorder samples current RSSI, copies new history and checks the crossing
+#: flag. Real nodes are read at 10 Hz (RHInterface UPDATE_SLEEP); 20 Hz avoids aliasing that.
+TICK_SECONDS = 0.05
 #: How often a progress chunk is broadcast while recording.
 CHUNK_SECONDS = 1.0
 #: Guard against a forgotten capture eating memory: ~67 Hz × 10 min.
@@ -33,13 +45,18 @@ class Capture:
         self.seat = seat
         self.started_at = monotonic()
         self.stopped_at = None
+        #: History extrema, as RotorHazard reports them (see module docstring).
         self.times = []
         self.values = []
+        #: Current-RSSI samples, one per tick: the drawn trace.
+        self.sample_times = []
+        self.sample_values = []
         #: Firmware-detected crossings: dicts with enter / exit (None while open) / peak.
         self.crossings = []
         self._last_time = None
         self._was_crossing = False
         self._chunk_from = 0
+        self._sample_chunk_from = 0
 
     @property
     def recording(self) -> bool:
@@ -65,10 +82,22 @@ class Capture:
             self.values.append(values[i])
             self._last_time = times[i]
             added += 1
-        if len(self.times) > MAX_SAMPLES:
+        self._check_cap()
+        return added
+
+    def sample(self, node) -> None:
+        """Record the node's current RSSI now (the drawn trace)."""
+        value = getattr(node, "current_rssi", None)
+        if value is None:
+            return
+        self.sample_times.append(monotonic())
+        self.sample_values.append(int(value))
+        self._check_cap()
+
+    def _check_cap(self) -> None:
+        if len(self.times) + len(self.sample_times) > MAX_SAMPLES and self.stopped_at is None:
             logger.warning("gridfpv capture: seat %d hit %d samples, stopping", self.seat, MAX_SAMPLES)
             self.stopped_at = monotonic()
-        return added
 
     def _resume_index(self, times, values, n) -> int:
         """Index in RotorHazard's list of the first entry we have not copied yet."""
@@ -101,7 +130,7 @@ class Capture:
         self._was_crossing = crossing
 
     def trim_to_last(self, seconds: float) -> None:
-        """Drop everything older than the newest sample minus ``seconds``."""
+        """Drop history older than the newest entry minus ``seconds`` (the capture's lead-in)."""
         if not self.times:
             return
         cutoff = self.times[-1] - seconds
@@ -118,14 +147,18 @@ class Capture:
             self.stopped_at = monotonic()
 
     def chunk(self) -> dict:
-        """Samples since the last chunk, for live progress while recording."""
+        """Everything since the last chunk, for live progress while recording."""
         start = self._chunk_from
         self._chunk_from = len(self.times)
+        sstart = self._sample_chunk_from
+        self._sample_chunk_from = len(self.sample_times)
         return {
             "seat": self.seat,
             "times": self.times[start:],
             "values": self.values[start:],
-            "samples": len(self.times),
+            "sample_times": self.sample_times[sstart:],
+            "sample_values": self.sample_values[sstart:],
+            "samples": len(self.sample_times),
             "seconds": round(monotonic() - self.started_at, 1),
         }
 
@@ -133,7 +166,7 @@ class Capture:
         return {
             "seat": self.seat,
             "state": "recording" if self.recording else "done",
-            "samples": len(self.times),
+            "samples": len(self.sample_times),
             "seconds": round((self.stopped_at or monotonic()) - self.started_at, 1),
         }
 
@@ -142,6 +175,8 @@ class Capture:
             **self.summary(),
             "times": self.times,
             "values": self.values,
+            "sample_times": self.sample_times,
+            "sample_values": self.sample_values,
             "crossings": self.crossings,
         }
         if node is not None:
@@ -175,6 +210,7 @@ class Recorder:
         # while the pilot is still walking to the line.
         self.capture.absorb(node)
         self.capture.trim_to_last(SEED_SECONDS)
+        self.capture.sample(node)
         self.capture.note_crossing_flag(bool(getattr(node, "crossing_flag", False)), node)
         return self.capture.summary()
 
@@ -185,6 +221,7 @@ class Recorder:
             node = self._node()
             if node is not None:
                 self.capture.absorb(node)
+                self.capture.sample(node)
             self.capture.stop()
             self._on_done(self.capture.full(node))
         return self.capture.summary()
@@ -198,6 +235,7 @@ class Recorder:
             cap.stop()
             self._on_done(cap.full())
             return
+        cap.sample(node)
         cap.absorb(node)
         cap.note_crossing_flag(bool(getattr(node, "crossing_flag", False)), node)
         if not cap.recording:  # hit the sample cap
