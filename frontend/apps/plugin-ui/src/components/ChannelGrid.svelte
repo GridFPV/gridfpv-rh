@@ -7,6 +7,7 @@
    */
   import { Badge, Select } from '@gridfpv/components';
   import ChannelPicker from './ChannelPicker.svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
   import {
     imdOffenderMessage,
     imdRatingLabel,
@@ -14,7 +15,7 @@
     imdTone,
     imdToneHint
   } from '../lib/imd.js';
-  import { PRESETS, presetSeats } from '../lib/presets.js';
+  import { PRESETS, presetSeats, type Preset } from '../lib/presets.js';
   import type { Seat } from '../lib/seats.js';
   import { setChannel, type WriteResult } from '../lib/rh.svelte.js';
 
@@ -26,19 +27,21 @@
 
   let applying = $state(false);
 
-  async function onPreset(e: Event) {
+  let pending: { preset: Preset; used: number } | null = $state(null);
+
+  function onPreset(e: Event) {
     const sel = e.currentTarget as HTMLSelectElement;
     const preset = PRESETS.find((p) => p.id === sel.value);
     sel.value = '';
     if (!preset) return;
-    const plan = presetSeats(preset, seats.length);
-    const used = plan.filter((p) => p.frequency).length;
-    if (
-      !window.confirm(
-        `Fill the active profile from ${preset.name}? Seats 1–${used} get its channels; the rest turn off.`
-      )
-    )
-      return;
+    const used = presetSeats(preset, seats.length).filter((p) => p.frequency).length;
+    pending = { preset, used };
+  }
+
+  async function applyPreset() {
+    if (!pending) return;
+    const plan = presetSeats(pending.preset, seats.length);
+    pending = null;
     applying = true;
     try {
       // One seat at a time, each confirmed by readback, so a failure is named by seat.
@@ -55,6 +58,19 @@
     }
   }
 </script>
+
+{#if pending}
+  <ConfirmDialog
+    open={true}
+    title="Fill from preset"
+    confirmLabel="Fill"
+    onconfirm={applyPreset}
+    oncancel={() => (pending = null)}
+  >
+    Fill the active profile from <strong>{pending.preset.name}</strong>? Seats 1–{pending.used}
+    get its channels; the rest turn off.
+  </ConfirmDialog>
+{/if}
 
 <div class="quick">
   <div class="head">

@@ -5,6 +5,7 @@
    * below always show the active one.
    */
   import { Button, Input, Select } from '@gridfpv/components';
+  import ConfirmDialog from './ConfirmDialog.svelte';
   import {
     addProfile,
     alterProfile,
@@ -39,13 +40,19 @@
     if (id !== profiles.currentId) void run(() => setProfile(id));
   }
 
-  function onDelete() {
-    if (profiles.list.length <= 1) return;
-    if (!window.confirm(`Delete profile "${profiles.name}"? Seats fall back to the first profile.`))
-      return;
-    void run(deleteProfile);
-  }
+  let confirmDelete = $state(false);
 </script>
+
+<ConfirmDialog
+  bind:open={confirmDelete}
+  title="Delete profile"
+  confirmLabel="Delete"
+  danger
+  onconfirm={() => run(deleteProfile)}
+>
+  Delete the profile <strong>{profiles.name}</strong>? Every seat falls back to the first profile's
+  channels and thresholds.
+</ConfirmDialog>
 
 <div class="bar">
   <label class="field">
@@ -80,7 +87,11 @@
     >
       Duplicate
     </Button>
-    <Button variant="danger" disabled={busy || profiles.list.length <= 1} onclick={onDelete}>
+    <Button
+      variant="danger"
+      disabled={busy || profiles.list.length <= 1}
+      onclick={() => (confirmDelete = true)}
+    >
       Delete
     </Button>
   </div>
