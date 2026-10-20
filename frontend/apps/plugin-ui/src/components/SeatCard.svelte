@@ -42,9 +42,22 @@
   let busy = $state(false);
   let enter = $state('');
   let exit = $state('');
+  // The inputs follow RotorHazard only when RotorHazard's value actually changes. A readback
+  // after writing enter re-delivers the whole seat; without this guard it would reset an exit
+  // value the director is still typing (and vice versa).
+  let lastEnter: number | null | undefined;
+  let lastExit: number | null | undefined;
   $effect(() => {
-    enter = seat.enter == null ? '' : String(seat.enter);
-    exit = seat.exit == null ? '' : String(seat.exit);
+    if (seat.enter !== lastEnter) {
+      lastEnter = seat.enter;
+      enter = seat.enter == null ? '' : String(seat.enter);
+    }
+  });
+  $effect(() => {
+    if (seat.exit !== lastExit) {
+      lastExit = seat.exit;
+      exit = seat.exit == null ? '' : String(seat.exit);
+    }
   });
   const levelsDirty = $derived(
     enter !== (seat.enter == null ? '' : String(seat.enter)) ||
@@ -52,14 +65,28 @@
   );
   const levelsValid = $derived(Number(enter) > Number(exit) && Number(exit) > 0);
 
-  /** Write the thresholds when an edit completes (blur / Enter), if they changed and are sane. */
+  /**
+   * Write the thresholds when an edit completes (blur / Enter), if they changed and are sane.
+   * Leaving enter for exit fires a blur mid-edit; a commit that arrives while one is in
+   * flight is queued and runs once with the final values rather than dropped. The inputs are
+   * never disabled during a write — tabbing from enter to exit would otherwise lose keystrokes.
+   */
+  let queued = false;
   async function commitLevels() {
-    if (!levelsDirty || !levelsValid || busy) return;
+    if (!levelsDirty || !levelsValid) return;
+    if (busy) {
+      queued = true;
+      return;
+    }
     busy = true;
     try {
       onresult(await setLevels(seat.index, Number(enter), Number(exit)));
     } finally {
       busy = false;
+    }
+    if (queued) {
+      queued = false;
+      void commitLevels();
     }
   }
   const onEnterKey = (e: KeyboardEvent) => {
@@ -107,7 +134,6 @@
         bind:value={enter}
         min="1"
         max="255"
-        disabled={busy}
         onblur={commitLevels}
         onkeydown={onEnterKey}
       />
@@ -120,7 +146,6 @@
         bind:value={exit}
         min="1"
         max="255"
-        disabled={busy}
         onblur={commitLevels}
         onkeydown={onEnterKey}
       />
