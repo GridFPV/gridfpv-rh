@@ -6,6 +6,7 @@
    */
   import { Badge, Button, Card, Input } from '@gridfpv/components';
   import ChannelPicker from './ChannelPicker.svelte';
+  import CopyLevelsDialog from './CopyLevelsDialog.svelte';
   import { channelLabel, tagFor } from '../lib/channels.js';
   import { seatStatus, type Seat } from '../lib/seats.js';
   import { setLevels, type WriteResult } from '../lib/rh.svelte.js';
@@ -93,10 +94,14 @@
     if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
   };
 
+  let copyOpen = $state(false);
+
   // ---- live bar ----
   const scale = $derived(Math.max(seat.peak ?? 0, seat.enter ?? 0, seat.rssi, 100));
   const pct = (v: number | null) => (v == null ? 0 : Math.min(100, (v / scale) * 100));
 </script>
+
+<CopyLevelsDialog bind:open={copyOpen} from={seat} {onresult} />
 
 <Card elevation="xs">
   <div class="head">
@@ -151,6 +156,15 @@
       />
     </label>
     <div class="actions">
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={seat.enter == null || seat.exit == null}
+        title="Copy this seat's enter / exit to other seats"
+        onclick={() => (copyOpen = true)}
+      >
+        Copy…
+      </Button>
       <Button
         size="sm"
         variant="primary"
