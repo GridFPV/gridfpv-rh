@@ -86,14 +86,42 @@ export type RaceClass = {
   attributes: Record<string, unknown>;
 };
 
+/** RHRace.py enums, as RotorHazard stores them on a format. */
+export const WIN_CONDITION = {
+  NONE: 0,
+  MOST_PROGRESS: 1,
+  FIRST_TO_LAP_X: 2,
+  FASTEST_LAP: 3,
+  FASTEST_CONSECUTIVE: 4,
+  MOST_LAPS: 5,
+  MOST_LAPS_OVERTIME: 6
+} as const;
+export const START_BEHAVIOR = { HOLESHOT: 0, FIRST_LAP: 1, STAGGERED: 2 } as const;
+export const STAGING_TONES = { NONE: 0, ONE: 1, ALL: 2 } as const;
+export const RACING_MODE = { INDIVIDUAL: 0, TEAM: 1, COOP: 2 } as const;
+
 export type RaceFormat = {
   id: number;
   name: string;
+  /** No time limit: the clock counts up; otherwise it counts down from raceTimeSec. */
   unlimitedTime: boolean;
   raceTimeSec: number;
-  numberLapsWin: number;
+  /** Seconds after time expires before the race stops itself; -1 = stop manually. */
+  lapGraceSec: number;
+  /** Prestage tones, one per second. */
+  stagingFixedTones: number;
+  /** Minimum staging time (ms) after prestage. */
+  startDelayMin: number;
+  /** Extra random staging time (ms), 0 = none; hides the staging clock when > 0. */
+  startDelayMax: number;
+  /** Tones during staging: none / one / every second. */
+  stagingDelayTones: number;
+  startBehavior: number;
   winCondition: number;
+  /** Lap target for first-to-X; 0 otherwise. */
+  numberLapsWin: number;
   teamRacingMode: number;
+  pointsMethod: string | null;
   locked: boolean;
 };
 
@@ -218,11 +246,18 @@ export function applyFormatData(setup: Setup, payload: { formats: Raw[] }): Setu
   const formats = (payload.formats ?? []).map((f) => ({
     id: num(f.id),
     name: str(f.name),
-    unlimitedTime: Boolean(f.unlimited_time),
+    unlimitedTime: Boolean(Number(f.unlimited_time)),
     raceTimeSec: num(f.race_time_sec),
-    numberLapsWin: num(f.number_laps_win),
+    lapGraceSec: num(f.lap_grace_sec),
+    stagingFixedTones: num(f.staging_fixed_tones),
+    startDelayMin: num(f.start_delay_min),
+    startDelayMax: num(f.start_delay_max),
+    stagingDelayTones: num(f.staging_delay_tones),
+    startBehavior: num(f.start_behavior),
     winCondition: num(f.win_condition),
+    numberLapsWin: num(f.number_laps_win),
     teamRacingMode: num(f.team_racing_mode),
+    pointsMethod: f.points_method == null ? null : str(f.points_method),
     locked: Boolean(f.locked)
   }));
   return { ...setup, formats };
@@ -283,4 +318,62 @@ export function ordinal(n: number): string {
 /** Teams in use across the pilots, for a datalist. */
 export function teamsInUse(setup: Setup): string[] {
   return [...new Set(setup.pilots.map((p) => p.team).filter(Boolean))].sort();
+}
+
+// ---- format labels and summary ------------------------------------------------------
+
+export const WIN_CONDITION_LABELS: Record<number, string> = {
+  [WIN_CONDITION.NONE]: 'No winner (practice)',
+  [WIN_CONDITION.MOST_PROGRESS]: 'Most laps in the fastest time',
+  [WIN_CONDITION.FIRST_TO_LAP_X]: 'First to finish the lap target',
+  [WIN_CONDITION.FASTEST_LAP]: 'Fastest single lap',
+  [WIN_CONDITION.FASTEST_CONSECUTIVE]: 'Fastest consecutive laps',
+  [WIN_CONDITION.MOST_LAPS]: 'Most laps, ties by lap count only',
+  [WIN_CONDITION.MOST_LAPS_OVERTIME]: 'Most laps, laps after the clock count'
+};
+export const START_BEHAVIOR_LABELS: Record<number, string> = {
+  [START_BEHAVIOR.HOLESHOT]: 'Hole shot: first gate pass starts lap 1',
+  [START_BEHAVIOR.FIRST_LAP]: 'First gate pass counts as lap 1',
+  [START_BEHAVIOR.STAGGERED]: 'Staggered start'
+};
+export const STAGING_TONES_LABELS: Record<number, string> = {
+  [STAGING_TONES.NONE]: 'Silent',
+  [STAGING_TONES.ONE]: 'One tone',
+  [STAGING_TONES.ALL]: 'A tone every second'
+};
+export const RACING_MODE_LABELS: Record<number, string> = {
+  [RACING_MODE.INDIVIDUAL]: 'Individual',
+  [RACING_MODE.TEAM]: 'Team racing',
+  [RACING_MODE.COOP]: 'Co-op'
+};
+
+/** `2:00`, `0:45`, `10:00`. */
+export function clockLabel(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/** One line that says what a format does: `2:00 timed · Most laps in the fastest time · Team racing`. */
+export function formatSummary(f: RaceFormat): string {
+  const parts: string[] = [];
+  if (f.unlimitedTime)
+    parts.push(f.numberLapsWin ? `First to ${f.numberLapsWin} laps` : 'No time limit');
+  else parts.push(`${clockLabel(f.raceTimeSec)} timed`);
+  const win = WIN_CONDITION_LABELS[f.winCondition];
+  if (win && !(f.unlimitedTime && f.winCondition === WIN_CONDITION.FIRST_TO_LAP_X)) parts.push(win);
+  if (f.teamRacingMode !== RACING_MODE.INDIVIDUAL) parts.push(RACING_MODE_LABELS[f.teamRacingMode]);
+  return parts.join(' · ');
+}
+
+/** The staging sequence in words: `3 prestage tones, then 1.0–3.0 s, a tone every second`. */
+export function stagingSummary(f: RaceFormat): string {
+  const pre = f.stagingFixedTones
+    ? `${f.stagingFixedTones} prestage tone${f.stagingFixedTones === 1 ? '' : 's'}`
+    : 'no prestage tones';
+  const min = f.startDelayMin / 1000;
+  const max = (f.startDelayMin + f.startDelayMax) / 1000;
+  const wait =
+    f.startDelayMax > 0 ? `then ${min.toFixed(1)}–${max.toFixed(1)} s` : `then ${min.toFixed(1)} s`;
+  return `${pre}, ${wait}, ${STAGING_TONES_LABELS[f.stagingDelayTones]?.toLowerCase() ?? ''}`.trim();
 }

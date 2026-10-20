@@ -10,6 +10,7 @@
   import Pilots from './screens/Pilots.svelte';
   import Heats from './screens/Heats.svelte';
   import Teams from './screens/Teams.svelte';
+  import Formats from './screens/Formats.svelte';
 
   let { autoconnect = true }: { autoconnect?: boolean } = $props();
 
@@ -42,7 +43,8 @@
     { path: 'seats', label: 'Seats' },
     { path: 'pilots', label: 'Pilots' },
     { path: 'teams', label: 'Teams' },
-    { path: 'heats', label: 'Heats' }
+    { path: 'heats', label: 'Heats' },
+    { path: 'formats', label: 'Formats' }
   ];
   const active = (path: string) =>
     path === '' ? current === '' : current === path || current.startsWith(path + '/');
@@ -87,6 +89,8 @@
       <Heats />
     {:else if current === 'teams'}
       <Teams />
+    {:else if current === 'formats'}
+      <Formats />
     {:else}
       <p class="muted">
         Nothing at <code>/grid/{current}</code>. <a href={href('')} onclick={link}>Home</a>.

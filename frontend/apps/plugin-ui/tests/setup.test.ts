@@ -5,6 +5,8 @@ import {
   applyHeatData,
   applyPilotData,
   emptySetup,
+  formatSummary,
+  stagingSummary,
   heatsInClass,
   ordinal,
   pilotName,
@@ -117,10 +119,34 @@ describe('setup reducers', () => {
           name: '2 min',
           unlimited_time: 0,
           race_time_sec: 120,
+          lap_grace_sec: 0,
+          staging_fixed_tones: 3,
+          start_delay_min: 1000,
+          start_delay_max: 2000,
+          staging_delay_tones: 2,
+          start_behavior: 0,
           number_laps_win: 0,
           win_condition: 1,
           team_racing_mode: 0,
+          points_method: null,
           locked: false
+        },
+        {
+          id: 8,
+          name: 'First to 3',
+          unlimited_time: 1,
+          race_time_sec: 0,
+          lap_grace_sec: -1,
+          staging_fixed_tones: 0,
+          start_delay_min: 500,
+          start_delay_max: 0,
+          staging_delay_tones: 0,
+          start_behavior: 1,
+          number_laps_win: 3,
+          win_condition: 2,
+          team_racing_mode: 1,
+          points_method: null,
+          locked: true
         }
       ]
     });
@@ -130,7 +156,19 @@ describe('setup reducers', () => {
       rankMethodLabel: 'Best fastest lap',
       rounds: 3
     });
-    expect(s.formats[0]).toMatchObject({ id: 7, name: '2 min', raceTimeSec: 120 });
+    expect(s.formats[0]).toMatchObject({
+      id: 7,
+      name: '2 min',
+      raceTimeSec: 120,
+      stagingFixedTones: 3,
+      startDelayMax: 2000
+    });
+    expect(formatSummary(s.formats[0])).toBe('2:00 timed · Most laps in the fastest time');
+    expect(stagingSummary(s.formats[0])).toBe(
+      '3 prestage tones, then 1.0–3.0 s, a tone every second'
+    );
+    expect(formatSummary(s.formats[1])).toBe('First to 3 laps · Team racing');
+    expect(stagingSummary(s.formats[1])).toBe('no prestage tones, then 0.5 s, silent');
   });
 
   it('labels slots and pilots by name, never by raw id', () => {

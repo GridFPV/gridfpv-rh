@@ -84,6 +84,8 @@ const state = $state({
   setup: emptySetup() as Setup,
   /** Class ranking methods RotorHazard offers (its own plus plugins'), by name. */
   rankMethods: [] as Array<{ name: string; label: string }>,
+  /** Race points methods (for a format), by name. */
+  pointsMethods: [] as Array<{ name: string; label: string }>,
   /** Teams the plugin keeps; the names are what RotorHazard stores on a pilot. */
   teams: [] as Team[],
   /** The event: RotorHazard's name/description options plus the plugin's details. */
@@ -165,7 +167,8 @@ function reloadEverything() {
     'class_data',
     'heat_data',
     'format_data',
-    'raceclass_rank_method_list'
+    'raceclass_rank_method_list',
+    'race_points_method_list'
   );
   socket?.emit('gridfpv_presets_get');
   socket?.emit('gridfpv_teams_get');
@@ -192,7 +195,8 @@ export function connect(): Socket {
       'class_data',
       'heat_data',
       'format_data',
-      'raceclass_rank_method_list'
+      'raceclass_rank_method_list',
+      'race_points_method_list'
     );
     socket?.emit('gridfpv_capture_get');
     socket?.emit('gridfpv_presets_get');
@@ -256,6 +260,10 @@ export function connect(): Socket {
       state.rankMethods = (p.methods ?? []).map((m) => ({ name: m.name, label: m.label }));
     }
   );
+
+  socket.on('race_points_method_list', (p: { methods: Array<{ name: string; label: string }> }) => {
+    state.pointsMethods = (p.methods ?? []).map((m) => ({ name: m.name, label: m.label }));
+  });
 
   socket.on('gridfpv_event', (p: Partial<EventInfo>) => {
     state.event = {
@@ -767,4 +775,96 @@ export function deleteArchive(file: string): Promise<WriteResult> {
   socket?.emit('delete_database', { backup_file: file });
   window.setTimeout(() => socket?.emit('list_backups'), 500);
   return awaitState('Delete archive', () => !state.archives.includes(file));
+}
+
+// ---- race formats -------------------------------------------------------------------
+
+/** RotorHazard adds a format by duplicating one (add_race_format {source_format_id}). */
+export async function addFormat(sourceId: number): Promise<WriteResult & { id?: number }> {
+  const before = new Set(state.setup.formats.map((f) => f.id));
+  socket?.emit('add_race_format', { source_format_id: sourceId });
+  window.setTimeout(() => loadData('format_data'), 200);
+  const r = await awaitState('New format', () =>
+    state.setup.formats.some((f) => !before.has(f.id))
+  );
+  return { ...r, id: state.setup.formats.find((f) => !before.has(f.id))?.id };
+}
+
+export type FormatFields = {
+  name?: string;
+  unlimitedTime?: boolean;
+  raceTimeSec?: number;
+  lapGraceSec?: number;
+  stagingFixedTones?: number;
+  startDelayMin?: number;
+  startDelayMax?: number;
+  stagingDelayTones?: number;
+  startBehavior?: number;
+  winCondition?: number;
+  numberLapsWin?: number;
+  teamRacingMode?: number;
+  pointsMethod?: string | null;
+};
+
+/** Change a format (RHData.alter_raceFormat keys). RotorHazard refuses this during a race. */
+export function alterFormat(id: number, fields: FormatFields): Promise<WriteResult> {
+  const p: Record<string, unknown> = { format_id: id };
+  if (fields.name !== undefined) p.format_name = fields.name;
+  if (fields.unlimitedTime !== undefined) p.unlimited_time = fields.unlimitedTime ? 1 : 0;
+  if (fields.raceTimeSec !== undefined) p.race_time_sec = fields.raceTimeSec;
+  if (fields.lapGraceSec !== undefined) p.lap_grace_sec = fields.lapGraceSec;
+  if (fields.stagingFixedTones !== undefined) p.staging_fixed_tones = fields.stagingFixedTones;
+  if (fields.startDelayMin !== undefined) p.start_delay_min_ms = fields.startDelayMin;
+  if (fields.startDelayMax !== undefined) p.start_delay_max_ms = fields.startDelayMax;
+  if (fields.stagingDelayTones !== undefined) p.staging_delay_tones = fields.stagingDelayTones;
+  if (fields.startBehavior !== undefined) p.start_behavior = fields.startBehavior;
+  if (fields.winCondition !== undefined) p.win_condition = fields.winCondition;
+  if (fields.numberLapsWin !== undefined) p.number_laps_win = fields.numberLapsWin;
+  if (fields.teamRacingMode !== undefined) p.team_racing_mode = fields.teamRacingMode;
+  if (fields.pointsMethod !== undefined) p.points_method = fields.pointsMethod ?? '';
+  socket?.emit('alter_race_format', p);
+  window.setTimeout(() => loadData('format_data'), 200);
+  return awaitState('Format', () => {
+    const f = state.setup.formats.find((x) => x.id === id);
+    if (!f) return false;
+    const same = <K extends keyof FormatFields>(k: K, v: unknown) =>
+      fields[k] === undefined || v === fields[k];
+    return (
+      same('name', f.name) &&
+      same('unlimitedTime', f.unlimitedTime) &&
+      same('raceTimeSec', f.raceTimeSec) &&
+      same('lapGraceSec', f.lapGraceSec) &&
+      same('stagingFixedTones', f.stagingFixedTones) &&
+      same('startDelayMin', f.startDelayMin) &&
+      same('startDelayMax', f.startDelayMax) &&
+      same('stagingDelayTones', f.stagingDelayTones) &&
+      same('startBehavior', f.startBehavior) &&
+      same('winCondition', f.winCondition) &&
+      same('numberLapsWin', f.numberLapsWin) &&
+      same('teamRacingMode', f.teamRacingMode) &&
+      (fields.pointsMethod === undefined ||
+        (f.pointsMethod ?? null) === (fields.pointsMethod || null))
+    );
+  }).then((r) =>
+    r.ok
+      ? r
+      : {
+          ok: false,
+          message: 'RotorHazard did not confirm — a format cannot change while a race is running.'
+        }
+  );
+}
+
+export function deleteFormat(id: number): Promise<WriteResult> {
+  socket?.emit('delete_race_format', { format_id: id });
+  window.setTimeout(() => loadData('format_data', 'class_data'), 200);
+  return awaitState('Delete format', () => !state.setup.formats.some((f) => f.id === id)).then(
+    (r) =>
+      r.ok
+        ? r
+        : {
+            ok: false,
+            message: 'RotorHazard kept the format — formats with saved races cannot be deleted.'
+          }
+  );
 }
