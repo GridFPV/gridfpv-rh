@@ -2,10 +2,10 @@
   /**
    * The frequency profile bar. In RotorHazard a profile holds every seat's channel and
    * thresholds, and every one of those writes lands in the active profile the moment it is
-   * made — nothing on this page is ever "unsaved". So there is no Save button: the name and
-   * description write when you leave the field, and the indicator shows the last confirmed
-   * write. New copies the active profile (RotorHazard's only way to make one) under a name
-   * you give it.
+   * made. The bar itself is read-only: the active profile's name in the dropdown and its
+   * description beside it. Renaming goes through Edit → a dialog → Save, so a stray keystroke
+   * can't rename a profile. New copies the active profile (RotorHazard's only way to make one)
+   * under a name you give it.
    */
   import { Button, Dialog, Input, Select } from '@gridfpv/components';
   import ConfirmDialog from './ConfirmDialog.svelte';
@@ -21,25 +21,12 @@
   let { profiles, onresult }: { profiles: Profiles; onresult: (r: WriteResult) => void } = $props();
 
   let busy = $state(false);
-  let name = $state('');
-  let description = $state('');
-  $effect(() => {
-    name = profiles.name;
-    description = profiles.description;
-  });
-
-  let saved: 'idle' | 'saving' | 'saved' | 'failed' = $state('idle');
-  let savedTimer = 0;
 
   async function run(fn: () => Promise<WriteResult>) {
     busy = true;
-    saved = 'saving';
     try {
       const r = await fn();
       onresult(r);
-      saved = r.ok ? 'saved' : 'failed';
-      window.clearTimeout(savedTimer);
-      if (r.ok) savedTimer = window.setTimeout(() => (saved = 'idle'), 3000);
       return r;
     } finally {
       busy = false;
@@ -51,20 +38,24 @@
     if (id !== profiles.currentId) void run(() => setProfile(id));
   }
 
-  /** Name / description write when the field is left, if they changed. */
-  function commitText() {
-    const n = name.trim();
-    const d = description.trim();
-    if (!n) {
-      name = profiles.name;
-      return;
-    }
-    if (n === profiles.name && d === profiles.description) return;
-    void run(() => alterProfile(n, d));
+  // ---- edit (name / description) ----
+  let editOpen = $state(false);
+  let editName = $state('');
+  let editDescription = $state('');
+  function openEdit() {
+    editName = profiles.name;
+    editDescription = profiles.description;
+    editOpen = true;
   }
-  const blurOnEnter = (e: KeyboardEvent) => {
-    if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
-  };
+  const editDirty = $derived(
+    editName.trim() !== profiles.name || editDescription.trim() !== profiles.description
+  );
+  async function saveEdit() {
+    const n = editName.trim();
+    if (!n || !editDirty) return;
+    editOpen = false;
+    await run(() => alterProfile(n, editDescription.trim()));
+  }
 
   // ---- new profile ----
   let newOpen = $state(false);
@@ -82,6 +73,34 @@
   let confirmDelete = $state(false);
 </script>
 
+<Dialog bind:open={editOpen} title="Edit profile">
+  <div class="form">
+    <label class="field">
+      <span>Name</span>
+      <Input
+        bind:value={editName}
+        placeholder="Profile name"
+        maxlength="60"
+        onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && saveEdit()}
+      />
+    </label>
+    <label class="field">
+      <span>Description</span>
+      <Input
+        bind:value={editDescription}
+        placeholder="Optional"
+        onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && saveEdit()}
+      />
+    </label>
+  </div>
+  {#snippet footer()}
+    <Button variant="ghost" onclick={() => (editOpen = false)}>Cancel</Button>
+    <Button variant="primary" disabled={!editName.trim() || !editDirty || busy} onclick={saveEdit}>
+      Save
+    </Button>
+  {/snippet}
+</Dialog>
+
 <Dialog bind:open={newOpen} title="New profile">
   <p class="muted">
     Starts as a copy of <strong>{profiles.name}</strong> — same channels, same tuning — under the new
@@ -92,6 +111,7 @@
     <Input
       bind:value={newName}
       placeholder="e.g. Outdoor, Indoor whoop"
+      maxlength="60"
       disabled={busy}
       onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && createProfile()}
     />
@@ -124,31 +144,11 @@
       {/each}
     </Select>
   </label>
-  <label class="field grow">
-    <span>Name</span>
-    <Input
-      bind:value={name}
-      disabled={busy}
-      placeholder="Profile name"
-      onblur={commitText}
-      onkeydown={blurOnEnter}
-    />
-  </label>
-  <label class="field grow">
-    <span>Description</span>
-    <Input
-      bind:value={description}
-      disabled={busy}
-      placeholder="Optional"
-      onblur={commitText}
-      onkeydown={blurOnEnter}
-    />
-  </label>
-  <span class="saved" data-state={saved}>
-    {#if saved === 'saving'}Saving…{:else if saved === 'saved'}Saved{:else if saved === 'failed'}Not
-      saved{/if}
-  </span>
+  <p class="description" class:empty={!profiles.description}>
+    {profiles.description || 'No description'}
+  </p>
   <div class="actions">
+    <Button variant="secondary" disabled={busy} onclick={openEdit}>Edit</Button>
     <Button
       variant="secondary"
       disabled={busy}
@@ -184,10 +184,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    min-width: 160px;
-  }
-  .field.grow {
-    flex: 1;
+    min-width: 200px;
   }
   .field span {
     font-size: var(--gf-font-size-xs);
@@ -195,21 +192,24 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
   }
-  .saved {
-    min-width: 5.5em;
+  .description {
+    flex: 1;
+    min-width: 160px;
+    margin: 0;
     align-self: center;
-    font-size: var(--gf-font-size-sm);
+    color: var(--gf-text);
+  }
+  .description.empty {
     color: var(--gf-text-muted);
-  }
-  .saved[data-state='saved'] {
-    color: var(--gf-success);
-  }
-  .saved[data-state='failed'] {
-    color: var(--gf-danger);
+    font-style: italic;
   }
   .actions {
     display: flex;
     gap: var(--gf-space-2);
+  }
+  .form {
+    display: grid;
+    gap: var(--gf-space-3);
   }
   .muted {
     color: var(--gf-text-muted);
