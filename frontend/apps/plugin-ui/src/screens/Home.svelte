@@ -39,6 +39,7 @@
     <p>
       <a href={href('seats')} onclick={link}>Seats</a> — channels, profiles and tuning.
       <a href={href('pilots')} onclick={link}>Pilots</a> — the roster.
+      <a href={href('teams')} onclick={link}>Teams</a> — named teams, shown in RotorHazard too.
       <a href={href('heats')} onclick={link}>Heats</a> — classes and who flies together. These need
       the RotorHazard login. RotorHazard's own pages are still at <a href="/">/</a>.
     </p>

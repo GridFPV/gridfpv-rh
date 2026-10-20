@@ -7,7 +7,8 @@ Python side is registered here, and it is deliberately thin:
 - a Flask blueprint that serves the built single-page app under ``/grid``, gating admin
   pages on RotorHazard's own login (``auth.py``);
 - the ``gridfpv_*`` socket.io channel: a hello / hello-ack handshake, capture-mode
-  tuning (``capture.py``) and custom channel presets (``presets.py``);
+  tuning (``capture.py``), custom channel presets (``presets.py``) and teams (``teams.py``);
+- a filter on RotorHazard's pilot data so its own pilot page offers our team names;
 - a *GridFPV* settings panel with the plugin's options;
 - an optional redirect that sends RotorHazard's home page to ``/grid``.
 
@@ -20,7 +21,7 @@ import os
 
 from flask import Blueprint, abort, redirect, request, send_from_directory
 
-from . import auth, capture, presets
+from . import auth, capture, presets, teams
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,11 @@ EVT_PRESETS_SAVE = "gridfpv_presets_save"
 EVT_PRESETS_DELETE = "gridfpv_presets_delete"
 #: Broadcast: the full custom preset list, after any change and on request.
 EVT_PRESETS = "gridfpv_presets"
+EVT_TEAMS_GET = "gridfpv_teams_get"
+EVT_TEAMS_SAVE = "gridfpv_teams_save"
+EVT_TEAMS_DELETE = "gridfpv_teams_delete"
+#: Broadcast: the full team list, after any change and on request.
+EVT_TEAMS = "gridfpv_teams"
 
 #: Paths RotorHazard owns that the redirect must never touch.
 _NEVER_REDIRECT = ("/first-run",)
@@ -192,7 +198,30 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
             return
         rhapi.ui.socket_broadcast(EVT_PRESETS, {"presets": new})
 
+    def on_teams_get(*_args, **_kwargs):
+        send(EVT_TEAMS, {"teams": teams.load(rhapi)})
+
+    def on_teams_save(data=None, *_args, **_kwargs):
+        data = data or {}
+        try:
+            new = teams.save(rhapi, data.get("id") or None, data.get("name"), data.get("description"))
+        except teams.TeamError as e:
+            rhapi.ui.message_alert(f"GridFPV team: {e}")
+            return
+        rhapi.ui.socket_broadcast(EVT_TEAMS, {"teams": new})
+
+    def on_teams_delete(data=None, *_args, **_kwargs):
+        try:
+            new = teams.delete(rhapi, (data or {}).get("id"))
+        except teams.TeamError as e:
+            rhapi.ui.message_alert(f"GridFPV team: {e}")
+            return
+        rhapi.ui.socket_broadcast(EVT_TEAMS, {"teams": new})
+
     rhapi.ui.socket_listen(EVT_HELLO, on_hello)
+    rhapi.ui.socket_listen(EVT_TEAMS_GET, on_teams_get)
+    rhapi.ui.socket_listen(EVT_TEAMS_SAVE, on_teams_save)
+    rhapi.ui.socket_listen(EVT_TEAMS_DELETE, on_teams_delete)
     rhapi.ui.socket_listen(EVT_PRESETS_GET, on_presets_get)
     rhapi.ui.socket_listen(EVT_PRESETS_SAVE, on_presets_save)
     rhapi.ui.socket_listen(EVT_PRESETS_DELETE, on_presets_delete)
@@ -224,9 +253,21 @@ def start_recorder_loop(recorder: capture.Recorder) -> None:
     gevent.spawn(loop)
 
 
+def register_filters(rhapi) -> None:
+    """Our team names replace RotorHazard's A–Z list in its own pilot dropdown."""
+    try:
+        from filtermanager import Flt  # RotorHazard's own module
+
+        hook = Flt.EMIT_PILOT_DATA
+    except Exception:  # pragma: no cover - the string value is verified against 4.4.0
+        hook = teams.FILTER_HOOK
+    rhapi.filters.add(hook, teams.FILTER_NAME, teams.filter_pilot_data(rhapi))
+
+
 def initialize(rhapi, static_dir: str = DEFAULT_STATIC_DIR, start_loop: bool = True) -> None:
     """RotorHazard's plugin entry point."""
     register_options(rhapi)
+    register_filters(rhapi)
     recorder = build_recorder(rhapi)
     register_socket(rhapi, recorder)
     rhapi.ui.blueprint_add(build_blueprint(rhapi, static_dir))

@@ -19,7 +19,7 @@
     open?: boolean;
     pilot: Pilot;
     attributeTypes: AttributeType[];
-    /** Teams already in use, offered as suggestions. */
+    /** Team names to offer (the plugin's list); a value in use but not listed stays pickable. */
     teams: string[];
     title?: string;
     onresult: (r: WriteResult) => void;
@@ -111,10 +111,13 @@
     <div class="row">
       <label class="field grow">
         <span>Team</span>
-        <Input bind:value={team} placeholder="Optional" list="gf-teams" maxlength="40" />
-        <datalist id="gf-teams">
-          {#each teams as t (t)}<option value={t}></option>{/each}
-        </datalist>
+        <Select bind:value={team}>
+          <option value="">— no team —</option>
+          {#each teams as t (t)}<option value={t}>{t}</option>{/each}
+          {#if team && !teams.includes(team)}<option value={team}
+              >{team} (not in the team list)</option
+            >{/if}
+        </Select>
       </label>
       <label class="field colour">
         <span>Colour</span>

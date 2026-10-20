@@ -83,8 +83,12 @@ const state = $state({
   /** Pilots, classes, heats, formats — RotorHazard's setup entities. */
   setup: emptySetup() as Setup,
   /** Class ranking methods RotorHazard offers (its own plus plugins'), by name. */
-  rankMethods: [] as Array<{ name: string; label: string }>
+  rankMethods: [] as Array<{ name: string; label: string }>,
+  /** Teams the plugin keeps; the names are what RotorHazard stores on a pilot. */
+  teams: [] as Team[]
 });
+
+export type Team = { id: string; name: string; description: string };
 
 /** Read-only view of the connection and timer state for screens. */
 export function rh() {
@@ -157,6 +161,7 @@ export function connect(): Socket {
     );
     socket?.emit('gridfpv_capture_get');
     socket?.emit('gridfpv_presets_get');
+    socket?.emit('gridfpv_teams_get');
   });
   socket.on('disconnect', () => {
     state.connection = 'disconnected';
@@ -214,6 +219,15 @@ export function connect(): Socket {
       state.rankMethods = (p.methods ?? []).map((m) => ({ name: m.name, label: m.label }));
     }
   );
+
+  socket.on('gridfpv_teams', (p: { teams: Team[] }) => {
+    state.teams = (p.teams ?? []).map((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description ?? ''
+    }));
+    checkWaiters();
+  });
 
   socket.on('gridfpv_presets', (p: { presets: WirePreset[] }) => {
     state.presets = (p.presets ?? []).map(fromWire);
@@ -601,4 +615,26 @@ export function seatSlot(
       return slot.seedId === seating.classId && slot.seedRank === seating.rank;
     return true;
   });
+}
+
+// ---- teams (stored by the plugin; names are what RotorHazard stores on pilots) --------
+
+/** Create (`id` null) or update a team. A rename moves the team's pilots along. */
+export function saveTeam(
+  id: string | null,
+  name: string,
+  description: string
+): Promise<WriteResult> {
+  socket?.emit('gridfpv_teams_save', { id, name, description });
+  return awaitState('Save team', () =>
+    state.teams.some(
+      (t) => (id ? t.id === id : true) && t.name === name && t.description === description
+    )
+  );
+}
+
+/** Delete a team; its pilots are left with no team. */
+export function deleteTeam(id: string): Promise<WriteResult> {
+  socket?.emit('gridfpv_teams_delete', { id });
+  return awaitState('Delete team', () => !state.teams.some((t) => t.id === id));
 }

@@ -4,7 +4,8 @@
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import PilotDialog from '../components/PilotDialog.svelte';
   import { addPilot, deletePilot, rh, type WriteResult } from '../lib/rh.svelte.js';
-  import { teamsInUse, type Pilot } from '../lib/setup.js';
+  import type { Pilot } from '../lib/setup.js';
+  import { href, link } from '../lib/router.svelte.js';
 
   const timer = rh();
   const setup = $derived(timer.setup);
@@ -13,7 +14,7 @@
       (a.callsign || a.name).localeCompare(b.callsign || b.name, undefined, { sensitivity: 'base' })
     )
   );
-  const teams = $derived(teamsInUse(setup));
+  const teams = $derived(timer.teams.map((t) => t.name));
 
   let notice: { tone: 'success' | 'danger'; text: string } | null = $state(null);
   let noticeTimer = 0;
@@ -97,8 +98,8 @@
     <div>
       <h1>Pilots</h1>
       <p class="lede">
-        {pilots.length} pilot{pilots.length === 1 ? '' : 's'}. Callsign is what the announcer says;
-        team is optional.
+        {pilots.length} pilot{pilots.length === 1 ? '' : 's'}. Callsign is what the announcer says.
+        Teams are named on the <a href={href('teams')} onclick={link}>Teams</a> page.
       </p>
     </div>
     <Button variant="primary" disabled={busy} onclick={newPilot}>New pilot</Button>

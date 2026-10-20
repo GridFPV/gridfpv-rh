@@ -69,6 +69,13 @@ class FakeRhapi:
         self.db = mock.Mock()
         self.db.option = mock.Mock(side_effect=lambda name, default=False, as_int=False: self.options.get(name, default))
         self.db.option_set = mock.Mock(side_effect=lambda name, value: self.options.__setitem__(name, value))
+        # Pilots as RHAPI hands them back: objects with id / callsign / team.
+        self.pilot_list = []
+        type(self.db).pilots = property(lambda db_self: self.pilot_list)
+        self.db.pilot_alter = mock.Mock(side_effect=self._pilot_alter)
+        self.filters = mock.Mock()
+        self.filter_fns = {}
+        self.filters.add = mock.Mock(side_effect=lambda hook, name, fn, **kw: self.filter_fns.__setitem__(name, fn))
         self.server = mock.Mock()
         self.server.info = {"release_version": "4.4.0"}
         self.interface = mock.Mock()
@@ -76,6 +83,13 @@ class FakeRhapi:
 
     def _register_option(self, field, panel=None, order=0):
         self.registered_options.append((field, panel))
+
+    def _pilot_alter(self, pilot_id, **fields):
+        for p in self.pilot_list:
+            if p.id == pilot_id:
+                for k, v in fields.items():
+                    if v is not None:
+                        setattr(p, k, v)
 
 
 def _get(client, path, headers=None):
