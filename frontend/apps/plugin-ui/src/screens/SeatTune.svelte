@@ -5,7 +5,7 @@
    */
   import { Badge, Banner, Button, Card } from '@gridfpv/components';
   import RssiTrace from '../components/RssiTrace.svelte';
-  import { channelLabel } from '../lib/channels.js';
+  import { channelLabel, tagFor } from '../lib/channels.js';
   import { detectCrossings, sortedTrace } from '../lib/crossings.js';
   import {
     captureStart,
@@ -15,12 +15,16 @@
     setLevels,
     type WriteResult
   } from '../lib/rh.svelte.js';
-  import { go } from '../lib/router.svelte.js';
 
   let { seatIndex }: { seatIndex: number } = $props();
 
   const timer = rh();
   const seat = $derived(timer.seats[seatIndex]);
+  const tag = $derived(
+    seat?.band && seat.channel != null
+      ? { band: seat.band, channel: seat.channel }
+      : tagFor(seat?.frequency ?? 0)
+  );
   const cap = $derived(timer.capture && timer.capture.seat === seatIndex ? timer.capture : null);
   const recording = $derived(cap?.state === 'recording');
   const otherSeatRecording = $derived(
@@ -66,23 +70,17 @@
 </script>
 
 <section class="page">
-  <header class="pagehead">
-    <div>
-      <button type="button" class="back" onclick={() => go('seats')}>← Seats</button>
-      <h1>
-        Seat {seatIndex + 1}
-        {#if seat}
-          <span class="chan">{channelLabel(seat.band, seat.channel, seat.frequency)}</span>
-        {/if}
-      </h1>
-    </div>
+  <div class="status">
+    {#if seat}
+      <span class="chan">{channelLabel(tag?.band, tag?.channel, seat.frequency)}</span>
+    {/if}
     {#if recording}
       <Badge tone="danger" dot>Recording · {cap?.seconds ?? 0}s · {cap?.samples ?? 0} samples</Badge
       >
     {:else if cap}
       <Badge tone="success">Captured · {cap.seconds}s · {cap.samples} samples</Badge>
     {/if}
-  </header>
+  </div>
 
   {#if !seat}
     <p class="muted">Waiting for RotorHazard to report this seat…</p>
@@ -188,32 +186,16 @@
     display: grid;
     gap: var(--gf-space-3);
   }
-  .pagehead {
+  .status {
     display: flex;
     justify-content: space-between;
-    align-items: start;
+    align-items: center;
     gap: var(--gf-space-3);
     flex-wrap: wrap;
   }
-  .pagehead h1 {
-    margin: 0;
-    font-size: var(--gf-font-size-xl);
-    display: flex;
-    gap: var(--gf-space-2);
-    align-items: baseline;
-  }
   .chan {
     color: var(--gf-text-muted);
-    font-size: var(--gf-font-size-md);
-    font-weight: 400;
-  }
-  .back {
-    background: none;
-    border: 0;
-    color: var(--gf-accent);
-    padding: 0;
-    cursor: pointer;
-    font: inherit;
+    font-variant-numeric: tabular-nums;
   }
   .controls {
     display: flex;

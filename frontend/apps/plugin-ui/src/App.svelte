@@ -6,7 +6,6 @@
   import { href, link, route } from './lib/router.svelte.js';
   import Home from './screens/Home.svelte';
   import Seats from './screens/Seats.svelte';
-  import SeatTune from './screens/SeatTune.svelte';
 
   let { autoconnect = true }: { autoconnect?: boolean } = $props();
 
@@ -70,10 +69,8 @@
   <main>
     {#if current === ''}
       <Home />
-    {:else if current === 'seats'}
+    {:else if current === 'seats' || tuneMatch}
       <Seats />
-    {:else if tuneMatch}
-      <SeatTune seatIndex={Number(tuneMatch[1])} />
     {:else}
       <p class="muted">
         Nothing at <code>/grid/{current}</code>. <a href={href('')} onclick={link}>Home</a>.

@@ -13,6 +13,7 @@
     onclose = undefined,
     dismissable = true,
     footer = undefined,
+    size = 'md',
     children
   }: {
     open?: boolean;
@@ -20,6 +21,8 @@
     onclose?: () => void;
     dismissable?: boolean;
     footer?: Snippet;
+    /** `wide` for content like a graph; `md` is the conversational default. */
+    size?: 'md' | 'wide';
     children: Snippet;
   } = $props();
 
@@ -65,6 +68,7 @@
 <dialog
   bind:this={dialog}
   class="gf-dialog"
+  data-size={size}
   onclose={close}
   oncancel={(e) => {
     if (!dismissable) e.preventDefault();
@@ -94,6 +98,9 @@
     max-width: min(34rem, 92vw);
     width: 100%;
     color: var(--gf-text);
+  }
+  .gf-dialog[data-size='wide'] {
+    max-width: min(76rem, 96vw);
   }
   .gf-dialog::backdrop {
     background: rgba(4, 7, 11, 0.62);

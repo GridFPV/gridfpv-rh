@@ -73,7 +73,9 @@ describe('App shell', () => {
 
     go('seats/0', true);
     render(App, { autoconnect: false });
-    expect(screen.getByRole('heading', { name: /Seat 1/ })).toBeInTheDocument();
+    // The tuning modal sits over the Seats page; the page is still there underneath.
+    expect(screen.getByRole('heading', { name: 'Seats' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Seat 1' })).toBeInTheDocument();
     expect(screen.getByText('Start capture')).toBeInTheDocument();
   });
 });

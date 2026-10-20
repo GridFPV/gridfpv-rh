@@ -1,11 +1,20 @@
 <script lang="ts">
   /** The Seats page: profile bar on top, one card per seat (#7). */
-  import { Banner } from '@gridfpv/components';
+  import { Banner, Dialog } from '@gridfpv/components';
   import ProfileBar from '../components/ProfileBar.svelte';
   import SeatCard from '../components/SeatCard.svelte';
+  import SeatTune from './SeatTune.svelte';
   import { rh, type WriteResult } from '../lib/rh.svelte.js';
+  import { go, route } from '../lib/router.svelte.js';
 
   const timer = rh();
+
+  // /grid/seats/N opens the tuning modal over this page, so the link survives a refresh
+  // and closing it is just navigating back to /grid/seats.
+  const tuneSeat = $derived.by(() => {
+    const m = /^seats\/(\d+)$/.exec(route());
+    return m ? Number(m[1]) : null;
+  });
 
   let notice: { tone: 'success' | 'danger'; text: string } | null = $state(null);
   let noticeTimer = 0;
@@ -43,6 +52,12 @@
       {/each}
     </div>
   {/if}
+
+  {#if tuneSeat != null}
+    <Dialog open={true} size="wide" title="Seat {tuneSeat + 1}" onclose={() => go('seats')}>
+      <SeatTune seatIndex={tuneSeat} />
+    </Dialog>
+  {/if}
 </section>
 
 <style>
@@ -61,7 +76,12 @@
   }
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--gf-space-3);
+  }
+  @media (max-width: 720px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 </style>
