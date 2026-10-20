@@ -5,6 +5,7 @@
   import { connect, rh } from './lib/rh.svelte.js';
   import { href, link, route } from './lib/router.svelte.js';
   import Home from './screens/Home.svelte';
+  import Event from './screens/Event.svelte';
   import Seats from './screens/Seats.svelte';
   import Pilots from './screens/Pilots.svelte';
   import Heats from './screens/Heats.svelte';
@@ -37,6 +38,7 @@
   const tuneMatch = $derived(/^seats\/(\d+)$/.exec(current));
   const NAV = [
     { path: '', label: 'Home' },
+    { path: 'event', label: 'Event' },
     { path: 'seats', label: 'Seats' },
     { path: 'pilots', label: 'Pilots' },
     { path: 'teams', label: 'Teams' },
@@ -75,6 +77,8 @@
   <main>
     {#if current === ''}
       <Home />
+    {:else if current === 'event'}
+      <Event />
     {:else if current === 'seats' || tuneMatch}
       <Seats />
     {:else if current === 'pilots'}

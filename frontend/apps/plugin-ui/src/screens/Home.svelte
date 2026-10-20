@@ -37,6 +37,7 @@
 
   <Card title="Race director" elevation="xs">
     <p>
+      <a href={href('event')} onclick={link}>Event</a> — the event's details, new event, archives.
       <a href={href('seats')} onclick={link}>Seats</a> — channels, profiles and tuning.
       <a href={href('pilots')} onclick={link}>Pilots</a> — the roster.
       <a href={href('teams')} onclick={link}>Teams</a> — named teams, shown in RotorHazard too.

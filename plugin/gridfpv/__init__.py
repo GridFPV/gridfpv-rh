@@ -7,7 +7,8 @@ Python side is registered here, and it is deliberately thin:
 - a Flask blueprint that serves the built single-page app under ``/grid``, gating admin
   pages on RotorHazard's own login (``auth.py``);
 - the ``gridfpv_*`` socket.io channel: a hello / hello-ack handshake, capture-mode
-  tuning (``capture.py``), custom channel presets (``presets.py``) and teams (``teams.py``);
+  tuning (``capture.py``), custom channel presets (``presets.py``), teams (``teams.py``)
+  and the event's details (``event.py``);
 - a filter on RotorHazard's pilot data so its own pilot page offers our team names;
 - a *GridFPV* settings panel with the plugin's options;
 - an optional redirect that sends RotorHazard's home page to ``/grid``.
@@ -21,7 +22,7 @@ import os
 
 from flask import Blueprint, abort, redirect, request, send_from_directory
 
-from . import auth, capture, presets, teams
+from . import auth, capture, event, presets, teams
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,11 @@ EVT_TEAMS_SAVE = "gridfpv_teams_save"
 EVT_TEAMS_DELETE = "gridfpv_teams_delete"
 #: Broadcast: the full team list, after any change and on request.
 EVT_TEAMS = "gridfpv_teams"
+EVT_EVENT_GET = "gridfpv_event_get"
+EVT_EVENT_SAVE = "gridfpv_event_save"
+EVT_EVENT_CLEAR = "gridfpv_event_clear"
+#: Broadcast: the whole event (name, description, details), after any change and on request.
+EVT_EVENT = "gridfpv_event"
 
 #: Paths RotorHazard owns that the redirect must never touch.
 _NEVER_REDIRECT = ("/first-run",)
@@ -218,7 +224,24 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
             return
         rhapi.ui.socket_broadcast(EVT_TEAMS, {"teams": new})
 
+    def on_event_get(*_args, **_kwargs):
+        send(EVT_EVENT, event.load(rhapi))
+
+    def on_event_save(data=None, *_args, **_kwargs):
+        try:
+            out = event.save(rhapi, data or {})
+        except event.EventError as e:
+            rhapi.ui.message_alert(f"GridFPV event: {e}")
+            return
+        rhapi.ui.socket_broadcast(EVT_EVENT, out)
+
+    def on_event_clear(*_args, **_kwargs):
+        rhapi.ui.socket_broadcast(EVT_EVENT, event.clear_extras(rhapi))
+
     rhapi.ui.socket_listen(EVT_HELLO, on_hello)
+    rhapi.ui.socket_listen(EVT_EVENT_GET, on_event_get)
+    rhapi.ui.socket_listen(EVT_EVENT_SAVE, on_event_save)
+    rhapi.ui.socket_listen(EVT_EVENT_CLEAR, on_event_clear)
     rhapi.ui.socket_listen(EVT_TEAMS_GET, on_teams_get)
     rhapi.ui.socket_listen(EVT_TEAMS_SAVE, on_teams_save)
     rhapi.ui.socket_listen(EVT_TEAMS_DELETE, on_teams_delete)

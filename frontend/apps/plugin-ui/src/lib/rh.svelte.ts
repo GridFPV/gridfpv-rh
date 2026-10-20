@@ -85,8 +85,24 @@ const state = $state({
   /** Class ranking methods RotorHazard offers (its own plus plugins'), by name. */
   rankMethods: [] as Array<{ name: string; label: string }>,
   /** Teams the plugin keeps; the names are what RotorHazard stores on a pilot. */
-  teams: [] as Team[]
+  teams: [] as Team[],
+  /** The event: RotorHazard's name/description options plus the plugin's details. */
+  event: { name: '', description: '', date: '', venue: '', organizer: '', notes: '' } as EventInfo,
+  /** RotorHazard's database backups (file names), newest last as RotorHazard lists them. */
+  archives: [] as string[]
 });
+
+export type EventInfo = {
+  name: string;
+  description: string;
+  date: string;
+  venue: string;
+  organizer: string;
+  notes: string;
+};
+/** Set by RotorHazard's one-shot acks (reset_confirm, database_restore_done). */
+let resetAcks = 0;
+let restoreAcks = 0;
 
 export type Team = { id: string; name: string; description: string };
 
@@ -138,6 +154,25 @@ function loadData(...types: string[]) {
   socket?.emit('load_data', { load_types: types });
 }
 
+/** After a reset or restore every list may have changed; ask for all of it again. */
+function reloadEverything() {
+  loadData(
+    'frequency_data',
+    'enter_and_exit_at_levels',
+    'node_tuning',
+    'node_data',
+    'pilot_data',
+    'class_data',
+    'heat_data',
+    'format_data',
+    'raceclass_rank_method_list'
+  );
+  socket?.emit('gridfpv_presets_get');
+  socket?.emit('gridfpv_teams_get');
+  socket?.emit('gridfpv_event_get');
+  socket?.emit('list_backups');
+}
+
 // ---- connection -----------------------------------------------------------------
 
 /** Open the socket once; safe to call again (returns the existing one). */
@@ -162,6 +197,8 @@ export function connect(): Socket {
     socket?.emit('gridfpv_capture_get');
     socket?.emit('gridfpv_presets_get');
     socket?.emit('gridfpv_teams_get');
+    socket?.emit('gridfpv_event_get');
+    socket?.emit('list_backups');
   });
   socket.on('disconnect', () => {
     state.connection = 'disconnected';
@@ -219,6 +256,33 @@ export function connect(): Socket {
       state.rankMethods = (p.methods ?? []).map((m) => ({ name: m.name, label: m.label }));
     }
   );
+
+  socket.on('gridfpv_event', (p: Partial<EventInfo>) => {
+    state.event = {
+      name: p.name ?? '',
+      description: p.description ?? '',
+      date: p.date ?? '',
+      venue: p.venue ?? '',
+      organizer: p.organizer ?? '',
+      notes: p.notes ?? ''
+    };
+    checkWaiters();
+  });
+  socket.on('backups_list', (p: { backup_files: string[] | null }) => {
+    state.archives = p.backup_files ?? [];
+    checkWaiters();
+  });
+  // RotorHazard's own acks for the two whole-database operations.
+  socket.on('reset_confirm', () => {
+    resetAcks++;
+    reloadEverything();
+    checkWaiters();
+  });
+  socket.on('database_restore_done', () => {
+    restoreAcks++;
+    reloadEverything();
+    checkWaiters();
+  });
 
   socket.on('gridfpv_teams', (p: { teams: Team[] }) => {
     state.teams = (p.teams ?? []).map((t) => ({
@@ -643,4 +707,64 @@ export function saveTeam(
 export function deleteTeam(id: string): Promise<WriteResult> {
   socket?.emit('gridfpv_teams_delete', { id });
   return awaitState('Delete team', () => !state.teams.some((t) => t.id === id));
+}
+
+// ---- the event (RotorHazard's name/description + the plugin's details) ------------
+
+export function saveEvent(fields: Partial<EventInfo>): Promise<WriteResult> {
+  socket?.emit('gridfpv_event_save', fields);
+  return awaitState('Event', () =>
+    (Object.keys(fields) as Array<keyof EventInfo>).every((k) => state.event[k] === fields[k])
+  );
+}
+
+/**
+ * Start a new event the way RotorHazard can't on its own: archive the current database,
+ * clear races + heats + classes (and pilots only if asked), keep formats, profiles and
+ * plugin options, then name the new event and blank its details.
+ */
+export async function newEvent(name: string, keepPilots: boolean): Promise<WriteResult> {
+  const acks = resetAcks;
+  socket?.emit('reset_database', {
+    reset_type: keepPilots ? 'classes' : 'all',
+    with_archive: true
+  });
+  const reset = await awaitState('New event', () => resetAcks > acks);
+  if (!reset.ok) return reset;
+  socket?.emit('gridfpv_event_clear');
+  const cleared = await awaitState(
+    'New event',
+    () => state.event.venue === '' && state.event.notes === ''
+  );
+  if (!cleared.ok) return cleared;
+  const named = await saveEvent({ name, description: '' });
+  window.setTimeout(() => socket?.emit('list_backups'), 500);
+  return named;
+}
+
+/** Archive the current database now (RotorHazard's backup_database). */
+export function archiveNow(): Promise<WriteResult> {
+  const before = state.archives.length;
+  socket?.emit('backup_database');
+  window.setTimeout(() => socket?.emit('list_backups'), 1000);
+  return awaitState('Archive', () => state.archives.length > before);
+}
+
+/** Replace the whole database with an archive; RotorHazard acks with database_restore_done. */
+export async function restoreArchive(file: string): Promise<WriteResult> {
+  const acks = restoreAcks;
+  socket?.emit('restore_database', { backup_file: file });
+  // A restore stops and restarts RotorHazard's background threads; allow longer than usual.
+  const start = Date.now();
+  while (Date.now() - start < 15000) {
+    if (restoreAcks > acks) return { ok: true };
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return { ok: false, message: 'Restore: RotorHazard did not confirm within 15 s' };
+}
+
+export function deleteArchive(file: string): Promise<WriteResult> {
+  socket?.emit('delete_database', { backup_file: file });
+  window.setTimeout(() => socket?.emit('list_backups'), 500);
+  return awaitState('Delete archive', () => !state.archives.includes(file));
 }
