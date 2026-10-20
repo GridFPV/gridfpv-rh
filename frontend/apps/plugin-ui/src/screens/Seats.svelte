@@ -1,0 +1,67 @@
+<script lang="ts">
+  /** The Seats page: profile bar on top, one card per seat (#7). */
+  import { Banner } from '@gridfpv/components';
+  import ProfileBar from '../components/ProfileBar.svelte';
+  import SeatCard from '../components/SeatCard.svelte';
+  import { rh, type WriteResult } from '../lib/rh.svelte.js';
+
+  const timer = rh();
+
+  let notice: { tone: 'success' | 'danger'; text: string } | null = $state(null);
+  let noticeTimer = 0;
+
+  function onresult(r: WriteResult) {
+    window.clearTimeout(noticeTimer);
+    notice = r.ok
+      ? { tone: 'success', text: 'RotorHazard confirmed the change.' }
+      : { tone: 'danger', text: r.message ?? 'RotorHazard did not confirm the change.' };
+    if (r.ok) noticeTimer = window.setTimeout(() => (notice = null), 2500);
+  }
+</script>
+
+<section class="page">
+  <header class="pagehead">
+    <h1>Seats</h1>
+    <p class="lede">
+      Channels and thresholds for every seat in the active profile. Changes write straight to
+      RotorHazard and are confirmed by reading them back.
+    </p>
+  </header>
+
+  <ProfileBar profiles={timer.profiles} {onresult} />
+
+  {#if notice}
+    <Banner tone={notice.tone} ondismiss={() => (notice = null)}>{notice.text}</Banner>
+  {/if}
+
+  {#if timer.seats.length === 0}
+    <p class="muted">Waiting for RotorHazard to report its seats…</p>
+  {:else}
+    <div class="grid">
+      {#each timer.seats as seat (seat.index)}
+        <SeatCard {seat} {onresult} />
+      {/each}
+    </div>
+  {/if}
+</section>
+
+<style>
+  .page {
+    display: grid;
+    gap: var(--gf-space-3);
+  }
+  .pagehead h1 {
+    margin: 0 0 var(--gf-space-1);
+    font-size: var(--gf-font-size-xl);
+  }
+  .lede,
+  .muted {
+    margin: 0;
+    color: var(--gf-text-muted);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--gf-space-3);
+  }
+</style>

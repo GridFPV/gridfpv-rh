@@ -57,7 +57,7 @@ py-test-rig: ## Plugin tests inside the running rig (RotorHazard's own Python + 
 
 zip: build ## Package the plugin (with the built UI) as $(ZIP)
 	rm -rf $(DIST_DIR)/stage && mkdir -p $(DIST_DIR)/stage/gridfpv
-	cp -r $(PLUGIN_DIR)/__init__.py $(PLUGIN_DIR)/manifest.json $(PLUGIN_DIR)/README.md $(STATIC_DIR) $(DIST_DIR)/stage/gridfpv/
+	cp -r $(PLUGIN_DIR)/*.py $(PLUGIN_DIR)/manifest.json $(PLUGIN_DIR)/README.md $(STATIC_DIR) $(DIST_DIR)/stage/gridfpv/
 	find $(DIST_DIR)/stage -name '__pycache__' -type d -prune -exec rm -rf {} +
 	rm -f $(ZIP) && cd $(DIST_DIR)/stage && python3 -m zipfile -c ../$(notdir $(ZIP)) gridfpv
 	rm -rf $(DIST_DIR)/stage
@@ -80,6 +80,10 @@ rig-restart: ## Restart RotorHazard (picks up Python changes to the plugin)
 
 rig-logs: ## Follow RotorHazard's log
 	$(COMPOSE) logs -f rotorhazard
+
+rig-passes: ## Inject a few gate passes into a mock seat (SEAT=0 N=4 BOUNCY=0) for the tuning screen
+	docker cp dev/passes.py gridfpv-rh-dev:/tmp/passes.py
+	docker exec gridfpv-rh-dev python3 -I /tmp/passes.py $${SEAT:-0} $${N:-4} $${BOUNCY:-0}
 
 dev: ## Vite dev server with hot reload, proxying socket.io to the rig on :5050
 	cd frontend && npm run dev

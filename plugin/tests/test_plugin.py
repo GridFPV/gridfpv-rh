@@ -48,8 +48,11 @@ class FakeRhapi:
     API_VERSION_MAJOR = 1
     API_VERSION_MINOR = 4
 
-    def __init__(self, options=None, seats=4):
+    def __init__(self, options=None, seats=4, secrets=None):
         self.options = dict(options or {})
+        self.secrets = dict(secrets or {"ADMIN_USERNAME": "", "ADMIN_PASSWORD": ""})
+        self.config = mock.Mock()
+        self.config.get = mock.Mock(side_effect=lambda section, name, as_int=False: self.secrets.get(name) if section == "SECRETS" else None)
         self.panels = []
         self.fields = mock.Mock()
         self.fields.register_option = mock.Mock(side_effect=self._register_option)
@@ -74,9 +77,9 @@ class FakeRhapi:
         self.registered_options.append((field, panel))
 
 
-def _get(client, path):
+def _get(client, path, headers=None):
     """GET and return (status, body), closing the response so file handles don't leak."""
-    resp = client.get(path)
+    resp = client.get(path, headers=headers)
     try:
         return resp.status_code, resp.data
     finally:
@@ -85,7 +88,7 @@ def _get(client, path):
 
 def _app_with_plugin(rhapi, static_dir):
     app = Flask("rh-test")
-    gridfpv.initialize(rhapi, static_dir=static_dir)
+    gridfpv.initialize(rhapi, static_dir=static_dir, start_loop=False)
     (bp,) = rhapi.blueprints
     app.register_blueprint(bp)
 
@@ -115,7 +118,7 @@ class PluginTests(unittest.TestCase):
 
     def test_registers_panel_option_blueprint_and_handshake(self):
         rhapi = FakeRhapi()
-        gridfpv.initialize(rhapi, static_dir=self.static)
+        gridfpv.initialize(rhapi, static_dir=self.static, start_loop=False)
         self.assertEqual(rhapi.panels[0][:3], (gridfpv.PANEL, "GridFPV", "settings"))
         (field, panel), = rhapi.registered_options
         self.assertEqual((field.name, panel), (gridfpv.OPT_REDIRECT_HOME, gridfpv.PANEL))
@@ -124,7 +127,7 @@ class PluginTests(unittest.TestCase):
 
     def test_hello_answers_with_versions_and_seat_count(self):
         rhapi = FakeRhapi(options={gridfpv.OPT_REDIRECT_HOME: "1"}, seats=8)
-        gridfpv.initialize(rhapi, static_dir=self.static)
+        gridfpv.initialize(rhapi, static_dir=self.static, start_loop=False)
         rhapi.listeners[gridfpv.EVT_HELLO]({"client": "test"})
         ((event, payload),) = rhapi.sent
         self.assertEqual(event, gridfpv.EVT_HELLO_ACK)
@@ -133,6 +136,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(payload["seat_count"], 8)
         self.assertEqual(payload["plugin_version"], gridfpv.PLUGIN_VERSION)
         self.assertTrue(payload["redirect_home"])
+        self.assertIsNone(payload["capture"])
 
     def test_spa_routes_serve_index_and_assets(self):
         client = _app_with_plugin(FakeRhapi(), self.static).test_client()

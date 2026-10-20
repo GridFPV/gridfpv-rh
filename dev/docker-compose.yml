@@ -24,6 +24,9 @@ services:
     volumes:
       - ./rotorhazard/mock_data_1.csv:/opt/RotorHazard/src/server/mock_data_1.csv:ro
       - ../plugin/gridfpv:/opt/RotorHazard/src/server/plugins/gridfpv:ro
+      # Dev-only: Grid's mock plugin, so `make rig-passes` can inject realistic gate passes
+      # (dense RSSI bells + crossing flags) into a mock node for trying the tuning screen.
+      - ./plugins/gridfpv_mock:/opt/RotorHazard/src/server/plugins/gridfpv_mock:ro
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:5000/',timeout=5).status==200 else 1)"]
       interval: 10s

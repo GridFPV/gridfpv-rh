@@ -1,39 +1,49 @@
 <script lang="ts">
-  /**
-   * Phase 0 shell: proves the SPA serves from inside RotorHazard and talks to the plugin
-   * over socket.io. Screens come in later phases; this stays the app frame.
-   */
+  /** The app frame: brand, nav, connection pill, and the route switch. */
   import { onMount } from 'svelte';
-  import { Badge, Card, StatusPill } from '@gridfpv/components';
+  import { StatusPill } from '@gridfpv/components';
   import { connect, rh } from './lib/rh.svelte.js';
+  import { href, link, route } from './lib/router.svelte.js';
+  import Home from './screens/Home.svelte';
+  import Seats from './screens/Seats.svelte';
+  import SeatTune from './screens/SeatTune.svelte';
 
   let { autoconnect = true }: { autoconnect?: boolean } = $props();
 
-  const state = rh();
+  const timer = rh();
 
   onMount(() => {
     if (autoconnect) connect();
   });
 
   const pillStatus = $derived(
-    state.connection === 'connected'
+    timer.connection === 'connected'
       ? 'live'
-      : state.connection === 'connecting'
+      : timer.connection === 'connecting'
         ? 'connecting'
         : 'reconnecting'
   );
   const pillLabel = $derived(
-    state.connection === 'connected'
+    timer.connection === 'connected'
       ? 'Connected'
-      : state.connection === 'connecting'
+      : timer.connection === 'connecting'
         ? 'Connecting'
         : 'Disconnected'
   );
+
+  const current = $derived(route());
+  const tuneMatch = $derived(/^seats\/(\d+)$/.exec(current));
+  const NAV = [
+    { path: '', label: 'Home' },
+    { path: 'seats', label: 'Seats' }
+  ];
+  const active = (path: string) =>
+    path === '' ? current === '' : current === path || current.startsWith(path + '/');
 </script>
 
 <div class="shell">
   <header class="top">
-    <div class="brand">
+    <a class="brand" href={href('')} onclick={link}>
       <svg class="mark" viewBox="20 20 60 60" role="img" aria-label="GridFPV">
         <path
           d="M71 33 H40 Q31 33 31 42 V58 Q31 67 40 67 H60 Q69 67 69 58 V51 H53"
@@ -48,50 +58,33 @@
         <div class="word">GridFPV</div>
         <div class="sub">for RotorHazard</div>
       </div>
-    </div>
+    </a>
+    <nav>
+      {#each NAV as item (item.path)}
+        <a href={href(item.path)} onclick={link} class:active={active(item.path)}>{item.label}</a>
+      {/each}
+    </nav>
     <StatusPill status={pillStatus} label={pillLabel} />
   </header>
 
   <main>
-    <Card title="Timer" subtitle="What the plugin reports about this RotorHazard">
-      {#if state.hello}
-        <dl class="facts">
-          <dt>RotorHazard</dt>
-          <dd>{state.hello.rh_version ?? 'unknown'}</dd>
-          <dt>Plugin API</dt>
-          <dd>{state.hello.rhapi_version}</dd>
-          <dt>GridFPV plugin</dt>
-          <dd>{state.hello.plugin_version}</dd>
-          <dt>Seats</dt>
-          <dd>{state.hello.seat_count}</dd>
-          <dt>Home page</dt>
-          <dd>
-            {#if state.hello.redirect_home}
-              <Badge tone="accent">opens GridFPV</Badge>
-            {:else}
-              <Badge tone="neutral">RotorHazard's own</Badge>
-            {/if}
-          </dd>
-        </dl>
-      {:else if state.connection === 'connected'}
-        <p class="muted">Connected. Waiting for the plugin to answer…</p>
-      {:else}
-        <p class="muted">Connecting to the timer…</p>
-      {/if}
-    </Card>
-
-    <Card title="What's here" elevation="xs">
-      <p>
-        This is the Phase 0 shell. Tuning and Marshal screens land next; until then RotorHazard's
-        own pages are at <a href="/">/</a>.
+    {#if current === ''}
+      <Home />
+    {:else if current === 'seats'}
+      <Seats />
+    {:else if tuneMatch}
+      <SeatTune seatIndex={Number(tuneMatch[1])} />
+    {:else}
+      <p class="muted">
+        Nothing at <code>/grid/{current}</code>. <a href={href('')} onclick={link}>Home</a>.
       </p>
-    </Card>
+    {/if}
   </main>
 </div>
 
 <style>
   .shell {
-    max-width: 960px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: var(--gf-space-4) var(--gf-space-4) var(--gf-space-8);
     display: grid;
@@ -100,13 +93,14 @@
   .top {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--gf-space-3);
+    gap: var(--gf-space-4);
   }
   .brand {
     display: flex;
     align-items: center;
     gap: var(--gf-space-2);
+    text-decoration: none;
+    color: inherit;
   }
   .mark {
     width: 40px;
@@ -123,24 +117,22 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
-  main {
-    display: grid;
-    gap: var(--gf-space-3);
+  nav {
+    display: flex;
+    gap: var(--gf-space-1);
+    margin-right: auto;
   }
-  .facts {
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: var(--gf-space-1) var(--gf-space-4);
-    margin: 0;
-  }
-  dt {
+  nav a {
+    padding: var(--gf-space-1) var(--gf-space-3);
+    border-radius: var(--gf-radius-md);
+    text-decoration: none;
     color: var(--gf-text-muted);
   }
-  dd {
-    margin: 0;
+  nav a.active {
+    color: var(--gf-text);
+    background: var(--gf-surface);
   }
   .muted {
     color: var(--gf-text-muted);
-    margin: 0;
   }
 </style>
