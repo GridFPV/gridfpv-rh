@@ -1,0 +1,22 @@
+# Built SPA — produced by `make build` into the plugin folder, shipped in the zip,
+# never committed.
+/plugin/gridfpv/static/
+
+# Packaged plugin
+/dist/
+
+# Python
+__pycache__/
+*.pyc
+/.venv/
+
+# Frontend
+/frontend/node_modules/
+/frontend/**/node_modules/
+/frontend/**/dist/
+/frontend/**/.vite/
+/frontend/**/.svelte-kit/
+/frontend/**/*.tsbuildinfo
+
+# Claude Code local state
+.claude/

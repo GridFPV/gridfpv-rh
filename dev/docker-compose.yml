@@ -1,0 +1,32 @@
+# Local RotorHazard 4.4.0 with 8 mock nodes and this repo's plugin mounted live.
+#
+#   make rig-up      # http://localhost:5050  (admin / rotorhazard)
+#   make rig-logs
+#   make rig-down
+#
+# The image is built from ./rotorhazard (copied from GridFPV's harness): RotorHazard
+# cloned at the pinned tag, mock nodes, MOCK_NODE_SIGNAL=1 so node 1 streams an emulated
+# RSSI trace from mock_data_1.csv. The plugin folder is bind-mounted read-only; RotorHazard
+# only imports plugins at startup, so after a Python change: `make rig-restart`. After a
+# frontend change, `make build` is enough — the static files are read per request.
+services:
+  rotorhazard:
+    build:
+      context: ./rotorhazard
+      args:
+        RH_VERSION: "v${RH_VERSION:-4.4.0}"
+    image: "gridfpv-rotorhazard:${RH_VERSION:-4.4.0}"
+    container_name: gridfpv-rh-dev
+    ports:
+      - "${RH_PORT:-5050}:5000"
+    environment:
+      GRIDFPV_RH_DEMO: "1"
+    volumes:
+      - ./rotorhazard/mock_data_1.csv:/opt/RotorHazard/src/server/mock_data_1.csv:ro
+      - ../plugin/gridfpv:/opt/RotorHazard/src/server/plugins/gridfpv:ro
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:5000/',timeout=5).status==200 else 1)"]
+      interval: 10s
+      timeout: 8s
+      retries: 6
+      start_period: 20s

@@ -1,0 +1,13 @@
+{
+  "domain": "gridfpv",
+  "name": "GridFPV",
+  "author": "GridFPV",
+  "author_uri": "https://github.com/GridFPV",
+  "description": "A modern race-director UI for RotorHazard, served from inside the timer.",
+  "documentation_uri": "https://github.com/GridFPV/gridfpv-rh",
+  "license": "AGPL-3.0-or-later",
+  "license_uri": "https://github.com/GridFPV/gridfpv-rh/blob/main/LICENSE",
+  "version": "0.1.0",
+  "required_rhapi_version": "1.4",
+  "zip_filename": "gridfpv.zip"
+}

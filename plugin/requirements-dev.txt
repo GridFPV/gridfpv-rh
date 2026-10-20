@@ -1,0 +1,3 @@
+# Only what the plugin's unit tests need outside RotorHazard. Pinned to the Flask line
+# RotorHazard 4.4.0 ships (Flask==3.1.*).
+Flask==3.1.*
