@@ -85,5 +85,9 @@ rig-passes: ## Inject a few gate passes into a mock seat (SEAT=0 N=4 BOUNCY=0) f
 	docker cp dev/passes.py gridfpv-rh-dev:/tmp/passes.py
 	docker exec gridfpv-rh-dev python3 -I /tmp/passes.py $${SEAT:-0} $${N:-4} $${BOUNCY:-0}
 
+deploy: zip ## Install the zip on a timer over SSH and restart RotorHazard (TIMER=host [SUDO_PASS=…])
+	@[ -n "$(TIMER)" ] || { echo "usage: make deploy TIMER=<ssh host>"; exit 1; }
+	dev/deploy.sh $(TIMER) $(ZIP)
+
 dev: ## Vite dev server with hot reload, proxying socket.io to the rig on :5050
 	cd frontend && npm run dev
