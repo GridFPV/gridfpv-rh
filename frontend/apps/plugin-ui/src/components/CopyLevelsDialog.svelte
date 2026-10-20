@@ -104,6 +104,9 @@
     margin-bottom: var(--gf-space-2);
     border-bottom: 1px solid var(--gf-border);
   }
+  .all .row {
+    grid-template-columns: auto 1fr;
+  }
   .list {
     display: grid;
     gap: var(--gf-space-1);
