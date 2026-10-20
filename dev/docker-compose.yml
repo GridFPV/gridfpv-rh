@@ -27,6 +27,10 @@ services:
       # Dev-only: Grid's mock plugin, so `make rig-passes` can inject realistic gate passes
       # (dense RSSI bells + crossing flags) into a mock node for trying the tuning screen.
       - ./plugins/gridfpv_mock:/opt/RotorHazard/src/server/plugins/gridfpv_mock:ro
+      # Dev-only: the MultiGP Toolkit (third-party, MIT), fetched by `make rig-multigp` and
+      # gitignored, so the rig has the plugin our Phase 5 panel renderer must work with and
+      # the Pilots page shows its MultiGP ID attribute.
+      - ./plugins/multigp_toolkit:/opt/RotorHazard/src/server/plugins/multigp_toolkit:ro
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:5000/',timeout=5).status==200 else 1)"]
       interval: 10s

@@ -68,7 +68,19 @@ ci: setup lint check test build zip ## Everything CI runs
 clean: ## Remove build output, the venv and node_modules
 	rm -rf $(STATIC_DIR) $(DIST_DIR) $(VENV) frontend/node_modules frontend/*/*/node_modules frontend/*/*/dist
 
-rig-up: ## Start RotorHazard 4.4.0 (mock nodes) on :5050 with the plugin mounted
+MGP_VERSION := v4.0.2
+# The release zip, not the git source: the toolkit's compiled verification module only
+# ships in the release asset (what RotorHazard's community store installs).
+dev/plugins/multigp_toolkit/manifest.json: ## Fetch the MultiGP Toolkit release (dev rig only; gitignored)
+	rm -rf dev/plugins/.mgp-rel dev/plugins/multigp_toolkit && mkdir -p dev/plugins/.mgp-rel
+	curl -sSL -o dev/plugins/.mgp-rel/multigp_toolkit.zip https://github.com/i-am-grub/multigp-toolkit/releases/download/$(MGP_VERSION)/multigp_toolkit.zip
+	cd dev/plugins/.mgp-rel && python3 -m zipfile -e multigp_toolkit.zip x
+	cp -r dev/plugins/.mgp-rel/x/multigp_toolkit/custom_plugins/multigp_toolkit dev/plugins/multigp_toolkit
+	rm -rf dev/plugins/.mgp-rel
+
+rig-multigp: dev/plugins/multigp_toolkit/manifest.json ## Ensure the MultiGP Toolkit is fetched for the rig
+
+rig-up: dev/plugins/multigp_toolkit/manifest.json ## Start RotorHazard 4.4.0 (mock nodes) on :5050 with the plugins mounted
 	$(COMPOSE) up -d --build
 	@echo "RotorHazard: http://localhost:$${RH_PORT:-5050}   GridFPV: http://localhost:$${RH_PORT:-5050}/grid   (admin / rotorhazard)"
 
