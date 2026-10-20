@@ -40,6 +40,28 @@
   const t1 = $derived(trace.times[trace.times.length - 1] ?? t0 + 1);
   const span = $derived(Math.max(t1 - t0, 0.001));
 
+  // Time scale. RotorHazard's tuning page draws at a fixed pixels-per-second in a small
+  // strip, which is what makes the same data look calmer there; stretching a 12 s capture
+  // across the whole modal gives every sample several pixels and reads as jagged. So the
+  // plot spans a chosen number of seconds (default 60) and scrolls when the capture is
+  // longer; "Fit" stretches the whole capture as before.
+  const SCALES: Array<{ label: string; seconds: number | null }> = [
+    { label: '30 s', seconds: 30 },
+    { label: '60 s', seconds: 60 },
+    { label: '2 min', seconds: 120 },
+    { label: 'Fit', seconds: null }
+  ];
+  let scaleSeconds: number | null = $state(60);
+  let offsetSec = $state(0);
+  const viewSpan = $derived(scaleSeconds ?? span);
+  const maxOffset = $derived(Math.max(0, span - viewSpan));
+  const viewStart = $derived(t0 + Math.min(Math.max(0, offsetSec), maxOffset));
+  const viewEnd = $derived(viewStart + viewSpan);
+  // While recording, keep the newest samples in view.
+  $effect(() => {
+    if (readonly) offsetSec = maxOffset;
+  });
+
   // Y range: the data's own span with headroom, always wide enough to show both lines.
   // While a line is being dragged the range is frozen: if it followed the line, moving
   // the line would rescale the plot, which moves the line under the cursor, which
@@ -53,15 +75,51 @@
   let frozen: { lo: number; hi: number } | null = $state(null);
   const yRange = $derived(frozen ?? liveRange);
 
-  const x = (t: number) => PAD.left + ((t - t0) / span) * (W - PAD.left - PAD.right);
+  const x = (t: number) => PAD.left + ((t - viewStart) / viewSpan) * (W - PAD.left - PAD.right);
   const y = (v: number) =>
     PAD.top + (1 - (v - yRange.lo) / (yRange.hi - yRange.lo)) * (height - PAD.top - PAD.bottom);
   const vFromY = (py: number) =>
     yRange.hi - ((py - PAD.top) / (height - PAD.top - PAD.bottom)) * (yRange.hi - yRange.lo);
 
-  const points = $derived(
-    trace.times.map((t, i) => `${x(t).toFixed(1)},${y(trace.values[i]).toFixed(1)}`).join(' ')
-  );
+  // Samples in view (plus one either side so the line runs off the edges), as a smooth
+  // Catmull-Rom curve — display only; detection uses the raw samples.
+  const path = $derived.by(() => {
+    const n = trace.times.length;
+    if (!n) return '';
+    let a = 0;
+    while (a < n && trace.times[a] < viewStart) a++;
+    let b = n - 1;
+    while (b >= 0 && trace.times[b] > viewEnd) b--;
+    a = Math.max(0, a - 1);
+    b = Math.min(n - 1, b + 1);
+    if (b < a) return '';
+    const px: number[] = [];
+    const py: number[] = [];
+    for (let i = a; i <= b; i++) {
+      px.push(x(trace.times[i]));
+      py.push(y(trace.values[i]));
+    }
+    if (px.length === 1) return `M${px[0].toFixed(1)},${py[0].toFixed(1)}`;
+    let d = `M${px[0].toFixed(1)},${py[0].toFixed(1)}`;
+    for (let i = 0; i < px.length - 1; i++) {
+      const p0x = px[Math.max(0, i - 1)],
+        p0y = py[Math.max(0, i - 1)];
+      const p1x = px[i],
+        p1y = py[i];
+      const p2x = px[i + 1],
+        p2y = py[i + 1];
+      const p3x = px[Math.min(px.length - 1, i + 2)],
+        p3y = py[Math.min(px.length - 1, i + 2)];
+      const c1x = p1x + (p2x - p0x) / 6,
+        c1y = p1y + (p2y - p0y) / 6;
+      const c2x = p2x - (p3x - p1x) / 6,
+        c2y = p2y - (p3y - p1y) / 6;
+      d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2x.toFixed(1)},${p2y.toFixed(1)}`;
+    }
+    return d;
+  });
+  const inView = (start: number, end: number) => end >= viewStart && start <= viewEnd;
+  const clampX = (v: number) => Math.max(PAD.left, Math.min(W - PAD.right, v));
 
   const computed = $derived(detectCrossings(detectOn ?? trace, enter, exit));
 
@@ -122,6 +180,29 @@
 </script>
 
 <div class="trace" class:dragging={dragging !== null}>
+  <div class="toolbar">
+    <span class="muted">Scale</span>
+    {#each SCALES as sc (sc.label)}
+      <button
+        type="button"
+        class="scale"
+        class:active={scaleSeconds === sc.seconds}
+        onclick={() => (scaleSeconds = sc.seconds)}>{sc.label}</button
+      >
+    {/each}
+    {#if maxOffset > 0}
+      <input
+        class="scroll"
+        type="range"
+        min="0"
+        max={maxOffset}
+        step="0.1"
+        bind:value={offsetSec}
+        disabled={readonly}
+        aria-label="Scroll the trace"
+      />
+    {/if}
+  </div>
   <svg
     bind:this={svg}
     viewBox="0 0 {W} {height}"
@@ -137,36 +218,44 @@
       <line class="grid" x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} />
       <text class="axis" x={PAD.left - 6} y={y(v) + 4} text-anchor="end">{v}</text>
     {/each}
-    <text class="axis" x={PAD.left} y={height - 6}>0s</text>
-    <text class="axis" x={W - PAD.right} y={height - 6} text-anchor="end">{span.toFixed(1)}s</text>
+    <text class="axis" x={PAD.left} y={height - 6}>{(viewStart - t0).toFixed(1)}s</text>
+    <text class="axis" x={W - PAD.right} y={height - 6} text-anchor="end"
+      >{(viewEnd - t0).toFixed(1)}s</text
+    >
 
     <!-- computed crossings: shaded bands with the pass instant -->
     {#each computed as c, i (i)}
-      <rect
-        class="pass"
-        class:open={c.open}
-        x={x(c.start)}
-        y={PAD.top}
-        width={Math.max(x(c.end) - x(c.start), 2)}
-        height={height - PAD.top - PAD.bottom}
-      />
-      <line class="pass-at" x1={x(c.at)} x2={x(c.at)} y1={PAD.top} y2={height - PAD.bottom} />
+      {#if inView(c.start, c.end)}
+        <rect
+          class="pass"
+          class:open={c.open}
+          x={clampX(x(c.start))}
+          y={PAD.top}
+          width={Math.max(clampX(x(c.end)) - clampX(x(c.start)), 2)}
+          height={height - PAD.top - PAD.bottom}
+        />
+        {#if inView(c.at, c.at)}
+          <line class="pass-at" x1={x(c.at)} x2={x(c.at)} y1={PAD.top} y2={height - PAD.bottom} />
+        {/if}
+      {/if}
     {/each}
 
     <!-- firmware crossings: ticks along the top -->
     {#each firmware as c, i (i)}
-      <rect
-        class="fw"
-        x={x(c.start)}
-        y={PAD.top - 10}
-        width={Math.max(x(c.end) - x(c.start), 2)}
-        height={6}
-      />
+      {#if inView(c.start, c.end)}
+        <rect
+          class="fw"
+          x={clampX(x(c.start))}
+          y={PAD.top - 10}
+          width={Math.max(clampX(x(c.end)) - clampX(x(c.start)), 2)}
+          height={6}
+        />
+      {/if}
     {/each}
 
     <!-- the signal -->
-    {#if points}
-      <polyline class="rssi" {points} />
+    {#if path}
+      <path class="rssi" d={path} />
     {/if}
 
     <!-- thresholds -->
@@ -218,6 +307,37 @@
   .trace {
     width: 100%;
     touch-action: none;
+  }
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--gf-space-1);
+    margin-bottom: var(--gf-space-2);
+    font-size: var(--gf-font-size-sm);
+  }
+  .muted {
+    color: var(--gf-text-muted);
+    margin-right: var(--gf-space-1);
+  }
+  .scale {
+    font: inherit;
+    font-size: var(--gf-font-size-xs);
+    padding: 2px 8px;
+    border-radius: var(--gf-radius-md);
+    border: 1px solid var(--gf-border);
+    background: transparent;
+    color: var(--gf-text-muted);
+    cursor: pointer;
+  }
+  .scale.active {
+    color: var(--gf-text);
+    background: var(--gf-surface);
+    border-color: var(--gf-accent);
+  }
+  .scroll {
+    flex: 1;
+    min-width: 120px;
+    margin-left: var(--gf-space-2);
   }
   svg {
     display: block;
