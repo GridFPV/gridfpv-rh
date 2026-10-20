@@ -399,6 +399,12 @@ export async function addPilot(): Promise<WriteResult & { id?: number }> {
   window.setTimeout(() => loadData('pilot_data'), 200);
   const r = await awaitState('New pilot', () => state.setup.pilots.some((p) => !before.has(p.id)));
   const added = state.setup.pilots.find((p) => !before.has(p.id));
+  // RotorHazard gives every new pilot team "A" by default; a new pilot starts with no team
+  // here, so the only teams on pilots are ones the director chose.
+  if (r.ok && added && added.team) {
+    const cleared = await alterPilot(added.id, { team: '' });
+    if (!cleared.ok) return { ...cleared, id: added.id };
+  }
   return { ...r, id: added?.id };
 }
 
