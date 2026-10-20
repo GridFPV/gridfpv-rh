@@ -4,10 +4,11 @@
    * and status, with the edits that write straight back to RotorHazard. Every write goes
    * through the store, which confirms it by readback and reports the outcome up.
    */
-  import { Badge, Button, Card, Input, Select } from '@gridfpv/components';
-  import { BANDS, channelLabel, frequencyFor, tagFor } from '../lib/channels.js';
+  import { Badge, Button, Card, Input } from '@gridfpv/components';
+  import ChannelPicker from './ChannelPicker.svelte';
+  import { channelLabel, tagFor } from '../lib/channels.js';
   import { seatStatus, type Seat } from '../lib/seats.js';
-  import { setChannel, setLevels, type WriteResult } from '../lib/rh.svelte.js';
+  import { setLevels, type WriteResult } from '../lib/rh.svelte.js';
   import { go } from '../lib/router.svelte.js';
 
   let {
@@ -29,55 +30,16 @@
     crossing: { tone: 'info', label: 'Crossing' }
   };
 
-  // ---- channel ----
-  let band = $state('');
-  let channel = $state('');
-  let busy = $state(false);
-
-  // Follow the seat unless the user is mid-edit.
   // RotorHazard stores band/channel only when the channel was picked from its table; a bare
-  // frequency (set by hand or by a tool) gets the first matching tag from ours.
+  // frequency (typed by hand, or set by a tool) is labelled from ours where it matches.
   const tag = $derived(
     seat.band && seat.channel != null
       ? { band: seat.band, channel: seat.channel }
       : tagFor(seat.frequency)
   );
-  $effect(() => {
-    band = seat.frequency ? (tag?.band ?? '') : 'off';
-    channel = tag?.channel == null ? '' : String(tag.channel);
-  });
-
-  const channelsForBand = $derived(BANDS.find((b) => b.key === band)?.channels ?? []);
-
-  async function applyChannel(nextBand: string, nextChannel: string) {
-    busy = true;
-    try {
-      if (nextBand === 'off') {
-        onresult(await setChannel(seat.index, null, null, 0));
-        return;
-      }
-      const ch = Number(nextChannel);
-      const freq = frequencyFor(nextBand, ch);
-      if (!freq) return; // band picked, channel not yet
-      onresult(await setChannel(seat.index, nextBand, ch, freq));
-    } finally {
-      busy = false;
-    }
-  }
-
-  function onBand(e: Event) {
-    const next = (e.currentTarget as HTMLSelectElement).value;
-    band = next;
-    const first = BANDS.find((b) => b.key === next)?.channels[0];
-    channel = first ? String(first.channel) : '';
-    void applyChannel(next, channel);
-  }
-  function onChannel(e: Event) {
-    channel = (e.currentTarget as HTMLSelectElement).value;
-    void applyChannel(band, channel);
-  }
 
   // ---- thresholds ----
+  let busy = $state(false);
   let enter = $state('');
   let exit = $state('');
   $effect(() => {
@@ -125,28 +87,10 @@
   </div>
 
   <div class="row">
-    <label class="field">
-      <span>Band</span>
-      <Select value={band} size="sm" disabled={busy} onchange={onBand}>
-        <option value="off">Off</option>
-        {#each BANDS as b (b.key)}
-          <option value={b.key}>{b.key} · {b.name}</option>
-        {/each}
-      </Select>
-    </label>
-    <label class="field">
+    <div class="field">
       <span>Channel</span>
-      <Select
-        value={channel}
-        size="sm"
-        disabled={busy || band === 'off' || !band}
-        onchange={onChannel}
-      >
-        {#each channelsForBand as c (c.key)}
-          <option value={String(c.channel)}>{c.key} · {c.frequency}</option>
-        {/each}
-      </Select>
-    </label>
+      <ChannelPicker {seat} {onresult} />
+    </div>
   </div>
 
   <div class="row">

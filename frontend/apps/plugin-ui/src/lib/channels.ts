@@ -1,8 +1,12 @@
 /**
  * The video channel table, copied from RotorHazard 4.4.0's `static/rotorhazard.js` so our
  * picker offers exactly what RotorHazard's does. A seat's frequency in RotorHazard is the
- * MHz number; band + channel are the label RotorHazard stores alongside it (they may be
- * null when a frequency was typed by hand).
+ * MHz number; band + channel are the label RotorHazard stores alongside it (they are null
+ * for a custom frequency typed by hand).
+ *
+ * The six analog bands every racer knows come first and carry their names; the rest are
+ * RotorHazard's letter keys for HD and vendor channel sets, listed under "Other" with no
+ * name invented for them.
  */
 
 export type Band = {
@@ -98,7 +102,7 @@ const TABLE: Array<[string, string, Array<[string, number]>]> = [
   ],
   [
     'U',
-    'U band',
+    '',
     [
       ['U0', 5300],
       ['U1', 5325],
@@ -114,7 +118,7 @@ const TABLE: Array<[string, string, Array<[string, number]>]> = [
   ],
   [
     'D',
-    'Diatone',
+    '',
     [
       ['D1', 5660],
       ['D2', 5695],
@@ -128,7 +132,7 @@ const TABLE: Array<[string, string, Array<[string, number]>]> = [
   ],
   [
     'J',
-    'DJI',
+    '',
     [
       ['J1', 5695],
       ['J2', 5770],
@@ -137,7 +141,7 @@ const TABLE: Array<[string, string, Array<[string, number]>]> = [
   ],
   [
     'S',
-    'SharkByte',
+    '',
     [
       ['S1', 5660],
       ['S2', 5695],
@@ -151,7 +155,7 @@ const TABLE: Array<[string, string, Array<[string, number]>]> = [
   ],
   [
     'O',
-    'HDZero',
+    '',
     [
       ['O1', 5669],
       ['O2', 5705],
@@ -164,7 +168,7 @@ const TABLE: Array<[string, string, Array<[string, number]>]> = [
   ],
   [
     'Q',
-    'Walksnail',
+    '',
     [
       ['Q1', 5677],
       ['Q2', 5794],
@@ -172,6 +176,9 @@ const TABLE: Array<[string, string, Array<[string, number]>]> = [
     ]
   ]
 ];
+
+/** The bands shown first, in the order racers expect. */
+export const COMMON_BAND_KEYS = ['R', 'F', 'E', 'B', 'A', 'L'] as const;
 
 export const BANDS: Band[] = TABLE.map(([key, name, chans]) => ({
   key,
@@ -208,3 +215,19 @@ export function tagFor(frequency: number): { band: string; channel: number } | n
   }
   return null;
 }
+
+export const COMMON_BANDS: Band[] = COMMON_BAND_KEYS.map(
+  (k) => BANDS.find((b) => b.key === k) as Band
+);
+export const OTHER_BANDS: Band[] = BANDS.filter(
+  (b) => !(COMMON_BAND_KEYS as readonly string[]).includes(b.key)
+);
+
+/** Display name for a band: its hobby name, or just the letter for the rest. */
+export function bandName(band: Band): string {
+  return band.name ? `${band.key} · ${band.name}` : `Band ${band.key}`;
+}
+
+/** RotorHazard's own limits for a hand-typed frequency (settings.html: min 5000, max 6001). */
+export const CUSTOM_MIN_MHZ = 5000;
+export const CUSTOM_MAX_MHZ = 6000;
