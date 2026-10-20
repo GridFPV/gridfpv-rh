@@ -46,23 +46,48 @@ class Capture:
         return self.stopped_at is None
 
     def absorb(self, node) -> int:
-        """Copy any history samples newer than what we have. Returns how many were added."""
+        """Copy the history entries RotorHazard appended since our last look.
+
+        RotorHazard's list is append-only at the back (pruned from the front while idle,
+        and the last entry's time may be pushed later in place when a value repeats), but
+        it is **not** time-ordered: one node read appends its peak and its nadir, each
+        backdated by the node's own offsets, so a time-based "newer than what we have"
+        filter silently drops half the signal. Instead we find the last entry we copied
+        (by value and time) and take everything after it.
+        """
         times = list(node.history_times or [])
         values = list(node.history_values or [])
         n = min(len(times), len(values))
+        start = self._resume_index(times, values, n)
         added = 0
-        for i in range(n):
-            t = times[i]
-            if self._last_time is not None and t <= self._last_time:
-                continue
-            self.times.append(t)
+        for i in range(start, n):
+            self.times.append(times[i])
             self.values.append(values[i])
-            self._last_time = t
+            self._last_time = times[i]
             added += 1
         if len(self.times) > MAX_SAMPLES:
             logger.warning("gridfpv capture: seat %d hit %d samples, stopping", self.seat, MAX_SAMPLES)
             self.stopped_at = monotonic()
         return added
+
+    def _resume_index(self, times, values, n) -> int:
+        """Index in RotorHazard's list of the first entry we have not copied yet."""
+        if not self.times:
+            return 0
+        last_t, last_v = self.times[-1], self.values[-1]
+        # Exact anchor, newest first (the list is short and the anchor is near the end).
+        for j in range(n - 1, -1, -1):
+            if values[j] == last_v and abs(times[j] - last_t) < 1e-9:
+                return j + 1
+        # RotorHazard extends the last entry's time in place when a value repeats; our
+        # copy then holds the old time. Match on value where the time moved later.
+        for j in range(n - 1, 0, -1):
+            if values[j] == last_v and values[j - 1] == last_v and times[j] > last_t:
+                self.times[-1] = times[j]
+                self._last_time = times[j]
+                return j + 1
+        # Anchor pruned away (we were not looking for over a minute): take what is newer.
+        return next((i for i in range(n) if times[i] > last_t), n)
 
     def note_crossing_flag(self, crossing: bool, node) -> None:
         """Record firmware crossing edges (enter when the flag rises, exit when it falls)."""

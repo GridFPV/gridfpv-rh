@@ -48,6 +48,33 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(cap.times, [0, 1, 2, 3, 4, 5])
         self.assertEqual(cap.values, [10, 11, 12, 13, 14, 99])
 
+    def test_absorb_keeps_out_of_order_peak_and_nadir_entries_from_one_read(self):
+        # One node read appends peak then nadir, each backdated: times go 9.998, 9.999,
+        # 9.997, 9.998. A time-based filter would drop the nadir pair; we must keep all.
+        node = FakeNode()
+        cap = capture.Capture(seat=0)
+        node.sample(9.998, 150)
+        node.sample(9.999, 150)
+        node.sample(9.997, 30)
+        node.sample(9.998, 30)
+        self.assertEqual(cap.absorb(node), 4)
+        node.sample(10.013, 150)
+        node.sample(10.012, 30)
+        self.assertEqual(cap.absorb(node), 2)
+        self.assertEqual(cap.values, [150, 150, 30, 30, 150, 30])
+
+    def test_absorb_follows_an_entry_whose_time_was_extended_in_place(self):
+        node = FakeNode()
+        cap = capture.Capture(seat=0)
+        node.sample(1.0, 40)
+        node.sample(1.1, 40)
+        cap.absorb(node)
+        node.history_times[-1] = 1.5  # RH's _addEntry extends the repeat instead of appending
+        node.sample(1.6, 90)
+        self.assertEqual(cap.absorb(node), 1)
+        self.assertEqual(cap.times, [1.0, 1.5, 1.6])
+        self.assertEqual(cap.values, [40, 40, 90])
+
     def test_crossing_edges_become_enter_exit_pairs_with_peak(self):
         node = FakeNode()
         cap = capture.Capture(seat=0)

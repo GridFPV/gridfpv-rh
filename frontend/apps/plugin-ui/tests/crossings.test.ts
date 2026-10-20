@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectCrossings, traceRange } from '../src/lib/crossings.js';
+import { detectCrossings, sortedTrace, traceRange } from '../src/lib/crossings.js';
 
 /** Build a trace from (time, rssi) pairs. */
 function trace(pairs: Array<[number, number]>) {
@@ -88,5 +88,13 @@ describe('traceRange', () => {
       )
     ).toEqual({ min: 5, max: 50 });
     expect(traceRange({ times: [], values: [] })).toBeNull();
+  });
+});
+
+describe('sortedTrace', () => {
+  it('orders RotorHazard’s per-read peak/nadir entries by time without losing any', () => {
+    const t = sortedTrace({ times: [9.998, 9.999, 9.997, 9.998], values: [150, 150, 30, 30] });
+    expect(t.times).toEqual([9.997, 9.998, 9.998, 9.999]);
+    expect(t.values).toEqual([30, 150, 30, 150]);
   });
 });

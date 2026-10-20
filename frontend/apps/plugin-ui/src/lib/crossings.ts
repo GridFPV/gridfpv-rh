@@ -74,6 +74,19 @@ export function detectCrossings(trace: Trace, enter: number, exit: number): Cros
   return out;
 }
 
+/**
+ * A copy of the trace ordered by time. RotorHazard's history is append-only but not
+ * time-ordered: one node read contributes its peak and its nadir, each backdated by the
+ * node's own offsets. Detection and drawing both need the samples in time order.
+ */
+export function sortedTrace(trace: Trace): Trace {
+  const n = Math.min(trace.times.length, trace.values.length);
+  const idx = Array.from({ length: n }, (_, i) => i).sort(
+    (a, b) => trace.times[a] - trace.times[b]
+  );
+  return { times: idx.map((i) => trace.times[i]), values: idx.map((i) => trace.values[i]) };
+}
+
 /** Min and max RSSI over a trace, or null for an empty one. */
 export function traceRange(trace: Trace): { min: number; max: number } | null {
   if (trace.values.length === 0) return null;

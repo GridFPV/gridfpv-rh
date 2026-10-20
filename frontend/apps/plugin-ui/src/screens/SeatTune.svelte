@@ -6,7 +6,7 @@
   import { Badge, Banner, Button, Card } from '@gridfpv/components';
   import RssiTrace from '../components/RssiTrace.svelte';
   import { channelLabel } from '../lib/channels.js';
-  import { detectCrossings } from '../lib/crossings.js';
+  import { detectCrossings, sortedTrace } from '../lib/crossings.js';
   import {
     captureStart,
     captureStop,
@@ -39,7 +39,7 @@
     }
   });
 
-  const trace = $derived({ times: cap?.times ?? [], values: cap?.values ?? [] });
+  const trace = $derived(sortedTrace({ times: cap?.times ?? [], values: cap?.values ?? [] }));
   const computed = $derived(detectCrossings(trace, enter, exit));
   const firmware = $derived(cap ? firmwareCrossings(cap) : []);
   const dirty = $derived(seat && (enter !== seat.enter || exit !== seat.exit));
