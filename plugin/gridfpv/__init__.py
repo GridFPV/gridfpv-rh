@@ -6,8 +6,8 @@ Python side is registered here, and it is deliberately thin:
 
 - a Flask blueprint that serves the built single-page app under ``/grid``, gating admin
   pages on RotorHazard's own login (``auth.py``);
-- the ``gridfpv_*`` socket.io channel: a hello / hello-ack handshake and capture-mode
-  tuning (``capture.py``);
+- the ``gridfpv_*`` socket.io channel: a hello / hello-ack handshake, capture-mode
+  tuning (``capture.py``) and custom channel presets (``presets.py``);
 - a *GridFPV* settings panel with the plugin's options;
 - an optional redirect that sends RotorHazard's home page to ``/grid``.
 
@@ -20,7 +20,7 @@ import os
 
 from flask import Blueprint, abort, redirect, request, send_from_directory
 
-from . import auth, capture
+from . import auth, capture, presets
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,11 @@ EVT_CAPTURE_GET = "gridfpv_capture_get"
 #: Broadcasts: a progress chunk while recording, the full trace when done / on request.
 EVT_CAPTURE_CHUNK = "gridfpv_capture_chunk"
 EVT_CAPTURE = "gridfpv_capture"
+EVT_PRESETS_GET = "gridfpv_presets_get"
+EVT_PRESETS_SAVE = "gridfpv_presets_save"
+EVT_PRESETS_DELETE = "gridfpv_presets_delete"
+#: Broadcast: the full custom preset list, after any change and on request.
+EVT_PRESETS = "gridfpv_presets"
 
 #: Paths RotorHazard owns that the redirect must never touch.
 _NEVER_REDIRECT = ("/first-run",)
@@ -167,7 +172,30 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
         current = recorder.current()
         send(EVT_CAPTURE, current if current else {"state": "none"})
 
+    def on_presets_get(*_args, **_kwargs):
+        send(EVT_PRESETS, {"presets": presets.load(rhapi)})
+
+    def on_presets_save(data=None, *_args, **_kwargs):
+        data = data or {}
+        try:
+            new = presets.save(rhapi, data.get("name"), data.get("seats"))
+        except presets.PresetError as e:
+            rhapi.ui.message_alert(f"GridFPV preset: {e}")
+            return
+        rhapi.ui.socket_broadcast(EVT_PRESETS, {"presets": new})
+
+    def on_presets_delete(data=None, *_args, **_kwargs):
+        try:
+            new = presets.delete(rhapi, (data or {}).get("id"))
+        except presets.PresetError as e:
+            rhapi.ui.message_alert(f"GridFPV preset: {e}")
+            return
+        rhapi.ui.socket_broadcast(EVT_PRESETS, {"presets": new})
+
     rhapi.ui.socket_listen(EVT_HELLO, on_hello)
+    rhapi.ui.socket_listen(EVT_PRESETS_GET, on_presets_get)
+    rhapi.ui.socket_listen(EVT_PRESETS_SAVE, on_presets_save)
+    rhapi.ui.socket_listen(EVT_PRESETS_DELETE, on_presets_delete)
     rhapi.ui.socket_listen(EVT_CAPTURE_START, on_capture_start)
     rhapi.ui.socket_listen(EVT_CAPTURE_STOP, on_capture_stop)
     rhapi.ui.socket_listen(EVT_CAPTURE_GET, on_capture_get)

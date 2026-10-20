@@ -20,6 +20,7 @@ import {
   type Seat
 } from './seats.js';
 import type { Crossing } from './crossings.js';
+import { fromWire, type Preset, type PresetSeat, type WirePreset } from './presets.js';
 
 export type HelloAck = {
   plugin_version: string;
@@ -63,7 +64,9 @@ const state = $state({
   hello: null as HelloAck | null,
   seats: [] as Seat[],
   profiles: { list: [], currentId: null, name: '', description: '' } as Profiles,
-  capture: null as Capture | null
+  capture: null as Capture | null,
+  /** Custom channel presets the plugin keeps in RotorHazard's database. */
+  presets: [] as Preset[]
 });
 
 /** Read-only view of the connection and timer state for screens. */
@@ -126,6 +129,7 @@ export function connect(): Socket {
     socket?.emit('gridfpv_hello', { client: 'plugin-ui' });
     loadData('frequency_data', 'enter_and_exit_at_levels', 'node_tuning', 'node_data');
     socket?.emit('gridfpv_capture_get');
+    socket?.emit('gridfpv_presets_get');
   });
   socket.on('disconnect', () => {
     state.connection = 'disconnected';
@@ -156,6 +160,11 @@ export function connect(): Socket {
   });
   socket.on('node_tuning', (p: Parameters<typeof applyNodeTuning>[0]) => {
     state.profiles = applyNodeTuning(p);
+    checkWaiters();
+  });
+
+  socket.on('gridfpv_presets', (p: { presets: WirePreset[] }) => {
+    state.presets = (p.presets ?? []).map(fromWire);
     checkWaiters();
   });
 
@@ -280,4 +289,21 @@ export function firmwareCrossings(cap: Capture): Crossing[] {
       peak: c.peak ?? 0,
       open: c.exit == null
     }));
+}
+
+// ---- custom presets (stored by the plugin) --------------------------------------
+
+/** Save the given layout as a custom preset; a same-named preset is replaced. */
+export function savePreset(name: string, seats: PresetSeat[]): Promise<WriteResult> {
+  socket?.emit('gridfpv_presets_save', { name, seats });
+  const before = state.presets.find((p) => p.name.toLowerCase() === name.toLowerCase())?.id;
+  return awaitState('Save preset', () => {
+    const now = state.presets.find((p) => p.name.toLowerCase() === name.toLowerCase());
+    return !!now && now.id !== before;
+  });
+}
+
+export function deletePreset(id: string): Promise<WriteResult> {
+  socket?.emit('gridfpv_presets_delete', { id });
+  return awaitState('Delete preset', () => !state.presets.some((p) => p.id === id));
 }

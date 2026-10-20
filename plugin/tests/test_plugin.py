@@ -68,6 +68,7 @@ class FakeRhapi:
         self.ui.blueprint_add = mock.Mock(side_effect=self.blueprints.append)
         self.db = mock.Mock()
         self.db.option = mock.Mock(side_effect=lambda name, default=False, as_int=False: self.options.get(name, default))
+        self.db.option_set = mock.Mock(side_effect=lambda name, value: self.options.__setitem__(name, value))
         self.server = mock.Mock()
         self.server.info = {"release_version": "4.4.0"}
         self.interface = mock.Mock()
