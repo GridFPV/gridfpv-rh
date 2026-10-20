@@ -72,6 +72,7 @@
     {teams}
     title={editTitle}
     {onresult}
+    onclose={() => (editing = null)}
   />
 {/if}
 

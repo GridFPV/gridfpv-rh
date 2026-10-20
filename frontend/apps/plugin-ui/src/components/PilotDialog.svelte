@@ -14,7 +14,8 @@
     attributeTypes,
     teams,
     title = 'Edit pilot',
-    onresult
+    onresult,
+    onclose = undefined
   }: {
     open?: boolean;
     pilot: Pilot;
@@ -23,6 +24,8 @@
     teams: string[];
     title?: string;
     onresult: (r: WriteResult) => void;
+    /** Fires whenever the dialog closes (Save, Cancel, ×, Esc, backdrop). */
+    onclose?: () => void;
   } = $props();
 
   let callsign = $state('');
@@ -95,7 +98,7 @@
   }
 </script>
 
-<Dialog bind:open {title}>
+<Dialog bind:open {title} {onclose}>
   <div class="form">
     <label class="field">
       <span>Callsign</span>
