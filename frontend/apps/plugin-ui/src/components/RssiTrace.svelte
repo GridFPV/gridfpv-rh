@@ -16,7 +16,8 @@
     exit = $bindable(),
     firmware = [],
     height = 260,
-    readonly = false
+    readonly = false,
+    oncommit = undefined
   }: {
     trace: Trace;
     enter: number;
@@ -25,6 +26,8 @@
     firmware?: Crossing[];
     height?: number;
     readonly?: boolean;
+    /** Fires when a threshold edit is complete: a drag released, or a key nudge. */
+    oncommit?: (enter: number, exit: number) => void;
   } = $props();
 
   const W = 1000; // viewBox units; the SVG scales to its container
@@ -95,8 +98,10 @@
     else exit = Math.min(v, enter - 1);
   }
   function endDrag() {
+    const was = dragging;
     dragging = null;
     frozen = null;
+    if (was) oncommit?.(enter, exit);
   }
   function keyNudge(which: 'enter' | 'exit', ev: KeyboardEvent) {
     const step = ev.shiftKey ? 5 : 1;
@@ -105,6 +110,7 @@
     ev.preventDefault();
     if (which === 'enter') enter = Math.max(exit + 1, enter + delta);
     else exit = Math.max(1, Math.min(enter - 1, exit + delta));
+    oncommit?.(enter, exit);
   }
 
   export function crossings(): Crossing[] {

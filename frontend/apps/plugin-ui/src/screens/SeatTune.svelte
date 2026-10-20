@@ -46,7 +46,6 @@
   const trace = $derived(sortedTrace({ times: cap?.times ?? [], values: cap?.values ?? [] }));
   const computed = $derived(detectCrossings(trace, enter, exit));
   const firmware = $derived(cap ? firmwareCrossings(cap) : []);
-  const dirty = $derived(seat && (enter !== seat.enter || exit !== seat.exit));
 
   let busy = $state(false);
   let notice: { tone: 'success' | 'danger' | 'info'; text: string } | null = $state(null);
@@ -63,9 +62,25 @@
     }
   }
 
+  // Thresholds write to RotorHazard as soon as an edit completes (a drag released, a nudge),
+  // debounced so a run of +/- clicks is one write, and confirmed by readback like every write.
+  let commitTimer = 0;
+  function commit() {
+    window.clearTimeout(commitTimer);
+    commitTimer = window.setTimeout(() => {
+      if (!seat || recording || exit < 1 || enter <= exit) return;
+      if (enter === seat.enter && exit === seat.exit) return;
+      void run(
+        () => setLevels(seatIndex, enter, exit),
+        `Seat ${seatIndex + 1} now enters at ${enter}, exits at ${exit}.`
+      );
+    }, 400);
+  }
+
   function nudge(which: 'enter' | 'exit', delta: number) {
     if (which === 'enter') enter = Math.max(exit + 1, enter + delta);
     else exit = Math.max(1, Math.min(enter - 1, exit + delta));
+    commit();
   }
 </script>
 
@@ -131,7 +146,7 @@
       {#if trace.times.length === 0}
         <p class="muted">No recording yet{recording ? ' — samples arrive every second' : ''}.</p>
       {:else}
-        <RssiTrace {trace} bind:enter bind:exit {firmware} readonly={recording} />
+        <RssiTrace {trace} bind:enter bind:exit {firmware} readonly={recording} oncommit={commit} />
       {/if}
       <div class="tune">
         <div class="level">
@@ -149,19 +164,6 @@
         <div class="counts muted">
           {computed.length} pass{computed.length === 1 ? '' : 'es'} with these thresholds
           {#if firmware.length}· {firmware.length} seen by the firmware{/if}
-        </div>
-        <div class="apply">
-          <Button
-            variant="primary"
-            disabled={!dirty || busy || recording || exit < 1 || enter <= exit}
-            onclick={() =>
-              run(
-                () => setLevels(seatIndex, enter, exit),
-                `Seat ${seatIndex + 1} now enters at ${enter}, exits at ${exit}.`
-              )}
-          >
-            Apply to seat
-          </Button>
         </div>
       </div>
       {#if computed.length}
@@ -238,9 +240,6 @@
   }
   .lbl.exit {
     color: var(--gf-warn);
-  }
-  .apply {
-    margin-left: auto;
   }
   .passes {
     margin: var(--gf-space-3) 0 0;

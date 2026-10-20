@@ -1,10 +1,13 @@
 <script lang="ts">
   /**
-   * The frequency profile bar: which profile is active, switch, duplicate, rename, delete.
-   * In RotorHazard a profile holds every seat's channel and thresholds, so the seat cards
-   * below always show the active one.
+   * The frequency profile bar. In RotorHazard a profile holds every seat's channel and
+   * thresholds, and every one of those writes lands in the active profile the moment it is
+   * made — nothing on this page is ever "unsaved". So there is no Save button: the name and
+   * description write when you leave the field, and the indicator shows the last confirmed
+   * write. New copies the active profile (RotorHazard's only way to make one) under a name
+   * you give it.
    */
-  import { Button, Input, Select } from '@gridfpv/components';
+  import { Button, Dialog, Input, Select } from '@gridfpv/components';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import {
     addProfile,
@@ -24,12 +27,20 @@
     name = profiles.name;
     description = profiles.description;
   });
-  const dirty = $derived(name !== profiles.name || description !== profiles.description);
+
+  let saved: 'idle' | 'saving' | 'saved' | 'failed' = $state('idle');
+  let savedTimer = 0;
 
   async function run(fn: () => Promise<WriteResult>) {
     busy = true;
+    saved = 'saving';
     try {
-      onresult(await fn());
+      const r = await fn();
+      onresult(r);
+      saved = r.ok ? 'saved' : 'failed';
+      window.clearTimeout(savedTimer);
+      if (r.ok) savedTimer = window.setTimeout(() => (saved = 'idle'), 3000);
+      return r;
     } finally {
       busy = false;
     }
@@ -40,8 +51,58 @@
     if (id !== profiles.currentId) void run(() => setProfile(id));
   }
 
+  /** Name / description write when the field is left, if they changed. */
+  function commitText() {
+    const n = name.trim();
+    const d = description.trim();
+    if (!n) {
+      name = profiles.name;
+      return;
+    }
+    if (n === profiles.name && d === profiles.description) return;
+    void run(() => alterProfile(n, d));
+  }
+  const blurOnEnter = (e: KeyboardEvent) => {
+    if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+  };
+
+  // ---- new profile ----
+  let newOpen = $state(false);
+  let newName = $state('');
+  async function createProfile() {
+    const n = newName.trim();
+    if (!n) return;
+    newOpen = false;
+    // RotorHazard's add_profile copies the active profile and switches to the copy; the
+    // rename then lands on the copy.
+    const added = await run(addProfile);
+    if (added.ok) await run(() => alterProfile(n, ''));
+  }
+
   let confirmDelete = $state(false);
 </script>
+
+<Dialog bind:open={newOpen} title="New profile">
+  <p class="muted">
+    Starts as a copy of <strong>{profiles.name}</strong> — same channels, same tuning — under the new
+    name.
+  </p>
+  <label class="field">
+    <span>Name</span>
+    <Input
+      bind:value={newName}
+      placeholder="e.g. Outdoor, Indoor whoop"
+      disabled={busy}
+      onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && createProfile()}
+    />
+  </label>
+  {#snippet footer()}
+    <Button variant="ghost" onclick={() => (newOpen = false)}>Cancel</Button>
+    <Button variant="primary" disabled={!newName.trim() || busy} onclick={createProfile}>
+      Create
+    </Button>
+  {/snippet}
+</Dialog>
 
 <ConfirmDialog
   bind:open={confirmDelete}
@@ -65,27 +126,38 @@
   </label>
   <label class="field grow">
     <span>Name</span>
-    <Input bind:value={name} disabled={busy} placeholder="Profile name" />
+    <Input
+      bind:value={name}
+      disabled={busy}
+      placeholder="Profile name"
+      onblur={commitText}
+      onkeydown={blurOnEnter}
+    />
   </label>
   <label class="field grow">
     <span>Description</span>
-    <Input bind:value={description} disabled={busy} placeholder="Optional" />
+    <Input
+      bind:value={description}
+      disabled={busy}
+      placeholder="Optional"
+      onblur={commitText}
+      onkeydown={blurOnEnter}
+    />
   </label>
+  <span class="saved" data-state={saved}>
+    {#if saved === 'saving'}Saving…{:else if saved === 'saved'}Saved{:else if saved === 'failed'}Not
+      saved{/if}
+  </span>
   <div class="actions">
     <Button
       variant="secondary"
-      disabled={!dirty || busy || !name.trim()}
-      onclick={() => run(() => alterProfile(name.trim(), description.trim()))}
-    >
-      Save
-    </Button>
-    <Button
-      variant="secondary"
       disabled={busy}
-      title="Copy the active profile and switch to it"
-      onclick={() => run(addProfile)}
+      onclick={() => {
+        newName = '';
+        newOpen = true;
+      }}
     >
-      Duplicate
+      New
     </Button>
     <Button
       variant="danger"
@@ -123,8 +195,24 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
   }
+  .saved {
+    min-width: 5.5em;
+    align-self: center;
+    font-size: var(--gf-font-size-sm);
+    color: var(--gf-text-muted);
+  }
+  .saved[data-state='saved'] {
+    color: var(--gf-success);
+  }
+  .saved[data-state='failed'] {
+    color: var(--gf-danger);
+  }
   .actions {
     display: flex;
     gap: var(--gf-space-2);
+  }
+  .muted {
+    color: var(--gf-text-muted);
+    margin: 0 0 var(--gf-space-3);
   }
 </style>

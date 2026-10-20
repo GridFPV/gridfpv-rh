@@ -52,7 +52,9 @@
   );
   const levelsValid = $derived(Number(enter) > Number(exit) && Number(exit) > 0);
 
-  async function applyLevels() {
+  /** Write the thresholds when an edit completes (blur / Enter), if they changed and are sane. */
+  async function commitLevels() {
+    if (!levelsDirty || !levelsValid || busy) return;
     busy = true;
     try {
       onresult(await setLevels(seat.index, Number(enter), Number(exit)));
@@ -60,6 +62,9 @@
       busy = false;
     }
   }
+  const onEnterKey = (e: KeyboardEvent) => {
+    if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+  };
 
   // ---- live bar ----
   const scale = $derived(Math.max(seat.peak ?? 0, seat.enter ?? 0, seat.rssi, 100));
@@ -96,21 +101,31 @@
   <div class="row">
     <label class="field narrow">
       <span>Enter</span>
-      <Input type="number" size="sm" bind:value={enter} min="1" max="255" disabled={busy} />
+      <Input
+        type="number"
+        size="sm"
+        bind:value={enter}
+        min="1"
+        max="255"
+        disabled={busy}
+        onblur={commitLevels}
+        onkeydown={onEnterKey}
+      />
     </label>
     <label class="field narrow">
       <span>Exit</span>
-      <Input type="number" size="sm" bind:value={exit} min="1" max="255" disabled={busy} />
+      <Input
+        type="number"
+        size="sm"
+        bind:value={exit}
+        min="1"
+        max="255"
+        disabled={busy}
+        onblur={commitLevels}
+        onkeydown={onEnterKey}
+      />
     </label>
     <div class="actions">
-      <Button
-        size="sm"
-        variant="secondary"
-        disabled={!levelsDirty || !levelsValid || busy}
-        onclick={applyLevels}
-      >
-        Apply
-      </Button>
       <Button
         size="sm"
         variant="primary"
