@@ -509,6 +509,12 @@
   }
   .slots {
     display: grid;
-    gap: var(--gf-space-1);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--gf-space-1) var(--gf-space-4);
+  }
+  @media (max-width: 900px) {
+    .slots {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 </style>

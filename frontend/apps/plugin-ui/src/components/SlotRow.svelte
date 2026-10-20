@@ -114,46 +114,65 @@
       {/each}
     </Select>
   {:else if slot.method === SLOT_METHOD.HEAT_RESULT}
-    <Input
-      type="number"
-      size="sm"
-      bind:value={rank}
-      min="1"
-      max="16"
-      disabled={busy || heat.locked}
-      onblur={onRank}
-    />
-    <span class="muted">place in</span>
-    <Select
-      value={String(slot.seedId ?? '')}
-      size="sm"
-      disabled={busy || heat.locked}
-      onchange={onSeedHeat}
-    >
-      {#each seedHeats as h (h.id)}
-        <option value={String(h.id)}>{h.displayName}</option>
-      {/each}
-    </Select>
+    <div class="seed">
+      <Input
+        type="number"
+        size="sm"
+        bind:value={rank}
+        min="1"
+        max="16"
+        disabled={busy || heat.locked}
+        onblur={onRank}
+      />
+      <span class="muted">place in</span>
+      <Select
+        value={String(slot.seedId ?? '')}
+        size="sm"
+        disabled={busy || heat.locked}
+        onchange={onSeedHeat}
+      >
+        {#each seedHeats as h (h.id)}
+          <option value={String(h.id)}>{h.displayName}</option>
+        {/each}
+      </Select>
+    </div>
   {:else if slot.method === SLOT_METHOD.CLASS_RESULT}
-    <Input
-      type="number"
-      size="sm"
-      bind:value={rank}
-      min="1"
-      max="64"
-      disabled={busy || heat.locked}
-      onblur={onRank}
-    />
-    <span class="muted">in the class ranking</span>
+    <div class="seed">
+      <Input
+        type="number"
+        size="sm"
+        bind:value={rank}
+        min="1"
+        max="64"
+        disabled={busy || heat.locked}
+        onblur={onRank}
+      />
+      <span class="muted">in the class ranking</span>
+    </div>
+  {:else}
+    <span></span>
   {/if}
 </div>
 
 <style>
   .slot {
-    display: flex;
+    display: grid;
+    grid-template-columns: 4.5em 9.5em minmax(0, 1fr);
     align-items: center;
     gap: var(--gf-space-2);
-    flex-wrap: wrap;
+  }
+  .slot :global(select),
+  .slot :global(input) {
+    min-width: 0;
+  }
+  .slot .muted {
+    white-space: nowrap;
+  }
+  .seed {
+    display: grid;
+    grid-template-columns: 5em auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--gf-space-2);
   }
   .slot.busy {
     opacity: 0.7;
