@@ -30,7 +30,14 @@
   let phonetic = $state('');
   let team = $state('');
   let color = $state('#ffffff');
-  let attrs: Record<string, string> = $state({});
+  // Seeded for every attribute type up front (and again when the dialog opens): Svelte 5
+  // refuses to bind an undefined value to an input that has a fallback.
+  let attrs: Record<string, string> = $state(seed());
+  function seed(): Record<string, string> {
+    const a: Record<string, string> = {};
+    for (const t of attributeTypes) a[t.name] = String(pilot.attributes[t.name] ?? '');
+    return a;
+  }
   let busy = $state(false);
 
   $effect(() => {
@@ -40,9 +47,7 @@
       phonetic = pilot.phonetic;
       team = pilot.team;
       color = pilot.color || '#ffffff';
-      const a: Record<string, string> = {};
-      for (const t of attributeTypes) a[t.name] = String(pilot.attributes[t.name] ?? '');
-      attrs = a;
+      attrs = seed();
     }
   });
 
@@ -128,7 +133,10 @@
       <label class="field">
         <span>{t.label}</span>
         {#if t.field_type === 'select' && t.options}
-          <Select bind:value={attrs[t.name]}>
+          <Select
+            value={attrs[t.name] ?? ''}
+            onchange={(e: Event) => (attrs[t.name] = (e.currentTarget as HTMLSelectElement).value)}
+          >
             <option value="">—</option>
             {#each t.options as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
           </Select>
@@ -140,7 +148,11 @@
               (attrs[t.name] = (e.currentTarget as HTMLInputElement).checked ? '1' : '0')}
           />
         {:else}
-          <Input bind:value={attrs[t.name]} placeholder={t.placeholder ?? ''} />
+          <Input
+            value={attrs[t.name] ?? ''}
+            placeholder={t.placeholder ?? ''}
+            oninput={(e: Event) => (attrs[t.name] = (e.currentTarget as HTMLInputElement).value)}
+          />
         {/if}
         {#if t.desc}<small class="muted">{t.desc}</small>{/if}
       </label>
