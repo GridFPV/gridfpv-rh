@@ -34,13 +34,18 @@
   const t1 = $derived(trace.times[trace.times.length - 1] ?? t0 + 1);
   const span = $derived(Math.max(t1 - t0, 0.001));
 
-  // Y range: the data's own span padded a little, always wide enough to show both lines.
-  const yRange = $derived.by(() => {
+  // Y range: the data's own span with headroom, always wide enough to show both lines.
+  // While a line is being dragged the range is frozen: if it followed the line, moving
+  // the line would rescale the plot, which moves the line under the cursor, which
+  // rescales again.
+  const liveRange = $derived.by(() => {
     const r = traceRange(trace) ?? { min: 0, max: 100 };
-    const lo = Math.min(r.min, exit) - 4;
-    const hi = Math.max(r.max, enter) + 4;
+    const lo = Math.max(0, Math.min(r.min, exit) - 8);
+    const hi = Math.min(255, Math.max(r.max, enter) + 12);
     return { lo, hi: Math.max(hi, lo + 10) };
   });
+  let frozen: { lo: number; hi: number } | null = $state(null);
+  const yRange = $derived(frozen ?? liveRange);
 
   const x = (t: number) => PAD.left + ((t - t0) / span) * (W - PAD.left - PAD.right);
   const y = (v: number) =>
@@ -77,17 +82,21 @@
   function startDrag(which: 'enter' | 'exit', ev: PointerEvent) {
     if (readonly) return;
     dragging = which;
+    frozen = { ...liveRange };
     (ev.currentTarget as Element).setPointerCapture(ev.pointerId);
   }
   function drag(ev: PointerEvent) {
     if (!dragging) return;
-    const v = valueAt(ev);
+    // Clamp to the (frozen) plot so the line can't leave the visible range mid-drag;
+    // release and drag again to go further, the range grows to make room.
+    const v = Math.max(yRange.lo + 1, Math.min(yRange.hi - 1, valueAt(ev)));
     // RotorHazard never lets exit rise above enter; mirror that while dragging.
     if (dragging === 'enter') enter = Math.max(v, exit + 1);
     else exit = Math.min(v, enter - 1);
   }
   function endDrag() {
     dragging = null;
+    frozen = null;
   }
   function keyNudge(which: 'enter' | 'exit', ev: KeyboardEvent) {
     const step = ev.shiftKey ? 5 : 1;
