@@ -1,6 +1,7 @@
 <script lang="ts">
   /** The Seats page: profile bar on top, one card per seat (#7). */
   import { Banner, Dialog } from '@gridfpv/components';
+  import ChannelGrid from '../components/ChannelGrid.svelte';
   import ProfileBar from '../components/ProfileBar.svelte';
   import SeatCard from '../components/SeatCard.svelte';
   import SeatTune from './SeatTune.svelte';
@@ -38,6 +39,10 @@
   </header>
 
   <ProfileBar profiles={timer.profiles} {onresult} />
+
+  {#if timer.seats.length}
+    <ChannelGrid seats={timer.seats} {onresult} />
+  {/if}
 
   {#if notice}
     <Banner tone={notice.tone} ondismiss={() => (notice = null)}>{notice.text}</Banner>
