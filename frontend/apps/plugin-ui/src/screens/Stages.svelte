@@ -22,6 +22,7 @@
     type WriteResult
   } from '../lib/rh.svelte.js';
   import { raceFor, racesFor, winnerOf } from '../lib/results.js';
+  import { seatTag } from '../lib/channels.js';
   import {
     CLASS_NONE,
     HEAT_ADVANCE,
@@ -119,6 +120,14 @@
     done: 'neutral'
   };
   const columns = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
+  /** The chip's lead: the seat's channel tag (R1, F4), a bare MHz, or Off; the seat number if unknown. */
+  function seatChan(seat: number): string {
+    const s = timer.seats[seat - 1];
+    if (!s) return String(seat);
+    if (!s.frequency) return 'Off';
+    const t = seatTag(s);
+    return t ? `${t.band}${t.channel}` : String(s.frequency);
+  }
 
   /** Seed every unconfirmed seeded heat of a stage; report how many seats are still waiting. */
   async function seedStage(heats: Heat[]) {
@@ -270,7 +279,7 @@
               <div class="chips">
                 {#each seatChips(setup, h) as chip (chip.seat)}
                   <span class="chip {chip.kind}" title={chip.title}
-                    ><span class="n">{chip.seat}</span>{chip.text}</span
+                    ><span class="n">{seatChan(chip.seat)}</span>{chip.text}</span
                   >
                 {/each}
               </div>
@@ -693,9 +702,10 @@
   .chip .n {
     display: inline-grid;
     place-items: center;
-    width: 18px;
+    min-width: 18px;
     height: 18px;
-    border-radius: 50%;
+    padding: 0 5px;
+    border-radius: 999px;
     background: var(--gf-surface);
     font-size: var(--gf-font-size-xs);
     color: var(--gf-text-muted);
