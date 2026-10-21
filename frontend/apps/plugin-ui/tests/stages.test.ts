@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { emptyResults, type Results } from '../src/lib/results.js';
 import {
+  boardLayout,
   heatsForPilots,
+  standingsLine,
   nextRound,
   roundColumns,
   seatChips,
@@ -141,5 +143,23 @@ describe('heatsForPilots', () => {
     expect(heatsForPilots(8, 4)).toBe(2);
     expect(heatsForPilots(0, 4)).toBe(1);
     expect(heatsForPilots(5, 0)).toBe(0);
+  });
+});
+
+describe('layout and standings', () => {
+  it('switches to the strip past six rounds', () => {
+    expect(boardLayout(1)).toBe('grid');
+    expect(boardLayout(6)).toBe('grid');
+    expect(boardLayout(7)).toBe('strip');
+  });
+  it('writes the standings in one line, cut at max', () => {
+    const rows = [
+      { pilotId: 1, callsign: 'Vortex', position: 1 },
+      { pilotId: 2, callsign: 'Pixel', position: 2 },
+      { pilotId: 3, callsign: 'Blitz', position: 3 }
+    ];
+    expect(standingsLine(rows)).toBe('1 Vortex · 2 Pixel · 3 Blitz');
+    expect(standingsLine(rows, 2)).toBe('1 Vortex · 2 Pixel · …');
+    expect(standingsLine(undefined)).toBe('');
   });
 });

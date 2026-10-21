@@ -5,7 +5,8 @@
    * readback, like the channel pickers do.
    */
   import { Input, Select } from '@gridfpv/components';
-  import { seatSlot, type WriteResult } from '../lib/rh.svelte.js';
+  import { rh, seatSlot, type WriteResult } from '../lib/rh.svelte.js';
+  import { channelLabel } from '../lib/channels.js';
   import { CLASS_NONE, SLOT_METHOD, type Heat, type Setup, type Slot } from '../lib/setup.js';
 
   let {
@@ -19,6 +20,13 @@
     setup: Setup;
     onresult: (r: WriteResult) => void;
   } = $props();
+
+  const timer = rh();
+  /** The seat's channel from the active profile, so you know what you're putting a pilot on. */
+  const channel = $derived.by(() => {
+    const seat = slot.nodeIndex == null ? undefined : timer.seats[slot.nodeIndex];
+    return seat ? channelLabel(seat.band, seat.channel, seat.frequency) : '';
+  });
 
   let busy = $state(false);
   const activePilots = $derived(
@@ -120,7 +128,10 @@
 </script>
 
 <div class="slot" class:busy>
-  <span class="seat">Seat {(slot.nodeIndex ?? 0) + 1}</span>
+  <span class="seat">
+    <span>Seat {(slot.nodeIndex ?? 0) + 1}</span>
+    {#if channel}<span class="chan">{channel}</span>{/if}
+  </span>
   <Select value={String(slot.method)} size="sm" disabled={busy || heat.locked} onchange={onMethod}>
     <option value={String(SLOT_METHOD.NONE)}>Empty</option>
     <option value={String(SLOT_METHOD.ASSIGN)}>Pilot</option>
@@ -201,7 +212,7 @@
 <style>
   .slot {
     display: grid;
-    grid-template-columns: 4.5em 9.5em minmax(0, 1fr);
+    grid-template-columns: 8.5em 9.5em minmax(0, 1fr);
     align-items: center;
     gap: var(--gf-space-2);
   }
@@ -222,11 +233,18 @@
     opacity: 0.7;
   }
   .seat {
-    min-width: 4.5em;
+    display: grid;
+    line-height: 1.2;
     font-size: var(--gf-font-size-xs);
     color: var(--gf-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.06em;
+  }
+  .seat .chan {
+    color: var(--gf-text);
+    text-transform: none;
+    letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
   }
   .muted {
     color: var(--gf-text-muted);

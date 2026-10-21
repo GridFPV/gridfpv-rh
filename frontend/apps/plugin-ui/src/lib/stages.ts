@@ -4,7 +4,7 @@
  * in and how many columns it needs; the screen draws them. Pure, so tests cover the
  * states without a timer.
  */
-import { racesFor, type Results } from './results.js';
+import { racesFor, type RankRow, type Results } from './results.js';
 import {
   ordinal,
   pilotById,
@@ -65,6 +65,24 @@ export function roundColumns(cls: RaceClass, heats: Heat[], results: Results): n
   const raced = Math.max(0, ...heats.map((h) => racesFor(results, h.id).length));
   if (cls.rounds > 0) return Math.max(cls.rounds, raced);
   return raced + 1;
+}
+
+/**
+ * Up to this many round columns the board is a grid (rows × rounds). Past it — RaceGOW's
+ * one heat and thirty rounds, Chase the Ace — each heat shows its rounds as a wrapping
+ * strip under the lineup instead, so nothing scrolls sideways.
+ */
+export const GRID_MAX_ROUNDS = 6;
+export type BoardLayout = 'grid' | 'strip';
+export function boardLayout(columns: number): BoardLayout {
+  return columns > GRID_MAX_ROUNDS ? 'strip' : 'grid';
+}
+
+/** The stage standings in one line: `1 Vortex · 2 Pixel · 3 Blitz`, cut at `max`. */
+export function standingsLine(ranking: RankRow[] | undefined, max = 8): string {
+  if (!ranking?.length) return '';
+  const shown = ranking.slice(0, max).map((r) => `${r.position ?? ''} ${r.callsign}`.trim());
+  return shown.join(' · ') + (ranking.length > max ? ' · …' : '');
 }
 
 /** The next unraced round of a heat, 1-based; null when the stage's rounds are all flown. */

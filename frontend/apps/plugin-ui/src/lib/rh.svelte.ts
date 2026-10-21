@@ -86,6 +86,8 @@ const state = $state({
   setup: emptySetup() as Setup,
   /** Saved races and class standings (RotorHazard's result_data). */
   results: emptyResults() as Results,
+  /** The heat RotorHazard has loaded to race next, and which round that will be. */
+  current: { heatId: 0, nextRound: null as number | null },
   /** Class ranking methods RotorHazard offers (its own plus plugins'), by name. */
   rankMethods: [] as Array<{ name: string; label: string }>,
   /** Race points methods (for a format), by name. */
@@ -172,6 +174,7 @@ function reloadEverything() {
     'heat_data',
     'format_data',
     'result_data',
+    'current_heat',
     'raceclass_rank_method_list',
     'race_points_method_list'
   );
@@ -201,6 +204,7 @@ export function connect(): Socket {
       'heat_data',
       'format_data',
       'result_data',
+      'current_heat',
       'raceclass_rank_method_list',
       'race_points_method_list'
     );
@@ -258,6 +262,10 @@ export function connect(): Socket {
   });
   socket.on('format_data', (p: Parameters<typeof applyFormatData>[1]) => {
     state.setup = applyFormatData(state.setup, p);
+    checkWaiters();
+  });
+  socket.on('current_heat', (p: { current_heat?: number; next_round?: number | null }) => {
+    state.current = { heatId: Number(p.current_heat ?? 0), nextRound: p.next_round ?? null };
     checkWaiters();
   });
   socket.on('result_data', (p: Parameters<typeof applyResultData>[0]) => {

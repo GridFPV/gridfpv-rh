@@ -21,7 +21,7 @@
     unseedHeat,
     type WriteResult
   } from '../lib/rh.svelte.js';
-  import { raceFor, winnerOf } from '../lib/results.js';
+  import { raceFor, racesFor, winnerOf } from '../lib/results.js';
   import {
     CLASS_NONE,
     HEAT_ADVANCE,
@@ -31,6 +31,7 @@
     type RaceClass
   } from '../lib/setup.js';
   import {
+    boardLayout,
     isSeededHeat,
     needsSeeding,
     nextRound,
@@ -38,12 +39,16 @@
     seatChips,
     STAGE_STATE_LABELS,
     stageState,
+    standingsLine,
     type StageState
   } from '../lib/stages.js';
 
   const timer = rh();
   const setup = $derived(timer.setup);
   const results = $derived(timer.results);
+  /** The one race that is actually next: RotorHazard's loaded heat, at that heat's next round. */
+  const isUpNext = (heatId: number, round: number) =>
+    timer.current.heatId === heatId && round === (timer.current.nextRound ?? round);
   const stages = $derived(
     [...setup.classes].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.id - b.id)
   );
@@ -218,20 +223,45 @@
   </ConfirmDialog>
 {/if}
 
+{#snippet roundCell(h: Heat, r: number, next: number | null, label: boolean)}
+  {@const race = raceFor(results, h.id, r)}
+  {#if race}
+    {@const w = winnerOf(race)}
+    <span class="cell done" title="Round {r}, raced {race.startTime}"
+      >{#if label}<span class="rn">R{r}</span>{/if}{w?.callsign ?? '✓'}</span
+    >
+  {:else if r === next && isUpNext(h.id, r)}
+    <span class="cell next" title="Loaded on the timer"
+      >{#if label}R{r} ·
+      {/if}next</span
+    >
+  {:else if r === next}
+    <span class="cell open" title="This heat's next round"
+      >{#if label}R{r}{:else}·{/if}</span
+    >
+  {:else}
+    <span class="cell todo"></span>
+  {/if}
+{/snippet}
+
 {#snippet board(c: RaceClass | null, heats: Heat[])}
   {@const rounds = c ? roundColumns(c, heats, results) : 1}
+  {@const layout = boardLayout(rounds)}
   <div class="boardwrap">
-    <table class="board">
+    <table class="board" class:strip={layout === 'strip'}>
       <thead>
         <tr>
           <th class="heatcol">Heat</th>
-          <th class="lineup">Lineup</th>
-          {#each columns(rounds) as r (r)}<th class="round">R{r}</th>{/each}
+          <th class="lineup">{layout === 'strip' ? 'Lineup and rounds' : 'Lineup'}</th>
+          {#if layout === 'grid'}
+            {#each columns(rounds) as r (r)}<th class="round">R{r}</th>{/each}
+          {/if}
         </tr>
       </thead>
       <tbody>
         {#each heats as h (h.id)}
           {@const next = c ? nextRound(c, h, results) : null}
+          {@const raced = racesFor(results, h.id).length}
           <tr class="heat" onclick={() => (heatOpen = h.id)}>
             <td class="heatcol">
               <strong>{h.displayName}</strong>
@@ -245,20 +275,24 @@
                   >
                 {/each}
               </div>
+              {#if layout === 'strip'}
+                <div class="roundstrip">
+                  {#each columns(next ?? raced) as r (r)}
+                    {@render roundCell(h, r, next, true)}
+                  {/each}
+                  {#if c && c.rounds > 0 && next != null && c.rounds - next > 0}
+                    <span class="togo">{c.rounds - next} more</span>
+                  {:else if c && c.rounds === 0}
+                    <span class="togo">no limit</span>
+                  {/if}
+                </div>
+              {/if}
             </td>
-            {#each columns(rounds) as r (r)}
-              {@const race = raceFor(results, h.id, r)}
-              <td class="round">
-                {#if race}
-                  {@const w = winnerOf(race)}
-                  <span class="cell done" title="Raced {race.startTime}">{w?.callsign ?? '✓'}</span>
-                {:else if r === next}
-                  <span class="cell next">next</span>
-                {:else}
-                  <span class="cell todo"></span>
-                {/if}
-              </td>
-            {/each}
+            {#if layout === 'grid'}
+              {#each columns(rounds) as r (r)}
+                <td class="round">{@render roundCell(h, r, next, false)}</td>
+              {/each}
+            {/if}
           </tr>
         {/each}
       </tbody>
@@ -393,6 +427,12 @@
         </label>
       </div>
 
+      {#if standingsLine(results.ranking[c.id])}
+        <p class="standings">
+          <span class="label">Standings</span>
+          {standingsLine(results.ranking[c.id])}
+        </p>
+      {/if}
       {#if heats.length}
         {@render board(c, heats)}
       {:else}
@@ -659,6 +699,46 @@
     color: var(--gf-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.06em;
+  }
+  .cell.open {
+    min-width: 0;
+    color: var(--gf-text-muted);
+    border: 1px dashed var(--gf-border);
+    padding: 2px 8px;
+  }
+  .standings {
+    margin: 0 0 var(--gf-space-2);
+    font-size: var(--gf-font-size-sm);
+  }
+  .standings .label {
+    font-size: var(--gf-font-size-xs);
+    color: var(--gf-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-right: var(--gf-space-2);
+  }
+  .roundstrip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gf-space-1);
+    margin-top: var(--gf-space-2);
+    align-items: center;
+  }
+  .roundstrip .cell {
+    min-width: 0;
+  }
+  .roundstrip .cell.todo {
+    display: none;
+  }
+  .rn {
+    color: var(--gf-text-muted);
+    margin-right: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .togo {
+    font-size: var(--gf-font-size-xs);
+    color: var(--gf-text-muted);
+    margin-left: var(--gf-space-1);
   }
   .cell.todo {
     min-width: 0;
