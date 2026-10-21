@@ -366,6 +366,17 @@ export function formatSummary(f: RaceFormat): string {
   return parts.join(' · ');
 }
 
+/**
+ * The grace window in words — what happens when a timed race's clock runs out: `stops at once`,
+ * `30 s to finish the lap`, `runs until stopped`. Empty for a race with no time limit.
+ */
+export function graceSummary(f: RaceFormat): string {
+  if (f.unlimitedTime) return '';
+  if (f.lapGraceSec < 0) return 'then runs until stopped';
+  if (f.lapGraceSec === 0) return 'then stops at once';
+  return `then ${f.lapGraceSec} s to finish the lap`;
+}
+
 /** The staging sequence in words: `3 prestage tones, then 1.0–3.0 s, a tone every second`. */
 export function stagingSummary(f: RaceFormat): string {
   const pre = f.stagingFixedTones

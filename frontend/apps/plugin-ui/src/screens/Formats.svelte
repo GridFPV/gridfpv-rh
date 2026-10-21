@@ -8,7 +8,7 @@
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import FormatDialog from '../components/FormatDialog.svelte';
   import { addFormat, alterFormat, deleteFormat, rh, type WriteResult } from '../lib/rh.svelte.js';
-  import { formatSummary, stagingSummary, type RaceFormat } from '../lib/setup.js';
+  import { formatSummary, graceSummary, stagingSummary, type RaceFormat } from '../lib/setup.js';
 
   const timer = rh();
   const formats = $derived([...timer.setup.formats].sort((a, b) => a.id - b.id));
@@ -129,7 +129,9 @@
             {#if f.locked}<Badge tone="neutral" variant="outline">raced</Badge>{/if}
           </div>
         </div>
-        <p class="summary">{formatSummary(f)}</p>
+        <p class="summary">
+          {formatSummary(f)}{#if graceSummary(f)}<span class="muted">, {graceSummary(f)}</span>{/if}
+        </p>
         <p class="muted">{stagingSummary(f)}</p>
         <div class="actions">
           <Button

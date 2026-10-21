@@ -6,6 +6,7 @@ import {
   applyPilotData,
   emptySetup,
   formatSummary,
+  graceSummary,
   stagingSummary,
   heatsInClass,
   ordinal,
@@ -168,6 +169,10 @@ describe('setup reducers', () => {
       '3 prestage tones, then 1.0–3.0 s, a tone every second'
     );
     expect(formatSummary(s.formats[1])).toBe('First to 3 laps · Team racing');
+    expect(graceSummary(s.formats[0])).toBe('then stops at once');
+    expect(graceSummary(s.formats[1])).toBe('');
+    expect(graceSummary({ ...s.formats[0], lapGraceSec: 30 })).toBe('then 30 s to finish the lap');
+    expect(graceSummary({ ...s.formats[0], lapGraceSec: -1 })).toBe('then runs until stopped');
     expect(stagingSummary(s.formats[1])).toBe('no prestage tones, then 0.5 s, silent');
   });
 

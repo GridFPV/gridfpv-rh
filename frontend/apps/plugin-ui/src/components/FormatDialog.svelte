@@ -43,7 +43,8 @@
       timed: !x.unlimitedTime,
       minutes: String(Math.floor(x.raceTimeSec / 60)),
       seconds: String(x.raceTimeSec % 60),
-      grace: x.lapGraceSec === -1 ? 'manual' : String(x.lapGraceSec),
+      graceMode: x.lapGraceSec < 0 ? 'manual' : x.lapGraceSec === 0 ? 'stop' : 'finish',
+      graceSec: String(x.lapGraceSec > 0 ? x.lapGraceSec : 30),
       winCondition: String(x.winCondition),
       laps: String(x.numberLapsWin),
       prestage: String(x.stagingFixedTones),
@@ -63,6 +64,14 @@
     Math.max(0, Number(f.minutes) || 0) * 60 + Math.max(0, Number(f.seconds) || 0)
   );
   const needsLaps = $derived(Number(f.winCondition) === WIN_CONDITION.FIRST_TO_LAP_X);
+  /** RotorHazard's lap_grace_sec: -1 stop manually, 0 stop at once, N seconds to finish the lap. */
+  const grace = $derived(
+    f.graceMode === 'manual'
+      ? -1
+      : f.graceMode === 'stop'
+        ? 0
+        : Math.max(1, Math.floor(Number(f.graceSec) || 0))
+  );
 
   const fields = $derived.by((): FormatFields => {
     const out: FormatFields = {};
@@ -70,8 +79,7 @@
     if (name && name !== format.name) out.name = name;
     if (f.timed === format.unlimitedTime) out.unlimitedTime = !f.timed;
     if (f.timed && raceTimeSec !== format.raceTimeSec) out.raceTimeSec = raceTimeSec;
-    const grace = f.grace === 'manual' ? -1 : Math.max(0, Number(f.grace) || 0);
-    if (grace !== format.lapGraceSec) out.lapGraceSec = grace;
+    if (f.timed && grace !== format.lapGraceSec) out.lapGraceSec = grace;
     const win = Number(f.winCondition);
     if (win !== format.winCondition) out.winCondition = win;
     const laps = needsLaps ? Math.max(1, Number(f.laps) || 1) : 0;
@@ -143,18 +151,29 @@
               max="59"
             /></label
           >
-          <label class="field">
-            <span>After time runs out</span>
-            <Select bind:value={f.grace}>
-              <option value="0">Stop at once</option>
-              <option value="10">Give 10 s to finish the lap</option>
-              <option value="30">Give 30 s to finish the lap</option>
-              <option value="manual">Keep the clock running until stopped</option>
-              {#if !['0', '10', '30', 'manual'].includes(f.grace)}<option value={f.grace}
-                  >Give {f.grace} s</option
-                >{/if}
-            </Select>
+        </div>
+        <div class="grace">
+          <span class="label">Grace window, when time runs out</span>
+          <label class="radio"
+            ><input type="radio" bind:group={f.graceMode} value="stop" /> Stop at once</label
+          >
+          <label class="radio">
+            <input type="radio" bind:group={f.graceMode} value="finish" /> Finish the lap, up to
+            <span class="secs"
+              ><Input
+                type="number"
+                bind:value={f.graceSec}
+                min="1"
+                max="600"
+                disabled={f.graceMode !== 'finish'}
+              /></span
+            >
+            s
           </label>
+          <label class="radio"
+            ><input type="radio" bind:group={f.graceMode} value="manual" /> Keep running until stopped
+            manually</label
+          >
         </div>
       {/if}
     </fieldset>
@@ -302,6 +321,19 @@
     display: flex;
     align-items: center;
     gap: var(--gf-space-1);
+  }
+  .grace {
+    display: grid;
+    gap: var(--gf-space-1);
+  }
+  .grace .label {
+    font-size: var(--gf-font-size-xs);
+    color: var(--gf-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .secs :global(.gf-input) {
+    width: 72px;
   }
   .muted {
     color: var(--gf-text-muted);
