@@ -10,6 +10,7 @@ import {
   pilotById,
   SLOT_METHOD,
   HEAT_STATUS,
+  ROUND_TYPE,
   heatById,
   classById,
   type Heat,
@@ -36,9 +37,28 @@ const isDynamic = (s: Slot) =>
 export function isSeededHeat(h: Heat): boolean {
   return h.slots.some((s) => s.nodeIndex != null && isDynamic(s));
 }
-/** Seeded and not yet confirmed (RotorHazard won't race it until it is). */
+/** Seeded seats whose pilot is not known yet. */
+export function unresolvedSeats(h: Heat): number {
+  return h.slots.filter((s) => s.nodeIndex != null && isDynamic(s) && !s.pilotId).length;
+}
+
+/** Seeded and not confirmed yet, or confirmed with seats still waiting: Seed now applies. */
 export function needsSeeding(h: Heat): boolean {
-  return isSeededHeat(h) && h.status !== HEAT_STATUS.CONFIRMED && !h.locked;
+  if (!isSeededHeat(h) || h.locked) return false;
+  return h.status !== HEAT_STATUS.CONFIRMED || unresolvedSeats(h) > 0;
+}
+
+/** What a round of a grouped stage is, read off its heat names: `Winners`, `Losers`, `the final`. */
+export function roundLabel(heats: Heat[]): string {
+  const names = heats.map(heatShortName);
+  if (!names.length) return '';
+  if (names.length === 1 && names[0] === 'Final') return 'the final';
+  if (names.every((n) => /^W\d+$/.test(n))) return 'winners';
+  if (names.every((n) => /^L\d+$/.test(n))) return 'losers';
+  if (names.every((n) => /^Semi /.test(n))) return 'semifinals';
+  if (names.every((n) => /^Quarter /.test(n))) return 'quarterfinals';
+  if (names.length === 1 && /-main$/.test(names[0])) return names[0];
+  return '';
 }
 
 /**
@@ -53,8 +73,15 @@ export function stageState(cls: RaceClass, heats: Heat[], results: Results): Sta
   if (heats.length === 0) return 'empty';
   const raced = heats.map((h) => racesFor(results, h.id).length);
   const anyRaced = raced.some((n) => n > 0);
-  if (cls.rounds > 0 && raced.every((n) => n >= cls.rounds)) return 'done';
-  if (heats.some(needsSeeding) && !anyRaced) return 'plan';
+  // Grouped rounds: every heat flies once. Races per heat: every heat flies `rounds` times.
+  const needed = cls.roundType === ROUND_TYPE.GROUPED ? 1 : cls.rounds;
+  if (needed > 0 && raced.every((n) => n >= needed)) return 'done';
+  // A seeded heat that is confirmed with every seat known can race; a bracket's first round
+  // being ready counts as seeded even while later rounds wait on results.
+  const ready = heats.some(
+    (h) => isSeededHeat(h) && h.status === HEAT_STATUS.CONFIRMED && unresolvedSeats(h) === 0
+  );
+  if (heats.some(needsSeeding) && !anyRaced) return ready ? 'seeded' : 'plan';
   if (anyRaced) return 'running';
   if (heats.some(isSeededHeat)) return 'seeded';
   return 'ready';
@@ -105,6 +132,52 @@ export function roundsOf(heats: Heat[]): Heat[][] {
     const g = h.groupId ?? 0;
     while (out.length <= g) out.push([]);
     out[g].push(h);
+  }
+  return out;
+}
+
+/**
+ * A bracket stage: races per heat with one round, where heats seed from each other. The
+ * bracket's rounds are not stored — RotorHazard's grouped rounds mean "fly everyone again
+ * next round" (it clones a flown heat into the next group), which a bracket is not — so
+ * they are read off the seeding graph: a heat seeded only from the ranking is round 1,
+ * any other heat is one round after the latest heat it draws from.
+ */
+export function isBracketStage(cls: RaceClass, heats: Heat[]): boolean {
+  if (cls.roundType === ROUND_TYPE.GROUPED || cls.rounds !== 1) return false;
+  const ids = new Set(heats.map((h) => h.id));
+  return heats.some((h) =>
+    h.slots.some(
+      (s) => s.method === SLOT_METHOD.HEAT_RESULT && s.seedId != null && ids.has(s.seedId)
+    )
+  );
+}
+
+/** Heats of a bracket stage by derived round, in order. */
+export function bracketRounds(heats: Heat[]): Heat[][] {
+  const byId = new Map(heats.map((h) => [h.id, h]));
+  const depth = new Map<number, number>();
+  const visiting = new Set<number>();
+  const depthOf = (h: Heat): number => {
+    const known = depth.get(h.id);
+    if (known != null) return known;
+    if (visiting.has(h.id)) return 0; // a cycle; never from our generators
+    visiting.add(h.id);
+    let d = 0;
+    for (const s of h.slots) {
+      if (s.method !== SLOT_METHOD.HEAT_RESULT || s.seedId == null) continue;
+      const src = byId.get(s.seedId);
+      if (src) d = Math.max(d, depthOf(src) + 1);
+    }
+    visiting.delete(h.id);
+    depth.set(h.id, d);
+    return d;
+  };
+  const out: Heat[][] = [];
+  for (const h of heats) {
+    const d = depthOf(h);
+    while (out.length <= d) out.push([]);
+    out[d].push(h);
   }
   return out;
 }
@@ -167,7 +240,7 @@ export type StageTemplate = {
   rank: string;
   /** Heats to create: a number, or 'pilots' for enough heats to seat every active pilot. */
   heats: number | 'pilots';
-  /** Set once at creation (RotorHazard converts heats on a switch): a bracket is grouped rounds. */
+  /** Set once at creation (RotorHazard converts heats on a switch). Grouped = fly everyone again each round. */
   grouped: boolean;
 };
 
@@ -196,12 +269,12 @@ export const STAGE_TEMPLATES: StageTemplate[] = [
     id: 'bracket',
     label: 'Bracket',
     description:
-      'Rounds of heats seeded from an earlier stage, each flown once. Add heats by hand or with a generator.',
+      'Heats seeded from an earlier stage, each flown once. Build it with Generate bracket… or by hand.',
     formatMatch: /standard/i,
     rounds: 1,
     rank: 'Last_Heat_Position',
     heats: 0,
-    grouped: true
+    grouped: false
   },
   {
     id: 'ace',

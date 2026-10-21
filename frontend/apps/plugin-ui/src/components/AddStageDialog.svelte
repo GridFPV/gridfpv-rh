@@ -140,11 +140,14 @@
           every round (qualifying, practice)</label
         >
         <label class="radio"
-          ><input type="radio" bind:group={grouped} value={true} /> Grouped rounds — a round is a group
-          of heats, each flown once (brackets, ZippyQ)</label
+          ><input type="radio" bind:group={grouped} value={true} /> Grouped rounds — after a heat flies,
+          RotorHazard re-creates it for the next round with a fresh lineup (ZippyQ)</label
         >
       </div>
-      <small class="muted">Set once: RotorHazard rebuilds a stage's heats when this changes.</small>
+      <small class="muted"
+        >Set once: RotorHazard rebuilds a stage's heats when this changes. Brackets are races per
+        heat, one round; Generate bracket… sets that itself.</small
+      >
     </div>
     <small class="muted">
       {activePilots} active pilot{activePilots === 1 ? '' : 's'} and

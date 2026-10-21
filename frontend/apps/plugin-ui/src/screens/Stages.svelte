@@ -15,7 +15,7 @@
     addHeat,
     alterClass,
     alterHeat,
-    deleteClass,
+    deleteStage,
     duplicateClass,
     rh,
     seedHeat,
@@ -34,11 +34,14 @@
   } from '../lib/setup.js';
   import {
     boardLayout,
+    bracketRounds,
     heatShortName,
+    isBracketStage,
     isSeededHeat,
     needsSeeding,
     nextRound,
     roundColumns,
+    roundLabel,
     roundsOf,
     seatChips,
     STAGE_STATE_LABELS,
@@ -143,26 +146,20 @@
     const todo = heats.filter(needsSeeding);
     busy = true;
     try {
+      let waiting = 0;
+      let confirmed = 0;
       for (const h of todo) {
         const r = await seedHeat(h.id);
         if (!r.ok) return onresult(r);
+        if (r.waiting) waiting += r.waiting;
+        else confirmed++;
       }
-      const waiting = heats
-        .filter(isSeededHeat)
-        .flatMap((h) => setup.heats.find((x) => x.id === h.id)?.slots ?? [])
-        .filter((s) => s.nodeIndex != null && s.method > 0 && !s.pilotId).length;
-      onresult(
-        waiting
-          ? {
-              ok: true,
-              message: `Seeded. ${waiting} seat${waiting === 1 ? '' : 's'} still waiting on results.`
-            }
-          : { ok: true }
-      );
+      onresult({ ok: true });
+      if (waiting) window.clearTimeout(noticeTimer);
       if (waiting)
         notice = {
           tone: 'success',
-          text: `Seeded; ${waiting} seat${waiting === 1 ? '' : 's'} still waiting on results.`
+          text: `${confirmed} heat${confirmed === 1 ? '' : 's'} seeded and confirmed; ${waiting} seat${waiting === 1 ? '' : 's'} still waiting on results. Run Seed now again when they are in.`
         };
     } finally {
       busy = false;
@@ -241,12 +238,13 @@
     onconfirm={() => {
       const c = classRemove;
       classRemove = null;
-      if (c) void run(() => deleteClass(c.id));
+      if (c) void run(() => deleteStage(c.id));
     }}
     oncancel={() => (classRemove = null)}
   >
-    Delete <strong>{classRemove.displayName}</strong>? Its heats become unclassified. A stage with
-    saved races cannot be deleted.
+    Delete <strong>{classRemove.displayName}</strong> and its {heatsInClass(setup, classRemove.id)
+      .length} heat{heatsInClass(setup, classRemove.id).length === 1 ? '' : 's'}? A stage with saved
+    races cannot be deleted.
   </ConfirmDialog>
 {/if}
 
@@ -270,15 +268,13 @@
   {/if}
 {/snippet}
 
-{#snippet groupedBoard(heats: Heat[])}
+{#snippet sectionedBoard(rounds: Heat[][])}
   <div class="grouped">
-    {#each roundsOf(heats) as round, r (r)}
+    {#each rounds as round, r (r)}
       <div class="roundsection">
         <div class="roundhead">
           <span>Round {r + 1}</span>
-          {#if round.length === 1 && heatShortName(round[0]) === 'Final'}<span class="muted"
-              >· the final</span
-            >{/if}
+          {#if roundLabel(round)}<span class="muted">· {roundLabel(round)}</span>{/if}
         </div>
         {#if round.length === 0}
           <p class="muted empty">No heats in this round yet.</p>
@@ -516,7 +512,9 @@
         </p>
       {/if}
       {#if heats.length && c.roundType === ROUND_TYPE.GROUPED}
-        {@render groupedBoard(heats)}
+        {@render sectionedBoard(roundsOf(heats))}
+      {:else if heats.length && isBracketStage(c, heats)}
+        {@render sectionedBoard(bracketRounds(heats))}
       {:else if heats.length}
         {@render board(c, heats)}
       {:else}
@@ -548,7 +546,8 @@
             title="Fill seeded seats from results and confirm the lineups"
             onclick={() => seedStage(heats)}>Seed now</Button
           >
-        {:else if heats.some((h) => isSeededHeat(h) && !h.locked)}
+        {/if}
+        {#if heats.some((h) => isSeededHeat(h) && !h.locked && h.status !== 0)}
           <Button
             size="sm"
             variant="ghost"

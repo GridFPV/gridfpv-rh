@@ -642,6 +642,18 @@ export function duplicateClass(id: number): Promise<WriteResult> {
   return awaitState('Duplicate class', () => state.setup.classes.length > before);
 }
 
+/** Delete a stage and its heats (RotorHazard would only unclassify them). Refuses if raced. */
+export async function deleteStage(id: number): Promise<WriteResult> {
+  const heats = state.setup.heats.filter((h) => h.classId === id);
+  if (heats.some((h) => h.locked))
+    return { ok: false, message: 'This stage has saved races and cannot be deleted.' };
+  for (const h of heats) {
+    const r = await deleteHeat(h.id);
+    if (!r.ok) return r;
+  }
+  return deleteClass(id);
+}
+
 export function deleteClass(id: number): Promise<WriteResult> {
   socket?.emit('delete_class', { class: id });
   window.setTimeout(() => loadData('class_data', 'heat_data'), 200);
@@ -718,14 +730,31 @@ export function deleteHeat(id: number): Promise<WriteResult> {
  * confirm the plan (confirm_heat_plan → status CONFIRMED) so it will race. Seats whose result
  * is not in yet stay empty; the readback is the confirmed status.
  */
-export function seedHeat(id: number): Promise<WriteResult> {
+export async function seedHeat(id: number): Promise<WriteResult & { waiting?: number }> {
+  const heat = () => state.setup.heats.find((h) => h.id === id);
+  const unresolved = () =>
+    (heat()?.slots ?? []).filter(
+      (s) =>
+        s.nodeIndex != null &&
+        (s.method === SLOT_METHOD.HEAT_RESULT || s.method === SLOT_METHOD.CLASS_RESULT) &&
+        !s.pilotId
+    ).length;
+  // RotorHazard skips a confirmed heat when recalculating, so a heat confirmed with seats
+  // still waiting has to go back to planned first.
+  if (heat()?.status === HEAT_STATUS.CONFIRMED && unresolved() > 0) {
+    const reset = await unseedHeat(id);
+    if (!reset.ok) return reset;
+  }
   socket?.emit('calc_pilots', { heat: id });
-  window.setTimeout(() => socket?.emit('confirm_heat_plan', { heat_id: id }), 300);
-  window.setTimeout(() => loadData('heat_data'), 600);
-  return awaitState(
-    'Seed',
-    () => state.setup.heats.find((h) => h.id === id)?.status === HEAT_STATUS.CONFIRMED
-  );
+  await new Promise((r) => window.setTimeout(r, 400));
+  loadData('heat_data');
+  await new Promise((r) => window.setTimeout(r, 400));
+  const waiting = unresolved();
+  if (waiting > 0) return { ok: true, waiting };
+  socket?.emit('confirm_heat_plan', { heat_id: id });
+  window.setTimeout(() => loadData('heat_data'), 300);
+  const r = await awaitState('Seed', () => heat()?.status === HEAT_STATUS.CONFIRMED);
+  return { ...r, waiting: 0 };
 }
 
 /** Back to a plan: RotorHazard drops the confirmation and will recompute seats on the next seed. */
@@ -786,10 +815,12 @@ export function seatSlot(
 export type GenerateProgress = { done: number; total: number; what: string };
 
 /**
- * Write a bracket plan into a stage: drop its unraced heats, create one heat per plan
- * heat in its round group (RotorHazard's grouped rounds), name the named ones, seed
- * every seat from the source stage's ranking or an earlier heat's result, then set the
- * round count and (last — see createStage) grouped rounds. Refuses a stage with races.
+ * Write a bracket plan into a stage: drop its unraced heats, make it races-per-heat with
+ * one round (RotorHazard's grouped rounds would clone each flown heat into the next
+ * round — ZippyQ, not a bracket), create one heat per plan heat in bracket order, name
+ * the named ones, and seed every seat from the source stage's ranking or an earlier
+ * heat's result. The board reads the rounds back off that seeding. Refuses a stage with
+ * saved races.
  */
 export async function generateBracket(
   classId: number,
@@ -811,13 +842,19 @@ export async function generateBracket(
     if (!r.ok) return r;
     tick(`Removed ${h.displayName}`);
   }
+  const cls = state.setup.classes.find((c) => c.id === classId);
+  if (cls && (cls.roundType !== ROUND_TYPE.RACES_PER_HEAT || cls.rounds !== 1)) {
+    const r = await alterClass(classId, { roundType: ROUND_TYPE.RACES_PER_HEAT, rounds: 1 });
+    if (!r.ok) return r;
+  }
+  tick('Stage set to one race per heat');
 
   // Create every heat first so later rounds can point at earlier ones by id.
   const ids: number[][] = [];
   for (let r = 0; r < plan.rounds.length; r++) {
     ids.push([]);
     for (const ph of plan.rounds[r].heats) {
-      const made = await addHeat(classId, r);
+      const made = await addHeat(classId);
       if (!made.ok || made.id == null) return made;
       if (ph.name) {
         const named = await alterHeat(made.id, { name: ph.name });
@@ -852,15 +889,6 @@ export async function generateBracket(
         tick(`Seeded ${plan.rounds[r].name}`);
       }
     }
-  }
-
-  const rounds = await alterClass(classId, { rounds: plan.rounds.length });
-  if (!rounds.ok) return rounds;
-  tick('Set rounds');
-  const cls = state.setup.classes.find((c) => c.id === classId);
-  if (cls && cls.roundType !== ROUND_TYPE.GROUPED) {
-    const rt = await alterClass(classId, { roundType: ROUND_TYPE.GROUPED });
-    if (!rt.ok) return rt;
   }
   tick('Done');
   return { ok: true };

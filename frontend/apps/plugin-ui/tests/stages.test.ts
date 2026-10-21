@@ -3,9 +3,14 @@ import { emptyResults, type Results } from '../src/lib/results.js';
 import {
   activeSeatIndexes,
   boardLayout,
+  bracketRounds,
+  isBracketStage,
   heatShortName,
   heatsForPilots,
+  needsSeeding,
+  roundLabel,
   roundsOf,
+  unresolvedSeats,
   standingsLine,
   nextRound,
   roundColumns,
@@ -94,6 +99,13 @@ describe('stageState', () => {
     expect(stageState(cls(1), [projected], emptyResults())).toBe('plan');
     const confirmed = { ...projected, status: HEAT_STATUS.CONFIRMED };
     expect(stageState(cls(1), [confirmed], emptyResults())).toBe('seeded');
+    // A ready first round plus a waiting final is seeded, not plan.
+    expect(stageState(cls(1), [confirmed, waiting], emptyResults())).toBe('seeded');
+  });
+  it('a grouped stage is done once every heat has flown once', () => {
+    const grouped = { ...cls(3), roundType: 1 };
+    expect(stageState(grouped, [seated], raced(1, 1))).toBe('done');
+    expect(stageState(grouped, [seated, heat(2, [slot(0)])], raced(1, 1))).toBe('running');
   });
   it('unlimited rounds never reach done', () => {
     expect(stageState(cls(0), [seated], raced(1, 7))).toBe('running');
@@ -202,5 +214,52 @@ describe('grouped rounds helpers', () => {
         { index: 2, frequency: 5760 }
       ])
     ).toEqual([0, 2]);
+  });
+});
+
+describe('seeding state and round labels', () => {
+  const seeded = (status: number, pilotId: number) =>
+    ({
+      ...heat(5, [slot(0, { method: SLOT_METHOD.HEAT_RESULT, seedId: 1, seedRank: 1, pilotId })]),
+      status
+    }) as Heat;
+  it('a confirmed heat with seats still waiting still needs seeding', () => {
+    expect(needsSeeding(seeded(HEAT_STATUS.PLANNED, 0))).toBe(true);
+    expect(needsSeeding(seeded(HEAT_STATUS.CONFIRMED, 0))).toBe(true);
+    expect(needsSeeding(seeded(HEAT_STATUS.CONFIRMED, 5))).toBe(false);
+    expect(unresolvedSeats(seeded(HEAT_STATUS.PLANNED, 0))).toBe(1);
+  });
+  it('labels rounds from their heat names', () => {
+    const named = (...names: string[]) => names.map((n, i) => ({ ...heat(i + 1, []), name: n }));
+    expect(roundLabel(named('W1', 'W2'))).toBe('winners');
+    expect(roundLabel(named('L3'))).toBe('losers');
+    expect(roundLabel(named('Final'))).toBe('the final');
+    expect(roundLabel(named('Semi 1', 'Semi 2'))).toBe('semifinals');
+    expect(roundLabel(named('C-main'))).toBe('C-main');
+    expect(roundLabel(named('Heat 1', 'Heat 2'))).toBe('');
+  });
+});
+
+describe('bracket stages', () => {
+  const hr = (heatId: number, rank: number): Partial<Slot> => ({
+    method: SLOT_METHOD.HEAT_RESULT,
+    seedId: heatId,
+    seedRank: rank
+  });
+  const semi1 = heat(1, [slot(0, { method: SLOT_METHOD.CLASS_RESULT, seedId: 9, seedRank: 1 })]);
+  const semi2 = heat(2, [slot(0, { method: SLOT_METHOD.CLASS_RESULT, seedId: 9, seedRank: 2 })]);
+  const final = heat(3, [slot(0, hr(1, 1)), slot(1, hr(2, 1))]);
+  const losers = heat(4, [slot(0, hr(1, 2)), slot(1, hr(2, 2))]);
+  const grand = heat(5, [slot(0, hr(3, 1)), slot(1, hr(4, 1))]);
+  it('reads rounds off the seeding graph', () => {
+    expect(
+      bracketRounds([semi1, semi2, final, losers, grand]).map((r) => r.map((h) => h.id))
+    ).toEqual([[1, 2], [3, 4], [5]]);
+  });
+  it('is a bracket only when races-per-heat, one round, and heats seed from each other', () => {
+    expect(isBracketStage(cls(1), [semi1, semi2, final])).toBe(true);
+    expect(isBracketStage(cls(1), [semi1, semi2])).toBe(false);
+    expect(isBracketStage(cls(3), [semi1, semi2, final])).toBe(false);
+    expect(isBracketStage({ ...cls(1), roundType: 1 }, [semi1, final])).toBe(false);
   });
 });

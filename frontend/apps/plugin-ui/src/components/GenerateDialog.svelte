@@ -7,10 +7,14 @@
    */
   import { Banner, Button, Dialog, Input, Select } from '@gridfpv/components';
   import {
+    BRACKET_KINDS,
     BracketError,
     describePlan,
+    doubleElimination,
+    letterMains,
     seedLabel,
     singleElimination,
+    type BracketKind,
     type BracketPlan
   } from '../lib/bracket.js';
   import {
@@ -42,6 +46,7 @@
   const activePilots = $derived(timer.setup.pilots.filter((p) => p.active).length);
   const existing = $derived(timer.setup.heats.filter((h) => h.classId === stage.id));
 
+  let kind: BracketKind = $state('single');
   let sourceId = $state('');
   let pilots = $state('');
   let seats = $state('');
@@ -60,12 +65,14 @@
   const source = $derived(sources.find((c) => String(c.id) === sourceId) ?? null);
   const plan = $derived.by((): { plan: BracketPlan | null; error: string } => {
     try {
+      const n = { pilots: Number(pilots), seats: Number(seats), advance: Number(advance) };
       return {
-        plan: singleElimination({
-          pilots: Number(pilots),
-          seats: Number(seats),
-          advance: Number(advance)
-        }),
+        plan:
+          kind === 'double'
+            ? doubleElimination(n)
+            : kind === 'mains'
+              ? letterMains({ pilots: n.pilots, seats: n.seats, bumps: n.advance })
+              : singleElimination(n),
         error: ''
       };
     } catch (e) {
@@ -102,6 +109,20 @@
 
 <Dialog bind:open title="Generate bracket: {stage.displayName}" {onclose} size="wide">
   <div class="form">
+    <div class="kinds">
+      {#each BRACKET_KINDS as k (k.id)}
+        <button
+          type="button"
+          class="kind"
+          class:selected={kind === k.id}
+          disabled={busy}
+          onclick={() => (kind = k.id)}
+        >
+          <strong>{k.label}</strong>
+          <span>{k.blurb}</span>
+        </button>
+      {/each}
+    </div>
     <div class="row">
       <label class="field grow">
         <span>Seed from</span>
@@ -128,7 +149,7 @@
         /></label
       >
       <label class="field narrow"
-        ><span>Advance</span><Input
+        ><span>{kind === 'mains' ? 'Bump up' : 'Advance'}</span><Input
           type="number"
           bind:value={advance}
           min="1"
@@ -138,10 +159,21 @@
       >
     </div>
     <small class="muted">
-      Single elimination: the top {advance || '…'} of each heat go on, until one heat is left. The first
-      round takes the top {pilots || '…'} of {source?.displayName ?? 'the source stage'}
-      by its ranking, snake-seeded; later rounds take places from earlier heats. Seats are the
-      {seatIndexes.length} with a frequency on the Seats page.
+      {#if kind === 'single'}
+        The top {advance || '…'} of each heat go on, until one heat is left. The first round takes the
+        top {pilots || '…'} of {source?.displayName ?? 'the source stage'} by its ranking, snake-seeded;
+        later rounds take places from earlier heats.
+      {:else if kind === 'double'}
+        The top {advance || '…'} of a winners heat go on and the rest drop to the losers bracket; the
+        top {advance || '…'} of a losers heat go on and the rest are out. The final takes the top {advance ||
+          '…'} of each bracket. First round from the top {pilots || '…'} of
+        {source?.displayName ?? 'the source stage'}, snake-seeded.
+      {:else}
+        Mains fill from the top of {source?.displayName ?? 'the source stage'}'s ranking,
+        {Math.max(0, Number(seats) - Number(advance)) || '…'} direct each, the last main taking the rest.
+        They run lowest main first; the top {advance || '…'} of each main bump up into the main above.
+      {/if}
+      Seats are the {seatIndexes.length} with a frequency on the Seats page.
     </small>
 
     {#if sources.length === 0}
@@ -211,6 +243,31 @@
     gap: var(--gf-space-3);
     align-items: end;
     flex-wrap: wrap;
+  }
+  .kinds {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--gf-space-2);
+  }
+  .kind {
+    display: grid;
+    gap: 2px;
+    text-align: left;
+    font: inherit;
+    color: var(--gf-text);
+    background: var(--gf-surface-sunken);
+    border: 1px solid var(--gf-border);
+    border-radius: var(--gf-radius-md);
+    padding: var(--gf-space-2);
+    cursor: pointer;
+  }
+  .kind span {
+    font-size: var(--gf-font-size-xs);
+    color: var(--gf-text-muted);
+  }
+  .kind.selected {
+    border-color: var(--gf-brand-500);
+    box-shadow: 0 0 0 1px var(--gf-brand-500);
   }
   .field {
     display: flex;
