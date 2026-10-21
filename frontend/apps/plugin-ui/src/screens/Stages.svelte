@@ -232,8 +232,7 @@
     >
   {:else if r === next && isUpNext(h.id, r)}
     <span class="cell next" title="Loaded on the timer"
-      >{#if label}R{r} ·
-      {/if}next</span
+      >{#if label}<span class="rn">R{r}</span>{/if}next</span
     >
   {:else if r === next}
     <span class="cell open" title="This heat's next round"
