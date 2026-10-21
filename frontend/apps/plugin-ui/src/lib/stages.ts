@@ -142,6 +142,8 @@ export type StageTemplate = {
   rank: string;
   /** Heats to create: a number, or 'pilots' for enough heats to seat every active pilot. */
   heats: number | 'pilots';
+  /** Set once at creation (RotorHazard converts heats on a switch): a bracket is grouped rounds. */
+  grouped: boolean;
 };
 
 export const STAGE_TEMPLATES: StageTemplate[] = [
@@ -152,7 +154,8 @@ export const STAGE_TEMPLATES: StageTemplate[] = [
     formatMatch: /practice/i,
     rounds: 0,
     rank: '',
-    heats: 1
+    heats: 1,
+    grouped: false
   },
   {
     id: 'qualifying',
@@ -161,16 +164,19 @@ export const STAGE_TEMPLATES: StageTemplate[] = [
     formatMatch: /standard/i,
     rounds: 3,
     rank: 'Laps_Time__Best_X_Rounds',
-    heats: 'pilots'
+    heats: 'pilots',
+    grouped: false
   },
   {
     id: 'bracket',
     label: 'Bracket',
-    description: 'Heats seeded from an earlier stage. Add heats by hand or with a generator.',
+    description:
+      'Rounds of heats seeded from an earlier stage, each flown once. Add heats by hand or with a generator.',
     formatMatch: /standard/i,
     rounds: 1,
     rank: 'Last_Heat_Position',
-    heats: 0
+    heats: 0,
+    grouped: true
   },
   {
     id: 'ace',
@@ -179,7 +185,8 @@ export const STAGE_TEMPLATES: StageTemplate[] = [
     formatMatch: /standard/i,
     rounds: 0,
     rank: 'Last_Heat_Position',
-    heats: 1
+    heats: 1,
+    grouped: false
   },
   {
     id: 'blank',
@@ -188,7 +195,8 @@ export const STAGE_TEMPLATES: StageTemplate[] = [
     formatMatch: /standard/i,
     rounds: 1,
     rank: '',
-    heats: 0
+    heats: 0,
+    grouped: false
   }
 ];
 

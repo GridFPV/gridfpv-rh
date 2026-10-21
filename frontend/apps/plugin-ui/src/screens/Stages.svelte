@@ -438,22 +438,12 @@
             {#each ADVANCE as a (a.v)}<option value={String(a.v)}>{a.l}</option>{/each}
           </Select>
         </label>
-        <label class="field">
+        <div class="field">
           <span>Rounds are</span>
-          <Select
-            value={String(c.roundType)}
-            size="sm"
-            disabled={busy}
-            onchange={(e: Event) =>
-              run(() =>
-                alterClass(c.id, {
-                  roundType: Number((e.currentTarget as HTMLSelectElement).value)
-                })
-              )}
-          >
-            {#each ROUNDS as r (r.v)}<option value={String(r.v)}>{r.l}</option>{/each}
-          </Select>
-        </label>
+          <span class="static" title="Set when the stage was created">
+            {ROUNDS.find((r) => r.v === c.roundType)?.l ?? '—'}
+          </span>
+        </div>
       </div>
 
       {#if standingsLine(results.ranking[c.id])}
@@ -596,6 +586,15 @@
   }
   .field.rounds {
     min-width: 0;
+  }
+  .static {
+    display: flex;
+    align-items: center;
+    height: 32px;
+    color: var(--gf-text);
+    font-size: var(--gf-font-size-sm) !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
   }
   .roundsrow {
     display: flex;

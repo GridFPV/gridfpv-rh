@@ -7,7 +7,7 @@
   import { Button, Dialog, Input, Select } from '@gridfpv/components';
   import { createStage, type WriteResult } from '../lib/rh.svelte.js';
   import { heatsForPilots, STAGE_TEMPLATES, type StageTemplate } from '../lib/stages.js';
-  import type { Setup } from '../lib/setup.js';
+  import { ROUND_TYPE, type Setup } from '../lib/setup.js';
 
   let {
     setup,
@@ -32,6 +32,7 @@
   let unlimited = $state(false);
   let rank = $state('');
   let heats = $state('1');
+  let grouped = $state(false);
 
   const activePilots = $derived(setup.pilots.filter((p) => p.active).length);
 
@@ -44,6 +45,7 @@
     rounds = String(t.rounds || 3);
     rank = rankMethods.some((m) => m.name === t.rank) ? t.rank : '';
     heats = String(t.heats === 'pilots' ? heatsForPilots(activePilots, seatCount) : t.heats);
+    grouped = t.grouped;
   }
   // Seed the form from the default template once the formats are known.
   $effect(() => {
@@ -61,7 +63,8 @@
         formatId: Number(formatId),
         rounds: unlimited ? 0 : Math.max(1, Math.floor(Number(rounds) || 1)),
         winCondition: rank,
-        heats: Math.max(0, Math.floor(Number(heats) || 0))
+        heats: Math.max(0, Math.floor(Number(heats) || 0)),
+        roundType: grouped ? ROUND_TYPE.GROUPED : ROUND_TYPE.RACES_PER_HEAT
       });
       onresult(r);
       if (r.ok) open = false;
@@ -128,6 +131,20 @@
       <label class="field narrow"
         ><span>Heats</span><Input type="number" bind:value={heats} min="0" max="64" /></label
       >
+    </div>
+    <div class="field">
+      <span>Rounds are</span>
+      <div class="row">
+        <label class="radio"
+          ><input type="radio" bind:group={grouped} value={false} /> Races per heat — each heat flies
+          every round (qualifying, practice)</label
+        >
+        <label class="radio"
+          ><input type="radio" bind:group={grouped} value={true} /> Grouped rounds — a round is a group
+          of heats, each flown once (brackets, ZippyQ)</label
+        >
+      </div>
+      <small class="muted">Set once: RotorHazard rebuilds a stage's heats when this changes.</small>
     </div>
     <small class="muted">
       {activePilots} active pilot{activePilots === 1 ? '' : 's'} and
@@ -210,10 +227,19 @@
   .roundsrow :global(.gf-input) {
     width: 80px;
   }
-  .check {
+  .check,
+  .radio {
     display: flex;
     align-items: center;
     gap: var(--gf-space-1);
+  }
+  .check {
     white-space: nowrap;
+  }
+  .radio {
+    align-items: start;
+  }
+  .radio input {
+    margin-top: 4px;
   }
 </style>

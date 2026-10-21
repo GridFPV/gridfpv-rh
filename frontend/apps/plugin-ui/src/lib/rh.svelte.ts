@@ -28,6 +28,7 @@ import {
   applyPilotData,
   emptySetup,
   HEAT_STATUS,
+  ROUND_TYPE,
   SLOT_METHOD,
   type Setup
 } from './setup.js';
@@ -606,6 +607,7 @@ export async function createStage(spec: {
   rounds: number;
   winCondition: string;
   heats: number;
+  roundType: number;
 }): Promise<WriteResult & { id?: number }> {
   const made = await addClass();
   if (!made.ok || made.id == null) return made;
@@ -616,9 +618,18 @@ export async function createStage(spec: {
     winCondition: spec.winCondition
   });
   if (!set.ok) return { ...set, id: made.id };
-  for (let i = 0; i < spec.heats; i++) {
+  // RotorHazard 4.4.0 crashes (and rolls the update back) when a class with no heats is
+  // switched to grouped rounds, so heats go in first and the round type last; a grouped
+  // stage gets at least one heat.
+  const grouped = spec.roundType === ROUND_TYPE.GROUPED;
+  const heats = grouped ? Math.max(1, spec.heats) : spec.heats;
+  for (let i = 0; i < heats; i++) {
     const h = await addHeat(made.id);
     if (!h.ok) return { ...h, id: made.id };
+  }
+  if (grouped) {
+    const rt = await alterClass(made.id, { roundType: spec.roundType });
+    if (!rt.ok) return { ...rt, id: made.id };
   }
   return { ok: true, id: made.id };
 }
