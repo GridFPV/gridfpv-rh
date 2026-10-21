@@ -13,6 +13,7 @@
     CUSTOM_MIN_MHZ,
     frequencyFor,
     OTHER_BANDS,
+    seatTag,
     tagFor
   } from '../lib/channels.js';
   import type { Seat } from '../lib/seats.js';
@@ -29,11 +30,7 @@
   } = $props();
 
   // What RotorHazard stores, resolved to a table key where possible; `custom` otherwise.
-  const tag = $derived(
-    seat.band && seat.channel != null
-      ? { band: seat.band, channel: seat.channel }
-      : tagFor(seat.frequency)
-  );
+  const tag = $derived(seatTag(seat));
   const current = $derived(!seat.frequency ? 'off' : tag ? `${tag.band}:${tag.channel}` : 'custom');
 
   let busy = $state(false);

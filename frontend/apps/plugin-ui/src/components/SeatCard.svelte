@@ -7,7 +7,7 @@
   import { Badge, Button, Card, Input } from '@gridfpv/components';
   import ChannelPicker from './ChannelPicker.svelte';
   import CopyLevelsDialog from './CopyLevelsDialog.svelte';
-  import { channelLabel, tagFor } from '../lib/channels.js';
+  import { channelLabel, seatTag } from '../lib/channels.js';
   import { seatStatus, type Seat } from '../lib/seats.js';
   import { setLevels, type WriteResult } from '../lib/rh.svelte.js';
   import { go } from '../lib/router.svelte.js';
@@ -33,11 +33,7 @@
 
   // RotorHazard stores band/channel only when the channel was picked from its table; a bare
   // frequency (typed by hand, or set by a tool) is labelled from ours where it matches.
-  const tag = $derived(
-    seat.band && seat.channel != null
-      ? { band: seat.band, channel: seat.channel }
-      : tagFor(seat.frequency)
-  );
+  const tag = $derived(seatTag(seat));
 
   // ---- thresholds ----
   let busy = $state(false);

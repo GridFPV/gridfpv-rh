@@ -5,7 +5,7 @@
    */
   import { Badge, Banner, Button, Card } from '@gridfpv/components';
   import RssiTrace from '../components/RssiTrace.svelte';
-  import { channelLabel, tagFor } from '../lib/channels.js';
+  import { channelLabel, seatTag } from '../lib/channels.js';
   import { detectCrossings, mergeTraces, sortedTrace } from '../lib/crossings.js';
   import {
     captureStart,
@@ -20,11 +20,7 @@
 
   const timer = rh();
   const seat = $derived(timer.seats[seatIndex]);
-  const tag = $derived(
-    seat?.band && seat.channel != null
-      ? { band: seat.band, channel: seat.channel }
-      : tagFor(seat?.frequency ?? 0)
-  );
+  const tag = $derived(seat ? seatTag(seat) : null);
   const cap = $derived(timer.capture && timer.capture.seat === seatIndex ? timer.capture : null);
   const recording = $derived(cap?.state === 'recording');
   const otherSeatRecording = $derived(

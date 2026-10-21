@@ -83,7 +83,9 @@ describe('stageState', () => {
     expect(stageState(cls(1), [waiting], emptyResults())).toBe('plan');
     // A projected pilot is still only a guess until confirmed.
     const projected = {
-      ...heat(2, [slot(0, { method: SLOT_METHOD.HEAT_RESULT, seedId: 1, seedRank: 1, pilotId: 5 })]),
+      ...heat(2, [
+        slot(0, { method: SLOT_METHOD.HEAT_RESULT, seedId: 1, seedRank: 1, pilotId: 5 })
+      ]),
       status: HEAT_STATUS.PROJECTED
     };
     expect(stageState(cls(1), [projected], emptyResults())).toBe('plan');
@@ -114,7 +116,17 @@ describe('seatChips', () => {
   const setup = {
     ...emptySetup(),
     pilots: [
-      { id: 5, callsign: 'Nova', name: 'N', phonetic: '', team: '', color: '', active: true, locked: false, attributes: {} }
+      {
+        id: 5,
+        callsign: 'Nova',
+        name: 'N',
+        phonetic: '',
+        team: '',
+        color: '',
+        active: true,
+        locked: false,
+        attributes: {}
+      }
     ],
     heats: [heat(1, [])]
   };

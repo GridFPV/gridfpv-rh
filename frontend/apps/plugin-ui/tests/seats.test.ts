@@ -89,3 +89,17 @@ describe('seat reducers', () => {
     );
   });
 });
+
+describe('seatTag / seatLabel', () => {
+  it('infers the band tag for a bare frequency RotorHazard stores without one', async () => {
+    const { seatLabel, seatTag } = await import('../src/lib/channels.js');
+    expect(seatTag({ band: null, channel: null, frequency: 5658 })).toEqual({
+      band: 'R',
+      channel: 1
+    });
+    expect(seatLabel({ band: null, channel: null, frequency: 5658 })).toBe('R1 · 5658');
+    expect(seatLabel({ band: 'F', channel: 2, frequency: 5760 })).toBe('F2 · 5760');
+    expect(seatLabel({ band: null, channel: null, frequency: 5661 })).toBe('5661 MHz');
+    expect(seatLabel({ band: null, channel: null, frequency: 0 })).toBe('Off');
+  });
+});

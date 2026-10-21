@@ -231,3 +231,27 @@ export function bandName(band: Band): string {
 /** RotorHazard's own limits for a hand-typed frequency (settings.html: min 5000, max 6001). */
 export const CUSTOM_MIN_MHZ = 5000;
 export const CUSTOM_MAX_MHZ = 6000;
+
+/**
+ * The band/channel tag to show for a seat: what RotorHazard stores when it has one, else
+ * the table lookup for a bare frequency (a seat set as "custom 5658" is still R1). One
+ * rule for every screen, so a seat never reads differently in two places.
+ */
+export function seatTag(seat: {
+  band: string | null;
+  channel: number | null;
+  frequency: number;
+}): { band: string; channel: number } | null {
+  if (seat.band && seat.channel != null) return { band: seat.band, channel: seat.channel };
+  return tagFor(seat.frequency);
+}
+
+/** `channelLabel` for a seat, with the tag inferred when RotorHazard has none. */
+export function seatLabel(seat: {
+  band: string | null;
+  channel: number | null;
+  frequency: number;
+}): string {
+  const t = seatTag(seat);
+  return channelLabel(t?.band, t?.channel, seat.frequency);
+}

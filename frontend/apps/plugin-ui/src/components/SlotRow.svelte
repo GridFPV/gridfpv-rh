@@ -6,7 +6,7 @@
    */
   import { Input, Select } from '@gridfpv/components';
   import { rh, seatSlot, type WriteResult } from '../lib/rh.svelte.js';
-  import { channelLabel } from '../lib/channels.js';
+  import { seatLabel } from '../lib/channels.js';
   import { CLASS_NONE, SLOT_METHOD, type Heat, type Setup, type Slot } from '../lib/setup.js';
 
   let {
@@ -25,7 +25,7 @@
   /** The seat's channel from the active profile, so you know what you're putting a pilot on. */
   const channel = $derived.by(() => {
     const seat = slot.nodeIndex == null ? undefined : timer.seats[slot.nodeIndex];
-    return seat ? channelLabel(seat.band, seat.channel, seat.frequency) : '';
+    return seat ? seatLabel(seat) : '';
   });
 
   let busy = $state(false);

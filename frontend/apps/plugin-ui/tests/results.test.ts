@@ -13,8 +13,24 @@ const payload = {
           leaderboard: {
             meta: { primary_leaderboard: 'by_race_time' },
             by_race_time: [
-              { pilot_id: 3, callsign: 'Pixel', position: 1, laps: 3, total_time: '1:02.1', fastest_lap: '0:20.0', node: 1 },
-              { pilot_id: 2, callsign: 'Vortex', position: 2, laps: 3, total_time: '1:03.5', fastest_lap: '0:20.5', node: 0 }
+              {
+                pilot_id: 3,
+                callsign: 'Pixel',
+                position: 1,
+                laps: 3,
+                total_time: '1:02.1',
+                fastest_lap: '0:20.0',
+                node: 1
+              },
+              {
+                pilot_id: 2,
+                callsign: 'Vortex',
+                position: 2,
+                laps: 3,
+                total_time: '1:03.5',
+                fastest_lap: '0:20.5',
+                node: 0
+              }
             ]
           }
         },
@@ -23,7 +39,16 @@ const payload = {
           start_time_formatted: '2026-10-21 01:16:09.253',
           leaderboard: {
             meta: { primary_leaderboard: 'by_race_time' },
-            by_race_time: [{ pilot_id: 2, callsign: 'Vortex', laps: 2, total_time: '0:02.8', fastest_lap: '0:01.4', node: 0 }]
+            by_race_time: [
+              {
+                pilot_id: 2,
+                callsign: 'Vortex',
+                laps: 2,
+                total_time: '0:02.8',
+                fastest_lap: '0:01.4',
+                node: 0
+              }
+            ]
           }
         }
       ]
@@ -32,7 +57,12 @@ const payload = {
   classes: {
     '1': {
       id: 1,
-      ranking: { ranking: [{ pilot_id: 2, callsign: 'Vortex', position: 1 }, { pilot_id: 3, callsign: 'Pixel', position: 2 }] }
+      ranking: {
+        ranking: [
+          { pilot_id: 2, callsign: 'Vortex', position: 1 },
+          { pilot_id: 3, callsign: 'Pixel', position: 2 }
+        ]
+      }
     }
   }
 };

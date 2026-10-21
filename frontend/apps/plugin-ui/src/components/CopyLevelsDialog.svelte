@@ -5,7 +5,7 @@
    */
   import { Button, Dialog } from '@gridfpv/components';
   import { rh, setLevels, type WriteResult } from '../lib/rh.svelte.js';
-  import { channelLabel, tagFor } from '../lib/channels.js';
+  import { seatLabel } from '../lib/channels.js';
   import type { Seat } from '../lib/seats.js';
 
   let {
@@ -38,11 +38,7 @@
     chosen = next;
   }
 
-  const label = (s: Seat) => {
-    const tag =
-      s.band && s.channel != null ? { band: s.band, channel: s.channel } : tagFor(s.frequency);
-    return channelLabel(tag?.band, tag?.channel, s.frequency);
-  };
+  const label = (s: Seat) => seatLabel(s);
 
   async function apply() {
     if (from.enter == null || from.exit == null) return;
