@@ -121,12 +121,14 @@
   };
   const columns = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
   /** The chip's lead: the seat's channel tag (R1, F4), a bare MHz, or Off; the seat number if unknown. */
-  function seatChan(seat: number): string {
+  function seatChan(seat: number): { text: string; band: string } {
     const s = timer.seats[seat - 1];
-    if (!s) return String(seat);
-    if (!s.frequency) return 'Off';
+    if (!s) return { text: String(seat), band: '' };
+    if (!s.frequency) return { text: 'Off', band: 'off' };
     const t = seatTag(s);
-    return t ? `${t.band}${t.channel}` : String(s.frequency);
+    return t
+      ? { text: `${t.band}${t.channel}`, band: t.band }
+      : { text: String(s.frequency), band: '' };
   }
 
   /** Seed every unconfirmed seeded heat of a stage; report how many seats are still waiting. */
@@ -278,8 +280,9 @@
             <td class="lineup">
               <div class="chips">
                 {#each seatChips(setup, h) as chip (chip.seat)}
+                  {@const chan = seatChan(chip.seat)}
                   <span class="chip {chip.kind}" title={chip.title}
-                    ><span class="n">{seatChan(chip.seat)}</span>{chip.text}</span
+                    ><span class="n" data-band={chan.band}>{chan.text}</span>{chip.text}</span
                   >
                 {/each}
               </div>
@@ -710,6 +713,34 @@
     font-size: var(--gf-font-size-xs);
     color: var(--gf-text-muted);
     font-variant-numeric: tabular-nums;
+  }
+  /* Band colours, the same on every screen: R red, F amber, E green, B blue, A violet, L cyan. */
+  .chip .n[data-band='R'] {
+    color: var(--gf-red-400);
+    background: color-mix(in srgb, var(--gf-red-400) 18%, transparent);
+  }
+  .chip .n[data-band='F'] {
+    color: var(--gf-amber-400);
+    background: color-mix(in srgb, var(--gf-amber-400) 18%, transparent);
+  }
+  .chip .n[data-band='E'] {
+    color: var(--gf-green-400);
+    background: color-mix(in srgb, var(--gf-green-400) 18%, transparent);
+  }
+  .chip .n[data-band='B'] {
+    color: var(--gf-blue-400);
+    background: color-mix(in srgb, var(--gf-blue-400) 18%, transparent);
+  }
+  .chip .n[data-band='A'] {
+    color: var(--gf-violet-400);
+    background: color-mix(in srgb, var(--gf-violet-400) 18%, transparent);
+  }
+  .chip .n[data-band='L'] {
+    color: var(--gf-cyan-400);
+    background: color-mix(in srgb, var(--gf-cyan-400) 18%, transparent);
+  }
+  .chip.empty .n {
+    opacity: 0.7;
   }
   .chip.empty {
     color: var(--gf-text-muted);

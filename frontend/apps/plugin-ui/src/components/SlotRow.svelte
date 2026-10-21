@@ -6,7 +6,7 @@
    */
   import { Input, Select } from '@gridfpv/components';
   import { rh, seatSlot, type WriteResult } from '../lib/rh.svelte.js';
-  import { seatLabel } from '../lib/channels.js';
+  import { seatLabel, seatTag } from '../lib/channels.js';
   import { CLASS_NONE, SLOT_METHOD, type Heat, type Setup, type Slot } from '../lib/setup.js';
 
   let {
@@ -26,6 +26,10 @@
   const channel = $derived.by(() => {
     const seat = slot.nodeIndex == null ? undefined : timer.seats[slot.nodeIndex];
     return seat ? seatLabel(seat) : '';
+  });
+  const band = $derived.by(() => {
+    const seat = slot.nodeIndex == null ? undefined : timer.seats[slot.nodeIndex];
+    return seat?.frequency ? (seatTag(seat)?.band ?? '') : '';
   });
 
   let busy = $state(false);
@@ -130,7 +134,7 @@
 <div class="slot" class:busy>
   <span class="seat">
     <span>Seat {(slot.nodeIndex ?? 0) + 1}</span>
-    {#if channel}<span class="chan">{channel}</span>{/if}
+    {#if channel}<span class="chan" data-band={band}>{channel}</span>{/if}
   </span>
   <Select value={String(slot.method)} size="sm" disabled={busy || heat.locked} onchange={onMethod}>
     <option value={String(SLOT_METHOD.NONE)}>Empty</option>
@@ -245,6 +249,24 @@
     text-transform: none;
     letter-spacing: 0;
     font-variant-numeric: tabular-nums;
+  }
+  .chan[data-band='R'] {
+    color: var(--gf-red-400);
+  }
+  .chan[data-band='F'] {
+    color: var(--gf-amber-400);
+  }
+  .chan[data-band='E'] {
+    color: var(--gf-green-400);
+  }
+  .chan[data-band='B'] {
+    color: var(--gf-blue-400);
+  }
+  .chan[data-band='A'] {
+    color: var(--gf-violet-400);
+  }
+  .chan[data-band='L'] {
+    color: var(--gf-cyan-400);
   }
   .muted {
     color: var(--gf-text-muted);
