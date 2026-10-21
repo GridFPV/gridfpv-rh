@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { emptyResults, type Results } from '../src/lib/results.js';
 import {
+  activeSeatIndexes,
   boardLayout,
+  heatShortName,
   heatsForPilots,
+  roundsOf,
   standingsLine,
   nextRound,
   roundColumns,
@@ -174,5 +177,30 @@ describe('layout and standings', () => {
     expect(standingsLine(rows)).toBe('1 Vortex · 2 Pixel · 3 Blitz');
     expect(standingsLine(rows, 2)).toBe('1 Vortex · 2 Pixel · …');
     expect(standingsLine(undefined)).toBe('');
+  });
+});
+
+describe('grouped rounds helpers', () => {
+  it('groups heats by round and strips the round prefix', () => {
+    const a = {
+      ...heat(1, []),
+      groupId: 0,
+      displayName: 'Round 1 / Quarter 1',
+      autoName: 'Quarter 1'
+    };
+    const b = { ...heat(2, []), groupId: 2, displayName: 'Round 3 / Final', name: 'Final' };
+    expect(roundsOf([a, b]).map((r) => r.map((h) => h.id))).toEqual([[1], [], [2]]);
+    expect(heatShortName(a)).toBe('Quarter 1');
+    expect(heatShortName(b)).toBe('Final');
+    expect(heatShortName({ ...a, name: '', autoName: '' })).toBe('Quarter 1');
+  });
+  it('lists the seats that have a frequency', () => {
+    expect(
+      activeSeatIndexes([
+        { index: 0, frequency: 5658 },
+        { index: 1, frequency: 0 },
+        { index: 2, frequency: 5760 }
+      ])
+    ).toEqual([0, 2]);
   });
 });

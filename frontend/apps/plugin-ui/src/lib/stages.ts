@@ -93,6 +93,27 @@ export function nextRound(cls: RaceClass, heat: Heat, results: Results): number 
   return n;
 }
 
+/** A heat's name without RotorHazard's "Round N / " prefix, for use inside a round section. */
+export function heatShortName(h: Heat): string {
+  return h.name || h.autoName || h.displayName.replace(/^Round \d+ \/ /, '');
+}
+
+/** A grouped stage's heats by round (group id), in order; rounds with no heats are kept empty. */
+export function roundsOf(heats: Heat[]): Heat[][] {
+  const out: Heat[][] = [];
+  for (const h of heats) {
+    const g = h.groupId ?? 0;
+    while (out.length <= g) out.push([]);
+    out[g].push(h);
+  }
+  return out;
+}
+
+/** Seats that have a frequency (the ones a generator should fill), as node indexes. */
+export function activeSeatIndexes(seats: Array<{ index: number; frequency: number }>): number[] {
+  return seats.filter((s) => s.frequency > 0).map((s) => s.index);
+}
+
 export type SeatChip = {
   seat: number;
   text: string;
@@ -112,9 +133,13 @@ export function seatChips(setup: Setup, heat: Heat): SeatChip[] {
       if (s.method === SLOT_METHOD.ASSIGN && pilot)
         return { seat, text: pilot.callsign || pilot.name, kind: 'pilot', title: `Seat ${seat}` };
       if (isDynamic(s)) {
+        const srcHeat =
+          s.method === SLOT_METHOD.HEAT_RESULT ? heatById(setup, s.seedId ?? -1) : undefined;
         const from =
           s.method === SLOT_METHOD.HEAT_RESULT
-            ? (heatById(setup, s.seedId ?? -1)?.displayName ?? 'a heat')
+            ? srcHeat
+              ? heatShortName(srcHeat)
+              : 'a heat'
             : (classById(setup, s.seedId ?? -1)?.displayName ?? 'the class');
         const rule = `${ordinal(s.seedRank ?? 1)} ${s.method === SLOT_METHOD.HEAT_RESULT ? 'of' : 'in'} ${from}`;
         if (pilot)

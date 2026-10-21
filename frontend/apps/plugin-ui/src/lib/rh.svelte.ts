@@ -33,6 +33,7 @@ import {
   type Setup
 } from './setup.js';
 import { applyResultData, emptyResults, type Results } from './results.js';
+import { planSize, type BracketPlan } from './bracket.js';
 
 export type HelloAck = {
   plugin_version: string;
@@ -657,9 +658,9 @@ export function deleteClass(id: number): Promise<WriteResult> {
 
 // ---- heats ------------------------------------------------------------------------
 
-export async function addHeat(classId: number): Promise<WriteResult & { id?: number }> {
+export async function addHeat(classId: number, group = 0): Promise<WriteResult & { id?: number }> {
   const before = new Set(state.setup.heats.map((h) => h.id));
-  socket?.emit('add_heat', classId ? { class: classId } : {});
+  socket?.emit('add_heat', classId ? { class: classId, group } : {});
   window.setTimeout(() => loadData('heat_data'), 200);
   const r = await awaitState('New heat', () => state.setup.heats.some((h) => !before.has(h.id)));
   return { ...r, id: state.setup.heats.find((h) => !before.has(h.id))?.id };
@@ -672,13 +673,19 @@ export function duplicateHeat(id: number): Promise<WriteResult> {
   return awaitState('Duplicate heat', () => state.setup.heats.length > before);
 }
 
-export type HeatFields = { name?: string; classId?: number; autoFrequency?: boolean };
+export type HeatFields = {
+  name?: string;
+  classId?: number;
+  autoFrequency?: boolean;
+  groupId?: number;
+};
 
 export function alterHeat(id: number, fields: HeatFields): Promise<WriteResult> {
   const payload: Record<string, unknown> = { heat: id };
   if (fields.name !== undefined) payload.name = fields.name;
   if (fields.classId !== undefined) payload.class = fields.classId;
   if (fields.autoFrequency !== undefined) payload.auto_frequency = fields.autoFrequency;
+  if (fields.groupId !== undefined) payload.group_id = fields.groupId;
   socket?.emit('alter_heat', payload);
   window.setTimeout(() => loadData('heat_data'), 200);
   return awaitState('Heat', () => {
@@ -687,7 +694,8 @@ export function alterHeat(id: number, fields: HeatFields): Promise<WriteResult> 
     return (
       (fields.name === undefined || h.name === fields.name) &&
       (fields.classId === undefined || h.classId === fields.classId) &&
-      (fields.autoFrequency === undefined || h.autoFrequency === fields.autoFrequency)
+      (fields.autoFrequency === undefined || h.autoFrequency === fields.autoFrequency) &&
+      (fields.groupId === undefined || h.groupId === fields.groupId)
     );
   });
 }
@@ -771,6 +779,91 @@ export function seatSlot(
       return slot.seedId === seating.classId && slot.seedRank === seating.rank;
     return true;
   });
+}
+
+// ---- brackets ---------------------------------------------------------------------
+
+export type GenerateProgress = { done: number; total: number; what: string };
+
+/**
+ * Write a bracket plan into a stage: drop its unraced heats, create one heat per plan
+ * heat in its round group (RotorHazard's grouped rounds), name the named ones, seed
+ * every seat from the source stage's ranking or an earlier heat's result, then set the
+ * round count and (last — see createStage) grouped rounds. Refuses a stage with races.
+ */
+export async function generateBracket(
+  classId: number,
+  plan: BracketPlan,
+  sourceClassId: number,
+  seatIndexes: number[],
+  onprogress?: (p: GenerateProgress) => void
+): Promise<WriteResult> {
+  const existing = state.setup.heats.filter((h) => h.classId === classId);
+  if (existing.some((h) => h.locked))
+    return { ok: false, message: 'This stage has saved races; generate into a fresh stage.' };
+  const size = planSize(plan);
+  const total = existing.length + size.heats + size.seeds + 2;
+  let done = 0;
+  const tick = (what: string) => onprogress?.({ done: ++done, total, what });
+
+  for (const h of existing) {
+    const r = await deleteHeat(h.id);
+    if (!r.ok) return r;
+    tick(`Removed ${h.displayName}`);
+  }
+
+  // Create every heat first so later rounds can point at earlier ones by id.
+  const ids: number[][] = [];
+  for (let r = 0; r < plan.rounds.length; r++) {
+    ids.push([]);
+    for (const ph of plan.rounds[r].heats) {
+      const made = await addHeat(classId, r);
+      if (!made.ok || made.id == null) return made;
+      if (ph.name) {
+        const named = await alterHeat(made.id, { name: ph.name });
+        if (!named.ok) return named;
+      }
+      ids[r].push(made.id);
+      tick(`Created ${ph.name ?? `heat ${ids[r].length} of ${plan.rounds[r].name}`}`);
+    }
+  }
+
+  for (let r = 0; r < plan.rounds.length; r++) {
+    for (let h = 0; h < plan.rounds[r].heats.length; h++) {
+      const heatId = ids[r][h];
+      const slots = state.setup.heats.find((x) => x.id === heatId)?.slots ?? [];
+      const seeds = plan.rounds[r].heats[h].seeds;
+      for (let p = 0; p < seeds.length; p++) {
+        const seed = seeds[p];
+        if (!seed) continue;
+        const slot = slots.find((s) => s.nodeIndex === seatIndexes[p]);
+        if (!slot)
+          return { ok: false, message: `Seat ${seatIndexes[p] + 1} has no slot in the heat.` };
+        const seating: SlotSeating =
+          seed.kind === 'class'
+            ? { method: SLOT_METHOD.CLASS_RESULT, classId: sourceClassId, rank: seed.rank }
+            : {
+                method: SLOT_METHOD.HEAT_RESULT,
+                heatId: ids[seed.round][seed.heat],
+                rank: seed.rank
+              };
+        const w = await seatSlot(heatId, slot.id, seating);
+        if (!w.ok) return w;
+        tick(`Seeded ${plan.rounds[r].name}`);
+      }
+    }
+  }
+
+  const rounds = await alterClass(classId, { rounds: plan.rounds.length });
+  if (!rounds.ok) return rounds;
+  tick('Set rounds');
+  const cls = state.setup.classes.find((c) => c.id === classId);
+  if (cls && cls.roundType !== ROUND_TYPE.GROUPED) {
+    const rt = await alterClass(classId, { roundType: ROUND_TYPE.GROUPED });
+    if (!rt.ok) return rt;
+  }
+  tick('Done');
+  return { ok: true };
 }
 
 // ---- teams (stored by the plugin; names are what RotorHazard stores on pilots) --------

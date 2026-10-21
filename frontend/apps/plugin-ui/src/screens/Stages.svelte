@@ -9,6 +9,7 @@
   import { Badge, Banner, Button, Card, Dialog, Input, Select } from '@gridfpv/components';
   import AddStageDialog from '../components/AddStageDialog.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
+  import GenerateDialog from '../components/GenerateDialog.svelte';
   import HeatDialog from '../components/HeatDialog.svelte';
   import {
     addHeat,
@@ -33,10 +34,12 @@
   } from '../lib/setup.js';
   import {
     boardLayout,
+    heatShortName,
     isSeededHeat,
     needsSeeding,
     nextRound,
     roundColumns,
+    roundsOf,
     seatChips,
     STAGE_STATE_LABELS,
     stageState,
@@ -78,6 +81,10 @@
 
   // ---- dialogs ----
   let adding = $state(false);
+  let generating: RaceClass | null = $state(null);
+  const generatingLive = $derived(
+    generating ? (setup.classes.find((c) => c.id === generating!.id) ?? null) : null
+  );
   let heatOpen: number | null = $state(null);
   const heatLive = $derived(
     heatOpen == null ? null : (setup.heats.find((h) => h.id === heatOpen) ?? null)
@@ -175,6 +182,15 @@
   }
 </script>
 
+{#if generatingLive}
+  <GenerateDialog
+    stage={generatingLive}
+    stages={stages.filter((c) => c.id !== generatingLive!.id)}
+    {onresult}
+    onclose={() => (generating = null)}
+  />
+{/if}
+
 {#if adding}
   <AddStageDialog
     {setup}
@@ -252,6 +268,53 @@
   {:else}
     <span class="cell todo"></span>
   {/if}
+{/snippet}
+
+{#snippet groupedBoard(heats: Heat[])}
+  <div class="grouped">
+    {#each roundsOf(heats) as round, r (r)}
+      <div class="roundsection">
+        <div class="roundhead">
+          <span>Round {r + 1}</span>
+          {#if round.length === 1 && heatShortName(round[0]) === 'Final'}<span class="muted"
+              >· the final</span
+            >{/if}
+        </div>
+        {#if round.length === 0}
+          <p class="muted empty">No heats in this round yet.</p>
+        {:else}
+          <div class="boardwrap">
+            <table class="board">
+              <tbody>
+                {#each round as h (h.id)}
+                  {@const race = racesFor(results, h.id)[0]}
+                  {@const next = race ? null : 1}
+                  <tr class="heat" onclick={() => (heatOpen = h.id)}>
+                    <td class="heatcol">
+                      <strong>{heatShortName(h)}</strong>
+                      {#if h.locked}<span class="tag">raced</span>{/if}
+                    </td>
+                    <td class="lineup">
+                      <div class="chips">
+                        {#each seatChips(setup, h) as chip (chip.seat)}
+                          {@const chan = seatChan(chip.seat)}
+                          <span class="chip {chip.kind}" title={chip.title}
+                            ><span class="n" data-band={chan.band}>{chan.text}</span
+                            >{chip.text}</span
+                          >
+                        {/each}
+                      </div>
+                    </td>
+                    <td class="round">{@render roundCell(h, 1, next, false)}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+      </div>
+    {/each}
+  </div>
 {/snippet}
 
 {#snippet board(c: RaceClass | null, heats: Heat[])}
@@ -452,7 +515,9 @@
           {standingsLine(results.ranking[c.id])}
         </p>
       {/if}
-      {#if heats.length}
+      {#if heats.length && c.roundType === ROUND_TYPE.GROUPED}
+        {@render groupedBoard(heats)}
+      {:else if heats.length}
         {@render board(c, heats)}
       {:else}
         <p class="muted empty">No heats yet.</p>
@@ -464,6 +529,17 @@
           disabled={busy}
           onclick={() => run(() => addHeat(c.id))}>Add heat</Button
         >
+        {#if !heats.some((h) => h.locked)}
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={busy || stages.length < 2}
+            title={stages.length < 2
+              ? 'Add a stage to seed from first'
+              : 'Build a single-elimination bracket seeded from another stage'}
+            onclick={() => (generating = c)}>Generate bracket…</Button
+          >
+        {/if}
         {#if heats.some(needsSeeding)}
           <Button
             size="sm"
@@ -814,6 +890,24 @@
     font-size: var(--gf-font-size-xs);
     color: var(--gf-text-muted);
     margin-left: var(--gf-space-1);
+  }
+  .grouped {
+    display: grid;
+    gap: var(--gf-space-3);
+  }
+  .roundhead {
+    display: flex;
+    gap: var(--gf-space-2);
+    align-items: baseline;
+    font-size: var(--gf-font-size-xs);
+    color: var(--gf-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: var(--gf-space-1);
+  }
+  .roundhead .muted {
+    text-transform: none;
+    letter-spacing: 0;
   }
   .cell.todo {
     min-width: 0;
