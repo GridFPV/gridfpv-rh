@@ -74,8 +74,9 @@ export function roundColumns(cls: RaceClass, heats: Heat[], results: Results): n
  */
 export const GRID_MAX_ROUNDS = 6;
 export type BoardLayout = 'grid' | 'strip';
-export function boardLayout(columns: number): BoardLayout {
-  return columns > GRID_MAX_ROUNDS ? 'strip' : 'grid';
+/** An unlimited stage is a strip from its first race, so the layout never flips mid-day. */
+export function boardLayout(columns: number, unlimited = false): BoardLayout {
+  return unlimited || columns > GRID_MAX_ROUNDS ? 'strip' : 'grid';
 }
 
 /** The stage standings in one line: `1 Vortex · 2 Pixel · 3 Blitz`, cut at `max`. */

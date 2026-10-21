@@ -151,6 +151,7 @@ describe('layout and standings', () => {
     expect(boardLayout(1)).toBe('grid');
     expect(boardLayout(6)).toBe('grid');
     expect(boardLayout(7)).toBe('strip');
+    expect(boardLayout(1, true)).toBe('strip');
   });
   it('writes the standings in one line, cut at max', () => {
     const rows = [

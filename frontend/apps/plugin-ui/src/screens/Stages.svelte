@@ -245,7 +245,7 @@
 
 {#snippet board(c: RaceClass | null, heats: Heat[])}
   {@const rounds = c ? roundColumns(c, heats, results) : 1}
-  {@const layout = boardLayout(rounds)}
+  {@const layout = boardLayout(rounds, !!c && c.rounds === 0)}
   <div class="boardwrap">
     <table class="board" class:strip={layout === 'strip'}>
       <thead>
@@ -360,23 +360,41 @@
             {#each setup.formats as f (f.id)}<option value={String(f.id)}>{f.name}</option>{/each}
           </Select>
         </label>
-        <label class="field narrow">
+        <div class="field rounds">
           <span>Rounds</span>
-          <Input
-            type="number"
-            size="sm"
-            value={String(c.rounds)}
-            min="0"
-            max="99"
-            disabled={busy || c.locked}
-            onchange={(e: Event) =>
-              run(() =>
-                alterClass(c.id, {
-                  rounds: Math.max(0, Number((e.currentTarget as HTMLInputElement).value) || 0)
-                })
-              )}
-          />
-        </label>
+          <div class="roundsrow">
+            <Input
+              type="number"
+              size="sm"
+              value={c.rounds > 0 ? String(c.rounds) : ''}
+              placeholder="∞"
+              min="1"
+              max="99"
+              disabled={busy || c.rounds === 0}
+              aria-label="Rounds"
+              onchange={(e: Event) =>
+                run(() =>
+                  alterClass(c.id, {
+                    rounds: Math.max(1, Number((e.currentTarget as HTMLInputElement).value) || 1)
+                  })
+                )}
+            />
+            <label class="check">
+              <input
+                type="checkbox"
+                checked={c.rounds === 0}
+                disabled={busy}
+                onchange={(e: Event) =>
+                  run(() =>
+                    alterClass(c.id, {
+                      rounds: (e.currentTarget as HTMLInputElement).checked ? 0 : 3
+                    })
+                  )}
+              />
+              No limit
+            </label>
+          </div>
+        </div>
         <label class="field">
           <span>Ranked by</span>
           <Select
@@ -563,6 +581,24 @@
   .field.narrow {
     min-width: 0;
     width: 84px;
+  }
+  .field.rounds {
+    min-width: 0;
+  }
+  .roundsrow {
+    display: flex;
+    align-items: center;
+    gap: var(--gf-space-2);
+  }
+  .roundsrow :global(.gf-input) {
+    width: 64px;
+  }
+  .check {
+    display: flex;
+    align-items: center;
+    gap: var(--gf-space-1);
+    white-space: nowrap;
+    font-size: var(--gf-font-size-sm);
   }
   .field span {
     font-size: var(--gf-font-size-xs);

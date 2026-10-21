@@ -29,6 +29,7 @@
   let name = $state('');
   let formatId = $state('');
   let rounds = $state('3');
+  let unlimited = $state(false);
   let rank = $state('');
   let heats = $state('1');
 
@@ -39,7 +40,8 @@
     name = t.id === 'blank' ? '' : t.label;
     const f = setup.formats.find((x) => t.formatMatch.test(x.name)) ?? setup.formats[0];
     formatId = f ? String(f.id) : '';
-    rounds = String(t.rounds);
+    unlimited = t.rounds === 0;
+    rounds = String(t.rounds || 3);
     rank = rankMethods.some((m) => m.name === t.rank) ? t.rank : '';
     heats = String(t.heats === 'pilots' ? heatsForPilots(activePilots, seatCount) : t.heats);
   }
@@ -57,7 +59,7 @@
       const r = await createStage({
         name: name.trim(),
         formatId: Number(formatId),
-        rounds: Math.max(0, Math.floor(Number(rounds) || 0)),
+        rounds: unlimited ? 0 : Math.max(1, Math.floor(Number(rounds) || 1)),
         winCondition: rank,
         heats: Math.max(0, Math.floor(Number(heats) || 0))
       });
@@ -101,9 +103,21 @@
       </label>
     </div>
     <div class="row">
-      <label class="field narrow"
-        ><span>Rounds</span><Input type="number" bind:value={rounds} min="0" max="99" /></label
-      >
+      <div class="field">
+        <span>Rounds</span>
+        <div class="roundsrow">
+          <Input
+            type="number"
+            bind:value={rounds}
+            min="1"
+            max="99"
+            placeholder="∞"
+            disabled={unlimited}
+            aria-label="Rounds"
+          />
+          <label class="check"><input type="checkbox" bind:checked={unlimited} /> No limit</label>
+        </div>
+      </div>
       <label class="field grow">
         <span>Ranked by</span>
         <Select bind:value={rank}>
@@ -116,7 +130,7 @@
       >
     </div>
     <small class="muted">
-      Rounds 0 means no limit. {activePilots} active pilot{activePilots === 1 ? '' : 's'} and
+      {activePilots} active pilot{activePilots === 1 ? '' : 's'} and
       {seatCount} seats: {heatsForPilots(activePilots, seatCount)} heat{heatsForPilots(
         activePilots,
         seatCount
@@ -187,5 +201,19 @@
   }
   .muted {
     color: var(--gf-text-muted);
+  }
+  .roundsrow {
+    display: flex;
+    align-items: center;
+    gap: var(--gf-space-2);
+  }
+  .roundsrow :global(.gf-input) {
+    width: 80px;
+  }
+  .check {
+    display: flex;
+    align-items: center;
+    gap: var(--gf-space-1);
+    white-space: nowrap;
   }
 </style>
