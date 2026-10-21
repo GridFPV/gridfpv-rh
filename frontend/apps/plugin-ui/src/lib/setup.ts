@@ -12,6 +12,8 @@
 
 /** How a slot gets its pilot (Database.py: ProgramMethod). */
 export const SLOT_METHOD = { NONE: -1, ASSIGN: 0, HEAT_RESULT: 1, CLASS_RESULT: 2 } as const;
+/** Database.py: HeatStatus — a seeded heat is PLANNED until RotorHazard projects pilots into it, CONFIRMED once locked in. */
+export const HEAT_STATUS = { PLANNED: 0, PROJECTED: 1, CONFIRMED: 2 } as const;
 /** Database.py: HeatAdvanceType. */
 export const HEAT_ADVANCE = { NONE: 0, NEXT_HEAT: 1, NEXT_ROUND: 2 } as const;
 /** Database.py: RoundType. */

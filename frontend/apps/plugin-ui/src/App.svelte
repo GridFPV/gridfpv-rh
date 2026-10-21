@@ -8,7 +8,7 @@
   import Event from './screens/Event.svelte';
   import Seats from './screens/Seats.svelte';
   import Pilots from './screens/Pilots.svelte';
-  import Heats from './screens/Heats.svelte';
+  import Stages from './screens/Stages.svelte';
   import Teams from './screens/Teams.svelte';
   import Formats from './screens/Formats.svelte';
 
@@ -43,7 +43,7 @@
     { path: 'seats', label: 'Seats' },
     { path: 'pilots', label: 'Pilots' },
     { path: 'teams', label: 'Teams' },
-    { path: 'heats', label: 'Heats' },
+    { path: 'stages', label: 'Stages' },
     { path: 'formats', label: 'Formats' }
   ];
   const active = (path: string) =>
@@ -85,8 +85,8 @@
       <Seats />
     {:else if current === 'pilots'}
       <Pilots />
-    {:else if current === 'heats'}
-      <Heats />
+    {:else if current === 'stages' || current === 'heats'}
+      <Stages />
     {:else if current === 'teams'}
       <Teams />
     {:else if current === 'formats'}

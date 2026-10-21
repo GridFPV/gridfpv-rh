@@ -27,9 +27,11 @@ import {
   applyHeatData,
   applyPilotData,
   emptySetup,
+  HEAT_STATUS,
   SLOT_METHOD,
   type Setup
 } from './setup.js';
+import { applyResultData, emptyResults, type Results } from './results.js';
 
 export type HelloAck = {
   plugin_version: string;
@@ -82,6 +84,8 @@ const state = $state({
   presets: [] as Preset[],
   /** Pilots, classes, heats, formats — RotorHazard's setup entities. */
   setup: emptySetup() as Setup,
+  /** Saved races and class standings (RotorHazard's result_data). */
+  results: emptyResults() as Results,
   /** Class ranking methods RotorHazard offers (its own plus plugins'), by name. */
   rankMethods: [] as Array<{ name: string; label: string }>,
   /** Race points methods (for a format), by name. */
@@ -167,6 +171,7 @@ function reloadEverything() {
     'class_data',
     'heat_data',
     'format_data',
+    'result_data',
     'raceclass_rank_method_list',
     'race_points_method_list'
   );
@@ -195,6 +200,7 @@ export function connect(): Socket {
       'class_data',
       'heat_data',
       'format_data',
+      'result_data',
       'raceclass_rank_method_list',
       'race_points_method_list'
     );
@@ -252,6 +258,10 @@ export function connect(): Socket {
   });
   socket.on('format_data', (p: Parameters<typeof applyFormatData>[1]) => {
     state.setup = applyFormatData(state.setup, p);
+    checkWaiters();
+  });
+  socket.on('result_data', (p: Parameters<typeof applyResultData>[0]) => {
+    state.results = applyResultData(p);
     checkWaiters();
   });
   socket.on(
@@ -581,6 +591,30 @@ export function alterClass(id: number, fields: ClassFields): Promise<WriteResult
   });
 }
 
+/** A stage in one step: a class with its settings and, optionally, empty heats. */
+export async function createStage(spec: {
+  name: string;
+  formatId: number;
+  rounds: number;
+  winCondition: string;
+  heats: number;
+}): Promise<WriteResult & { id?: number }> {
+  const made = await addClass();
+  if (!made.ok || made.id == null) return made;
+  const set = await alterClass(made.id, {
+    name: spec.name,
+    formatId: spec.formatId,
+    rounds: spec.rounds,
+    winCondition: spec.winCondition
+  });
+  if (!set.ok) return { ...set, id: made.id };
+  for (let i = 0; i < spec.heats; i++) {
+    const h = await addHeat(made.id);
+    if (!h.ok) return { ...h, id: made.id };
+  }
+  return { ok: true, id: made.id };
+}
+
 export function duplicateClass(id: number): Promise<WriteResult> {
   const before = state.setup.classes.length;
   socket?.emit('duplicate_race_class', { class: id });
@@ -649,6 +683,31 @@ export function deleteHeat(id: number): Promise<WriteResult> {
           ok: false,
           message: 'RotorHazard kept the heat — heats with saved races cannot be deleted.'
         }
+  );
+}
+
+/**
+ * Seed now: ask RotorHazard to fill the heat's seeded seats from results (calc_pilots), then
+ * confirm the plan (confirm_heat_plan → status CONFIRMED) so it will race. Seats whose result
+ * is not in yet stay empty; the readback is the confirmed status.
+ */
+export function seedHeat(id: number): Promise<WriteResult> {
+  socket?.emit('calc_pilots', { heat: id });
+  window.setTimeout(() => socket?.emit('confirm_heat_plan', { heat_id: id }), 300);
+  window.setTimeout(() => loadData('heat_data'), 600);
+  return awaitState(
+    'Seed',
+    () => state.setup.heats.find((h) => h.id === id)?.status === HEAT_STATUS.CONFIRMED
+  );
+}
+
+/** Back to a plan: RotorHazard drops the confirmation and will recompute seats on the next seed. */
+export function unseedHeat(id: number): Promise<WriteResult> {
+  socket?.emit('calc_reset', { heat: id });
+  window.setTimeout(() => loadData('heat_data'), 300);
+  return awaitState(
+    'Reset seeding',
+    () => state.setup.heats.find((h) => h.id === id)?.status === HEAT_STATUS.PLANNED
   );
 }
 

@@ -1,0 +1,191 @@
+<script lang="ts">
+  /**
+   * "Add stage": a template (practice, qualifying, bracket, Chase the Ace, blank) sets
+   * the name, format, rounds, ranking and how many empty heats to make; everything is
+   * editable before Create. One click instead of RotorHazard's class form plus N add-heats.
+   */
+  import { Button, Dialog, Input, Select } from '@gridfpv/components';
+  import { createStage, type WriteResult } from '../lib/rh.svelte.js';
+  import { heatsForPilots, STAGE_TEMPLATES, type StageTemplate } from '../lib/stages.js';
+  import type { Setup } from '../lib/setup.js';
+
+  let {
+    setup,
+    rankMethods,
+    seatCount,
+    onresult,
+    onclose
+  }: {
+    setup: Setup;
+    rankMethods: Array<{ name: string; label: string }>;
+    seatCount: number;
+    onresult: (r: WriteResult) => void;
+    onclose: () => void;
+  } = $props();
+
+  let open = $state(true);
+  let busy = $state(false);
+  let template = $state(STAGE_TEMPLATES[1]);
+  let name = $state('');
+  let formatId = $state('');
+  let rounds = $state('3');
+  let rank = $state('');
+  let heats = $state('1');
+
+  const activePilots = $derived(setup.pilots.filter((p) => p.active).length);
+
+  function pick(t: StageTemplate) {
+    template = t;
+    name = t.id === 'blank' ? '' : t.label;
+    const f = setup.formats.find((x) => t.formatMatch.test(x.name)) ?? setup.formats[0];
+    formatId = f ? String(f.id) : '';
+    rounds = String(t.rounds);
+    rank = rankMethods.some((m) => m.name === t.rank) ? t.rank : '';
+    heats = String(t.heats === 'pilots' ? heatsForPilots(activePilots, seatCount) : t.heats);
+  }
+  // Seed the form from the default template once the formats are known.
+  $effect(() => {
+    if (!formatId && setup.formats.length) pick(template);
+  });
+
+  const valid = $derived(!!name.trim() && !!formatId);
+
+  async function create() {
+    if (!valid) return;
+    busy = true;
+    try {
+      const r = await createStage({
+        name: name.trim(),
+        formatId: Number(formatId),
+        rounds: Math.max(0, Math.floor(Number(rounds) || 0)),
+        winCondition: rank,
+        heats: Math.max(0, Math.floor(Number(heats) || 0))
+      });
+      onresult(r);
+      if (r.ok) open = false;
+    } finally {
+      busy = false;
+    }
+  }
+</script>
+
+<Dialog bind:open title="Add stage" {onclose} size="wide">
+  <div class="form">
+    <div class="templates">
+      {#each STAGE_TEMPLATES as t (t.id)}
+        <button
+          type="button"
+          class="template"
+          class:selected={template.id === t.id}
+          onclick={() => pick(t)}
+        >
+          <strong>{t.label}</strong>
+          <span>{t.description}</span>
+        </button>
+      {/each}
+    </div>
+
+    <div class="row">
+      <label class="field grow"
+        ><span>Name</span><Input
+          bind:value={name}
+          maxlength="80"
+          onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && create()}
+        /></label
+      >
+      <label class="field grow">
+        <span>Format</span>
+        <Select bind:value={formatId}>
+          {#each setup.formats as f (f.id)}<option value={String(f.id)}>{f.name}</option>{/each}
+        </Select>
+      </label>
+    </div>
+    <div class="row">
+      <label class="field narrow"
+        ><span>Rounds</span><Input type="number" bind:value={rounds} min="0" max="99" /></label
+      >
+      <label class="field grow">
+        <span>Ranked by</span>
+        <Select bind:value={rank}>
+          <option value="">Not ranked</option>
+          {#each rankMethods as m (m.name)}<option value={m.name}>{m.label}</option>{/each}
+        </Select>
+      </label>
+      <label class="field narrow"
+        ><span>Heats</span><Input type="number" bind:value={heats} min="0" max="64" /></label
+      >
+    </div>
+    <small class="muted">
+      Rounds 0 means no limit. {activePilots} active pilot{activePilots === 1 ? '' : 's'} and
+      {seatCount} seats: {heatsForPilots(activePilots, seatCount)} heat{heatsForPilots(
+        activePilots,
+        seatCount
+      ) === 1
+        ? ''
+        : 's'} seat everyone. Heats are created empty; seat pilots from the board.
+    </small>
+  </div>
+  {#snippet footer()}
+    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
+    <Button variant="primary" disabled={!valid || busy} onclick={create}>Create</Button>
+  {/snippet}
+</Dialog>
+
+<style>
+  .form {
+    display: grid;
+    gap: var(--gf-space-3);
+  }
+  .templates {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--gf-space-2);
+  }
+  .template {
+    display: grid;
+    gap: 2px;
+    text-align: left;
+    font: inherit;
+    color: var(--gf-text);
+    background: var(--gf-surface-sunken);
+    border: 1px solid var(--gf-border);
+    border-radius: var(--gf-radius-md);
+    padding: var(--gf-space-2);
+    cursor: pointer;
+  }
+  .template span {
+    font-size: var(--gf-font-size-xs);
+    color: var(--gf-text-muted);
+  }
+  .template.selected {
+    border-color: var(--gf-brand-500);
+    box-shadow: 0 0 0 1px var(--gf-brand-500);
+  }
+  .row {
+    display: flex;
+    gap: var(--gf-space-3);
+    align-items: end;
+    flex-wrap: wrap;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .field.grow {
+    flex: 1;
+    min-width: 180px;
+  }
+  .field.narrow {
+    width: 100px;
+  }
+  .field > span {
+    font-size: var(--gf-font-size-xs);
+    color: var(--gf-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .muted {
+    color: var(--gf-text-muted);
+  }
+</style>

@@ -6,7 +6,7 @@
    */
   import { Input, Select } from '@gridfpv/components';
   import { seatSlot, type WriteResult } from '../lib/rh.svelte.js';
-  import { heatsInClass, SLOT_METHOD, type Heat, type Setup, type Slot } from '../lib/setup.js';
+  import { CLASS_NONE, SLOT_METHOD, type Heat, type Setup, type Slot } from '../lib/setup.js';
 
   let {
     heat,
@@ -30,8 +30,28 @@
         })
       )
   );
-  // Heats a slot can seed from: the same class, excluding this heat.
-  const seedHeats = $derived(heatsInClass(setup, heat.classId).filter((h) => h.id !== heat.id));
+  // Heats a slot can seed from: any other heat (a bracket seeds from an earlier stage),
+  // grouped by stage in event order.
+  const stages = $derived(
+    [...setup.classes].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.id - b.id)
+  );
+  const seedGroups = $derived(
+    [
+      ...stages.map((c) => ({ id: c.id, label: c.displayName })),
+      { id: CLASS_NONE, label: 'No stage' }
+    ]
+      .map((g) => ({
+        ...g,
+        heats: setup.heats.filter((h) => h.classId === g.id && h.id !== heat.id)
+      }))
+      .filter((g) => g.heats.length)
+  );
+  const seedHeats = $derived(seedGroups.flatMap((g) => g.heats));
+  const seedClassId = $derived(
+    slot.method === SLOT_METHOD.CLASS_RESULT && slot.seedId != null
+      ? slot.seedId
+      : heat.classId || stages[0]?.id || 0
+  );
 
   let rank = $state('1');
   $effect(() => {
@@ -61,9 +81,10 @@
       });
     }
     if (m === SLOT_METHOD.CLASS_RESULT) {
+      if (!seedClassId) return;
       return void write({
         method: SLOT_METHOD.CLASS_RESULT,
-        classId: heat.classId,
+        classId: seedClassId,
         rank: Number(rank) || 1
       });
     }
@@ -82,12 +103,19 @@
       rank: Number(rank) || 1
     });
   }
+  function onSeedClass(e: Event) {
+    void write({
+      method: SLOT_METHOD.CLASS_RESULT,
+      classId: Number((e.currentTarget as HTMLSelectElement).value),
+      rank: Number(rank) || 1
+    });
+  }
   function onRank() {
     const r = Math.max(1, Number(rank) || 1);
     if (slot.method === SLOT_METHOD.HEAT_RESULT && slot.seedId != null)
       void write({ method: SLOT_METHOD.HEAT_RESULT, heatId: slot.seedId, rank: r });
     if (slot.method === SLOT_METHOD.CLASS_RESULT)
-      void write({ method: SLOT_METHOD.CLASS_RESULT, classId: heat.classId, rank: r });
+      void write({ method: SLOT_METHOD.CLASS_RESULT, classId: seedClassId, rank: r });
   }
 </script>
 
@@ -99,7 +127,9 @@
     <option value={String(SLOT_METHOD.HEAT_RESULT)} disabled={!seedHeats.length}
       >Result of a heat</option
     >
-    <option value={String(SLOT_METHOD.CLASS_RESULT)} disabled={!heat.classId}>Rank in class</option>
+    <option value={String(SLOT_METHOD.CLASS_RESULT)} disabled={!stages.length}
+      >Rank in a stage</option
+    >
   </Select>
   {#if slot.method === SLOT_METHOD.ASSIGN}
     <Select
@@ -131,8 +161,12 @@
         disabled={busy || heat.locked}
         onchange={onSeedHeat}
       >
-        {#each seedHeats as h (h.id)}
-          <option value={String(h.id)}>{h.displayName}</option>
+        {#each seedGroups as g (g.id)}
+          <optgroup label={g.label}>
+            {#each g.heats as h (h.id)}
+              <option value={String(h.id)}>{h.displayName}</option>
+            {/each}
+          </optgroup>
         {/each}
       </Select>
     </div>
@@ -147,7 +181,17 @@
         disabled={busy || heat.locked}
         onblur={onRank}
       />
-      <span class="muted">in the class ranking</span>
+      <span class="muted">in the ranking of</span>
+      <Select
+        value={String(seedClassId)}
+        size="sm"
+        disabled={busy || heat.locked}
+        onchange={onSeedClass}
+      >
+        {#each stages as c (c.id)}
+          <option value={String(c.id)}>{c.displayName}</option>
+        {/each}
+      </Select>
     </div>
   {:else}
     <span></span>
