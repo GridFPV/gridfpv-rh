@@ -173,49 +173,99 @@ describe('doubleElimination', () => {
 });
 
 describe('letterMains', () => {
-  it('10 pilots, 4 seats, 2 bump-ups: D to A', () => {
-    const p = letterMains({ pilots: 10, seats: 4, bumps: 2 });
-    expect(p.rounds.map((r) => r.name)).toEqual(['D-main', 'C-main', 'B-main', 'A-main']);
-    expect(describePlan(p)).toBe('4 mains: D, C, B, A');
+  const shape = { seats: 4, advance: 2, perMain: 8, bumps: 2 };
+  it('20 pilots in mains of 8: three brackets, lowest first, finals feed upward', () => {
+    const p = letterMains({ pilots: 20, ...shape });
+    expect(p.rounds.map((r) => r.name)).toEqual([
+      'C-main semifinals',
+      'C-main final',
+      'B-main semifinals',
+      'B-main final',
+      'A-main semifinals',
+      'A-main final'
+    ]);
+    expect(p.rounds.map((r) => r.heats.map((h) => h.name))).toEqual([
+      ['C Semi 1', 'C Semi 2'],
+      ['C Final'],
+      ['B Semi 1', 'B Semi 2'],
+      ['B Final'],
+      ['A Semi 1', 'A Semi 2'],
+      ['A Final']
+    ]);
+    expect(describePlan(p)).toBe('3 mains, 9 heats: C 2 → 1, B 2 → 1, A 2 → 1');
+    expect(planSize(p)).toEqual({ heats: 9, seeds: 36 });
+    // C-main: ranks 13–20, snake-seeded.
     expect(p.rounds[0].heats[0].seeds).toEqual([
+      { kind: 'class', rank: 13 },
+      { kind: 'class', rank: 16 },
+      { kind: 'class', rank: 17 },
+      { kind: 'class', rank: 20 }
+    ]);
+    // C Final: top 2 of each C semi.
+    expect(p.rounds[1].heats[0].seeds).toEqual([
+      { kind: 'heat', round: 0, heat: 0, rank: 1 },
+      { kind: 'heat', round: 0, heat: 0, rank: 2 },
+      { kind: 'heat', round: 0, heat: 1, rank: 1 },
+      { kind: 'heat', round: 0, heat: 1, rank: 2 }
+    ]);
+    // B-main: ranks 7–12 direct plus the top 2 of C Final as its lowest seeds (7 and 8).
+    expect(p.rounds[2].heats[0].seeds).toEqual([
       { kind: 'class', rank: 7 },
+      { kind: 'class', rank: 10 },
+      { kind: 'class', rank: 11 },
+      { kind: 'heat', round: 1, heat: 0, rank: 2 }
+    ]);
+    expect(p.rounds[2].heats[1].seeds).toEqual([
       { kind: 'class', rank: 8 },
       { kind: 'class', rank: 9 },
-      { kind: 'class', rank: 10 }
+      { kind: 'class', rank: 12 },
+      { kind: 'heat', round: 1, heat: 0, rank: 1 }
     ]);
-    expect(p.rounds[1].heats[0].seeds).toEqual([
-      { kind: 'class', rank: 5 },
-      { kind: 'class', rank: 6 },
-      { kind: 'heat', round: 0, heat: 0, rank: 1 },
-      { kind: 'heat', round: 0, heat: 0, rank: 2 }
+    // A-main takes the top 2 of B Final; its final is the last round.
+    expect(p.rounds[4].heats[0].seeds[3]).toEqual({ kind: 'heat', round: 3, heat: 0, rank: 2 });
+    expect(p.rounds[5].heats[0].seeds.map((s) => s && s.kind === 'heat' && s.round)).toEqual([
+      4, 4, 4, 4
     ]);
-    expect(p.rounds[3].heats[0].seeds).toEqual([
-      { kind: 'class', rank: 1 },
-      { kind: 'class', rank: 2 },
-      { kind: 'heat', round: 2, heat: 0, rank: 1 },
-      { kind: 'heat', round: 2, heat: 0, rank: 2 }
+    expect(p.perMain).toBe(8);
+    expect(p.bumps).toBe(2);
+  });
+  it('a short lowest main is one heat, and only bumps what flew', () => {
+    const p = letterMains({ pilots: 15, ...shape });
+    expect(p.rounds.map((r) => r.name)).toEqual([
+      'C-main final',
+      'B-main semifinals',
+      'B-main final',
+      'A-main semifinals',
+      'A-main final'
+    ]);
+    expect(p.rounds[0].heats[0].seeds.filter(Boolean)).toHaveLength(3); // ranks 13–15
+    expect(p.rounds[1].heats.flatMap((h) => h.seeds).filter((s) => s?.kind === 'heat')).toEqual([
+      { kind: 'heat', round: 0, heat: 0, rank: 2 },
+      { kind: 'heat', round: 0, heat: 0, rank: 1 }
+    ]);
+    const tiny = letterMains({ pilots: 9, seats: 4, advance: 2, perMain: 8, bumps: 1 });
+    expect(tiny.rounds[0].heats[0].seeds.filter(Boolean)).toHaveLength(2); // ranks 8, 9
+    expect(tiny.rounds[1].heats.flatMap((h) => h.seeds).filter((s) => s?.kind === 'heat')).toEqual([
+      { kind: 'heat', round: 0, heat: 0, rank: 1 }
     ]);
   });
-  it('a short last main only bumps what flew', () => {
-    const p = letterMains({ pilots: 5, seats: 4, bumps: 2 });
-    expect(p.rounds.map((r) => r.name)).toEqual(['B-main', 'A-main']);
-    expect(p.rounds[0].heats[0].seeds.filter(Boolean)).toHaveLength(3); // ranks 3,4,5
-    expect(p.rounds[1].heats[0].seeds).toEqual([
-      { kind: 'class', rank: 1 },
-      { kind: 'class', rank: 2 },
-      { kind: 'heat', round: 0, heat: 0, rank: 1 },
-      { kind: 'heat', round: 0, heat: 0, rank: 2 }
-    ]);
-    expect(letterMains({ pilots: 4, seats: 4, bumps: 1 }).rounds).toHaveLength(1);
+  it('everyone fits one main: a single bracket named A', () => {
+    const p = letterMains({ pilots: 8, ...shape });
+    expect(p.rounds.map((r) => r.name)).toEqual(['A-main semifinals', 'A-main final']);
+    expect(describePlan(p)).toBe('1 main, 3 heats: A 2 → 1');
   });
-  it('16 pilots, 1 bump-up: five mains', () => {
-    expect(letterMains({ pilots: 16, seats: 4, bumps: 1 }).rounds.map((r) => r.name)).toEqual([
-      'E-main',
-      'D-main',
-      'C-main',
-      'B-main',
-      'A-main'
-    ]);
-    expect(() => letterMains({ pilots: 16, seats: 4, bumps: 4 })).toThrow(BracketError);
+  it('rejects shapes that cannot work', () => {
+    expect(() => letterMains({ pilots: 20, seats: 4, advance: 2, perMain: 8, bumps: 8 })).toThrow(
+      BracketError
+    );
+    expect(() => letterMains({ pilots: 20, seats: 4, advance: 2, perMain: 8, bumps: 5 })).toThrow(
+      BracketError
+    );
+    expect(() => letterMains({ pilots: 20, seats: 4, advance: 4, perMain: 8, bumps: 2 })).toThrow(
+      BracketError
+    );
+    expect(() => letterMains({ pilots: 256, seats: 4, advance: 2, perMain: 3, bumps: 1 })).toThrow(
+      BracketError
+    );
   });
 });

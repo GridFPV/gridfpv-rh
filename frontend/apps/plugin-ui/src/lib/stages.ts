@@ -48,7 +48,7 @@ export function needsSeeding(h: Heat): boolean {
   return h.status !== HEAT_STATUS.CONFIRMED || unresolvedSeats(h) > 0;
 }
 
-/** What a round of a grouped stage is, read off its heat names: `Winners`, `Losers`, `the final`. */
+/** What a round of a bracket is, read off its heat names: `winners`, `losers`, `the final`, `C-main semifinals`. */
 export function roundLabel(heats: Heat[]): string {
   const names = heats.map(heatShortName);
   if (!names.length) return '';
@@ -57,7 +57,15 @@ export function roundLabel(heats: Heat[]): string {
   if (names.every((n) => /^L\d+$/.test(n))) return 'losers';
   if (names.every((n) => /^Semi /.test(n))) return 'semifinals';
   if (names.every((n) => /^Quarter /.test(n))) return 'quarterfinals';
-  if (names.length === 1 && /-main$/.test(names[0])) return names[0];
+  // Letter mains: `C Semi 1`, `C Final`, `C Heat 2` — all of one main.
+  const main = names.map((n) => /^([A-Z]) (?:Final|Semi \d+|Quarter \d+|Heat \d+)$/.exec(n)?.[1]);
+  if (main[0] && main.every((m) => m === main[0])) {
+    const L = `${main[0]}-main`;
+    if (names.length === 1 && names[0].endsWith('Final')) return `${L} final`;
+    if (names.every((n) => n.includes(' Semi '))) return `${L} semifinals`;
+    if (names.every((n) => n.includes(' Quarter '))) return `${L} quarterfinals`;
+    return L;
+  }
   return '';
 }
 

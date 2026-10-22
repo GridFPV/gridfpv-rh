@@ -2,11 +2,12 @@
  * Our own bracket generators (#15). A bracket is a plan: rounds of heats, each seat
  * saying where its pilot comes from — a rank in the source stage for the first round,
  * a finishing place in an earlier heat after that. The plan is pure data; the store
- * writes it into a grouped-rounds stage as RotorHazard heats with seeded slots, and
- * RotorHazard fills the names in as races save (Seed now).
+ * writes it into a races-per-heat stage (one round) as RotorHazard heats with seeded
+ * slots, and RotorHazard fills the names in as races save (Seed now).
  *
  * Single elimination with multi-pilot heats: the top `advance` of each heat go on, the
- * rest are out, until one heat is left — the final.
+ * rest are out, until one heat is left — the final. Double elimination and letter mains
+ * are built from the same pieces.
  */
 
 export type SeedRef =
@@ -27,8 +28,11 @@ export type BracketPlan = {
   kind: BracketKind;
   pilots: number;
   seats: number;
-  /** Single/double: how many go on from each heat. Mains: bump-ups from the main below. */
+  /** How many go on from each heat. */
   advance: number;
+  /** Mains only: pilots in each main's bracket, and how many of a main's final bump up. */
+  perMain?: number;
+  bumps?: number;
   rounds: PlanRound[];
 };
 
@@ -48,7 +52,7 @@ export const BRACKET_KINDS: Array<{ id: BracketKind; label: string; blurb: strin
     id: 'mains',
     label: 'Letter mains',
     blurb:
-      'A-main, B-main, C-main… from the ranking, run lowest main first; the top of each main bumps up into the next.'
+      'A-main, B-main, C-main… from the ranking, each its own elimination bracket. Lowest main first; the top of its final bump up into the main above.'
   }
 ];
 
@@ -97,12 +101,7 @@ function heatName(
   return null;
 }
 
-export function singleElimination(opts: {
-  pilots: number;
-  seats: number;
-  advance: number;
-}): BracketPlan {
-  const { pilots, seats, advance } = opts;
+function checkShape(pilots: number, seats: number, advance: number) {
   if (!Number.isInteger(pilots) || pilots < 2) throw new BracketError('Need at least 2 pilots.');
   if (!Number.isInteger(seats) || seats < 2)
     throw new BracketError('Need at least 2 seats per heat.');
@@ -112,42 +111,20 @@ export function singleElimination(opts: {
     throw new BracketError(
       'Fewer pilots must advance than there are seats, or the bracket never shrinks.'
     );
+}
 
-  // Round 1: snake-seeded from the source stage's ranking.
-  const rounds: PlanHeat[][] = [];
-  const firstHeats = Math.ceil(pilots / seats);
-  rounds.push(
-    snakeSeed(pilots, firstHeats, seats).map((ranks) => ({
-      name: null,
-      seeds: Array.from({ length: seats }, (_, p) =>
-        p < ranks.length ? { kind: 'class' as const, rank: ranks[p] } : null
-      )
-    }))
-  );
-
-  // Later rounds: the advancing places of the previous round, in bracket order, chunked
-  // into heats, until one heat remains.
-  while (rounds[rounds.length - 1].length > 1) {
-    const prev = rounds[rounds.length - 1];
-    const r = rounds.length - 1;
-    const advancing: SeedRef[] = [];
-    for (const h of foldOrder(prev.length)) {
-      const flown = prev[h].seeds.filter((s) => s != null).length;
-      for (let rank = 1; rank <= Math.min(advance, flown); rank++)
-        advancing.push({ kind: 'heat', round: r, heat: h, rank });
-    }
-    const next: PlanHeat[] = [];
-    for (let i = 0; i < advancing.length; i += seats) {
-      const chunk = advancing.slice(i, i + seats);
-      next.push({
-        name: null,
-        seeds: Array.from({ length: seats }, (_, p) => chunk[p] ?? null)
-      });
-    }
-    if (next.length >= prev.length) throw new BracketError('The bracket does not shrink.');
-    rounds.push(next);
-  }
-
+export function singleElimination(opts: {
+  pilots: number;
+  seats: number;
+  advance: number;
+}): BracketPlan {
+  const { pilots, seats, advance } = opts;
+  checkShape(pilots, seats, advance);
+  const entries = Array.from({ length: pilots }, (_, i): SeedRef => ({
+    kind: 'class',
+    rank: i + 1
+  }));
+  const rounds = eliminationRounds(entries, seats, advance, 0);
   const total = rounds.length;
   return {
     kind: 'single',
@@ -189,6 +166,39 @@ function places(
 }
 
 /**
+ * Single-elimination rounds from an ordered entry list (best first): snake-seeded into the
+ * first round, then the top `advance` of each heat go on, in bracket order, until one heat
+ * is left. Heat references are plan-absolute: `base` is the plan index of the first round.
+ */
+function eliminationRounds(
+  entries: SeedRef[],
+  seats: number,
+  advance: number,
+  base: number
+): PlanHeat[][] {
+  const rounds: PlanHeat[][] = [];
+  rounds.push(
+    snakeSeed(entries.length, Math.ceil(entries.length / seats), seats).map((ranks) => ({
+      name: null,
+      seeds: Array.from({ length: seats }, (_, p) =>
+        p < ranks.length ? entries[ranks[p] - 1] : null
+      )
+    }))
+  );
+  while (rounds[rounds.length - 1].length > 1) {
+    const prev = rounds[rounds.length - 1];
+    const r = base + rounds.length - 1;
+    const next = chunkHeats(
+      places(prev, r, 1, (h) => Math.min(advance, flown(h))),
+      seats
+    );
+    if (next.length >= prev.length) throw new BracketError('The bracket does not shrink.');
+    rounds.push(next);
+  }
+  return rounds;
+}
+
+/**
  * Double elimination for multi-pilot heats, the MultiGP shape: the top `advance` of a
  * winners heat go on, the rest drop to the losers bracket; the top `advance` of a losers
  * heat go on, the rest are out. After each winners round the losers bracket absorbs that
@@ -202,15 +212,7 @@ export function doubleElimination(opts: {
   advance: number;
 }): BracketPlan {
   const { pilots, seats, advance } = opts;
-  if (!Number.isInteger(pilots) || pilots < 2) throw new BracketError('Need at least 2 pilots.');
-  if (!Number.isInteger(seats) || seats < 2)
-    throw new BracketError('Need at least 2 seats per heat.');
-  if (!Number.isInteger(advance) || advance < 1)
-    throw new BracketError('At least 1 pilot must advance from each heat.');
-  if (advance >= seats)
-    throw new BracketError(
-      'Fewer pilots must advance than there are seats, or the bracket never shrinks.'
-    );
+  checkShape(pilots, seats, advance);
   if (advance * 2 > seats)
     throw new BracketError(
       'Twice the advancing count must fit one heat, so both brackets can meet in the final.'
@@ -288,22 +290,33 @@ export function doubleElimination(opts: {
 }
 
 /**
- * Letter mains (A-main, B-main, …): the ranking fills the mains from the top, `seats - bumps`
- * direct qualifiers each, the last main taking whoever is left. Mains run lowest first; the
- * top `bumps` of each main bump up into the main above. One heat per round.
+ * Letter mains (A-main, B-main, …): the ranking fills the mains from the top, `perMain - bumps`
+ * direct qualifiers each, the lowest main taking whoever is left. Each main is its own
+ * single-elimination bracket. Mains run lowest first; the top `bumps` of a main's final bump
+ * up into the main above, as its lowest seeds.
  */
-export function letterMains(opts: { pilots: number; seats: number; bumps: number }): BracketPlan {
-  const { pilots, seats, bumps } = opts;
-  if (!Number.isInteger(pilots) || pilots < 2) throw new BracketError('Need at least 2 pilots.');
-  if (!Number.isInteger(seats) || seats < 2)
-    throw new BracketError('Need at least 2 seats per heat.');
+export function letterMains(opts: {
+  pilots: number;
+  seats: number;
+  advance: number;
+  perMain: number;
+  bumps: number;
+}): BracketPlan {
+  const { pilots, seats, advance, perMain, bumps } = opts;
+  checkShape(pilots, seats, advance);
+  if (!Number.isInteger(perMain) || perMain < 2)
+    throw new BracketError('Need at least 2 pilots per main.');
   if (!Number.isInteger(bumps) || bumps < 1)
     throw new BracketError('At least 1 pilot must bump up.');
-  if (bumps >= seats) throw new BracketError('Fewer pilots must bump up than there are seats.');
-  const direct = seats - bumps;
-  const mains = pilots <= seats ? 1 : 1 + Math.ceil((pilots - seats) / direct);
+  if (bumps >= perMain)
+    throw new BracketError(
+      'Fewer pilots must bump up than a main holds, or no one qualifies directly.'
+    );
+  if (bumps > seats) throw new BracketError('No more pilots can bump up than a final holds.');
+  const direct = perMain - bumps;
+  const mains = pilots <= perMain ? 1 : 1 + Math.ceil((pilots - perMain) / direct);
   if (mains > 26)
-    throw new BracketError('That is more than 26 mains; use fewer pilots or bigger heats.');
+    throw new BracketError('That is more than 26 mains; use fewer pilots or bigger mains.');
   const letter = (i: number) => String.fromCharCode(65 + i); // 0 = A
   // Direct ranks per main, A first.
   const directRanks: number[][] = [];
@@ -313,27 +326,31 @@ export function letterMains(opts: { pilots: number; seats: number; bumps: number
     directRanks.push(Array.from({ length: n }, (_, i) => rank + i));
     rank += n;
   }
-  // Rounds run lowest main first.
+  // Mains run lowest first, each a bracket of its own; its final feeds the main above.
   const rounds: PlanRound[] = [];
+  let finalRound = -1; // plan index of the final of the main below
   for (let m = mains - 1; m >= 0; m--) {
-    const seeds: SeedRef[] = directRanks[m].map((r) => ({ kind: 'class' as const, rank: r }));
-    if (m < mains - 1) {
-      const below = rounds.length - 1;
-      const flownBelow = flown(rounds[below].heats[0]);
-      for (let r = 1; r <= Math.min(bumps, flownBelow); r++)
-        seeds.push({ kind: 'heat', round: below, heat: 0, rank: r });
+    const entries: SeedRef[] = directRanks[m].map((r) => ({ kind: 'class' as const, rank: r }));
+    if (finalRound >= 0) {
+      const final = rounds[finalRound].heats[0];
+      for (let r = 1; r <= Math.min(bumps, flown(final)); r++)
+        entries.push({ kind: 'heat', round: finalRound, heat: 0, rank: r });
     }
-    rounds.push({
-      name: `${letter(m)}-main`,
-      heats: [
-        {
-          name: `${letter(m)}-main`,
-          seeds: Array.from({ length: seats }, (_, p) => seeds[p] ?? null)
-        }
-      ]
-    });
+    const L = letter(m);
+    const mainRounds = eliminationRounds(entries, seats, advance, rounds.length);
+    const total = mainRounds.length;
+    mainRounds.forEach((heats, i) =>
+      rounds.push({
+        name: `${L}-main ${roundName(i, total).toLowerCase()}`,
+        heats: heats.map((h, k) => ({
+          ...h,
+          name: `${L} ${heatName(i, total, k, heats.length) ?? `Heat ${k + 1}`}`
+        }))
+      })
+    );
+    finalRound = rounds.length - 1;
   }
-  return { kind: 'mains', pilots, seats, advance: bumps, rounds };
+  return { kind: 'mains', pilots, seats, advance, perMain, bumps, rounds };
 }
 
 /** Total heats and seeded seats in a plan, for a progress count. */
@@ -365,12 +382,20 @@ function ordinal(n: number): string {
   return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
 }
 
-/** `3 rounds: 4 heats → 2 heats → final`. */
+/** `3 rounds: 4 heats → 2 heats → final`; `3 mains, 9 heats: C 2 → 1, B 2 → 1, A 2 → 1`. */
 export function describePlan(plan: BracketPlan): string {
   const n = plan.rounds.length;
   const heats = planSize(plan).heats;
-  if (plan.kind === 'mains')
-    return `${n} main${n === 1 ? '' : 's'}: ${plan.rounds.map((r) => r.name.replace('-main', '')).join(', ')}`;
+  if (plan.kind === 'mains') {
+    const mains = new Map<string, number[]>();
+    for (const r of plan.rounds) {
+      const L = r.name.split('-')[0];
+      mains.set(L, [...(mains.get(L) ?? []), r.heats.length]);
+    }
+    const m = mains.size;
+    const shape = [...mains].map(([L, hs]) => `${L} ${hs.join(' → ')}`).join(', ');
+    return `${m} main${m === 1 ? '' : 's'}, ${heats} heats: ${shape}`;
+  }
   if (plan.kind === 'double') {
     const side = (re: RegExp) =>
       plan.rounds

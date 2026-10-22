@@ -51,6 +51,8 @@
   let pilots = $state('');
   let seats = $state('');
   let advance = $state('');
+  let perMain = $state('');
+  let bumps = $state('');
   $effect(() => {
     if (!sourceId && sources.length) sourceId = String(sources[0].id);
   });
@@ -58,6 +60,8 @@
     if (!seats && seatIndexes.length) {
       seats = String(Math.min(seatIndexes.length, 4));
       advance = String(Math.max(1, Math.floor(Number(seats) / 2)));
+      perMain = String(Number(seats) * 2);
+      bumps = advance;
     }
     if (!pilots && activePilots) pilots = String(activePilots);
   });
@@ -71,7 +75,7 @@
           kind === 'double'
             ? doubleElimination(n)
             : kind === 'mains'
-              ? letterMains({ pilots: n.pilots, seats: n.seats, bumps: n.advance })
+              ? letterMains({ ...n, perMain: Number(perMain), bumps: Number(bumps) })
               : singleElimination(n),
         error: ''
       };
@@ -149,7 +153,7 @@
         /></label
       >
       <label class="field narrow"
-        ><span>{kind === 'mains' ? 'Bump up' : 'Advance'}</span><Input
+        ><span>Advance</span><Input
           type="number"
           bind:value={advance}
           min="1"
@@ -157,6 +161,26 @@
           disabled={busy}
         /></label
       >
+      {#if kind === 'mains'}
+        <label class="field narrow"
+          ><span>Per main</span><Input
+            type="number"
+            bind:value={perMain}
+            min="2"
+            max="64"
+            disabled={busy}
+          /></label
+        >
+        <label class="field narrow"
+          ><span>Bump up</span><Input
+            type="number"
+            bind:value={bumps}
+            min="1"
+            max="7"
+            disabled={busy}
+          /></label
+        >
+      {/if}
     </div>
     <small class="muted">
       {#if kind === 'single'}
@@ -169,9 +193,13 @@
           '…'} of each bracket. First round from the top {pilots || '…'} of
         {source?.displayName ?? 'the source stage'}, snake-seeded.
       {:else}
-        Mains fill from the top of {source?.displayName ?? 'the source stage'}'s ranking,
-        {Math.max(0, Number(seats) - Number(advance)) || '…'} direct each, the last main taking the rest.
-        They run lowest main first; the top {advance || '…'} of each main bump up into the main above.
+        Each main is its own single-elimination bracket of {perMain || '…'}: the top {advance ||
+          '…'} of each heat go on until that main's final. Mains fill from the top of
+        {source?.displayName ?? 'the source stage'}'s ranking, {Math.max(
+          0,
+          Number(perMain) - Number(bumps)
+        ) || '…'} direct each, the lowest main taking the rest. They run lowest main first; the top {bumps ||
+          '…'} of a main's final bump up into the main above as its lowest seeds.
       {/if}
       Seats are the {seatIndexes.length} with a frequency on the Seats page.
     </small>
