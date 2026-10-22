@@ -11,6 +11,7 @@
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import GenerateDialog from '../components/GenerateDialog.svelte';
   import HeatDialog from '../components/HeatDialog.svelte';
+  import RaceDialog from '../components/RaceDialog.svelte';
   import {
     addHeat,
     alterClass,
@@ -89,6 +90,12 @@
     generating ? (setup.classes.find((c) => c.id === generating!.id) ?? null) : null
   );
   let heatOpen: number | null = $state(null);
+  /** A raced round opened from its board cell. */
+  let raceOpen: { heatId: number; round: number } | null = $state(null);
+  const raceLive = $derived.by(() => {
+    const o = raceOpen;
+    return o ? (raceFor(results, o.heatId, o.round) ?? null) : null;
+  });
   const heatLive = $derived(
     heatOpen == null ? null : (setup.heats.find((h) => h.id === heatOpen) ?? null)
   );
@@ -202,6 +209,14 @@
   <HeatDialog heat={heatLive} {setup} {onresult} onclose={() => (heatOpen = null)} />
 {/if}
 
+{#if raceLive}
+  <RaceDialog
+    race={raceLive}
+    heatName={setup.heats.find((h) => h.id === raceLive!.heatId)?.displayName ?? 'Heat'}
+    onclose={() => (raceOpen = null)}
+  />
+{/if}
+
 {#if classEdit}
   <Dialog open={true} title="Edit stage" onclose={() => (classEdit = null)}>
     <div class="form">
@@ -252,8 +267,15 @@
   {@const race = raceFor(results, h.id, r)}
   {#if race}
     {@const w = winnerOf(race)}
-    <span class="cell done" title="Round {r}, raced {race.startTime}"
-      >{#if label}<span class="rn">R{r}</span>{/if}{w?.callsign ?? '✓'}</span
+    <button
+      type="button"
+      class="cell done"
+      title="Round {r}, raced {race.startTime} — click for the result"
+      onclick={(e) => {
+        e.stopPropagation();
+        raceOpen = { heatId: h.id, round: r };
+      }}
+      >{#if label}<span class="rn">R{r}</span>{/if}{w?.callsign ?? '✓'}</button
     >
   {:else if r === next && isUpNext(h.id, r)}
     <span class="cell next" title="Loaded on the timer"
@@ -839,6 +861,14 @@
     padding: 2px 8px;
     border-radius: var(--gf-radius-sm);
     font-size: var(--gf-font-size-xs);
+  }
+  button.cell {
+    font: inherit;
+    font-size: var(--gf-font-size-xs);
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
   }
   .cell.done {
     background: color-mix(in srgb, var(--gf-brand-500) 18%, transparent);

@@ -42,8 +42,10 @@
       <a href={href('pilots')} onclick={link}>Pilots</a> — the roster.
       <a href={href('teams')} onclick={link}>Teams</a> — named teams, shown in RotorHazard too.
       <a href={href('stages')} onclick={link}>Stages</a> — the day's stages, heats and rounds.
-      <a href={href('formats')} onclick={link}>Formats</a> — how a race is run. These need the
-      RotorHazard login. RotorHazard's own pages are still at <a href="/">/</a>.
+      <a href={href('formats')} onclick={link}>Formats</a> — how a race is run.
+      <a href={href('run')} onclick={link}>Run</a> — race day: start, stop, save, seed as you go.
+      <a href={href('marshal')} onclick={link}>Marshal</a> — fix laps on the signal trace. These
+      need the RotorHazard login. RotorHazard's own pages are still at <a href="/">/</a>.
     </p>
   </Card>
 </section>

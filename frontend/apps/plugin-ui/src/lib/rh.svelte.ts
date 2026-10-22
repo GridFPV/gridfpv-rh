@@ -34,6 +34,30 @@ import {
 } from './setup.js';
 import { applyResultData, emptyResults, type Results } from './results.js';
 import { planSize, type BracketPlan } from './bracket.js';
+import {
+  addSyncSample,
+  applyCurrentLaps,
+  applyLeaderboard,
+  applyMarshalCurrent,
+  applyRaceDetails,
+  applyRaceList,
+  applyRaceStatus,
+  applyStageReady,
+  emptyRaceStatus,
+  lapsForSave,
+  RACE_STATUS,
+  SYNC_SAMPLES,
+  syncDifferential,
+  type Leaderboard,
+  type LiveSeat,
+  type MarshalCurrent,
+  type MarshalLap,
+  type RaceDetails,
+  type RaceListHeat,
+  type RaceStatus,
+  type SyncSample
+} from './race.js';
+import { needsSeeding } from './stages.js';
 
 export type HelloAck = {
   plugin_version: string;
@@ -99,8 +123,47 @@ const state = $state({
   /** The event: RotorHazard's name/description options plus the plugin's details. */
   event: { name: '', description: '', date: '', venue: '', organizer: '', notes: '' } as EventInfo,
   /** RotorHazard's database backups (file names), newest last as RotorHazard lists them. */
-  archives: [] as string[]
+  archives: [] as string[],
+  // ---- the race side (Run / Marshal) ----
+  race: emptyRaceStatus() as RaceStatus,
+  live: [] as LiveSeat[],
+  leaderboard: null as Leaderboard | null,
+  lastRace: null as Leaderboard | null,
+  /** Local time (performance.now) the race stopped; the clock holds there. */
+  clockFrozenAt: null as number | null,
+  sync: { samples: [] as SyncSample[], differential: null as number | null },
+  /** RotorHazard's last broadcast message (priority_message). */
+  message: null as { text: string; interrupt: boolean; at: number } | null,
+  lastSaved: null as { raceId: number; heatId: number; classId: number; at: number } | null,
+  timing: { minLapMs: 10000, minFirstCrossingMs: 0, minLapBehavior: 0 },
+  marshal: {
+    current: null as MarshalCurrent | null,
+    raceList: [] as RaceListHeat[],
+    details: null as RaceDetails | null
+  },
+  /** Seed as you go: after every saved race, seed every heat that can now be filled. */
+  autoSeed: readAutoSeed(),
+  autoSeedReport: null as { confirmed: string[]; waiting: number; at: number } | null,
+  autoSeeding: false,
+  resultsVersion: 0,
+  liveVersion: 0
 });
+
+function readAutoSeed(): boolean {
+  try {
+    return window.localStorage.getItem('gridfpv.autoSeed') !== 'off';
+  } catch {
+    return true;
+  }
+}
+export function setAutoSeed(on: boolean) {
+  state.autoSeed = on;
+  try {
+    window.localStorage.setItem('gridfpv.autoSeed', on ? 'on' : 'off');
+  } catch {
+    /* private mode */
+  }
+}
 
 export type EventInfo = {
   name: string;
@@ -208,8 +271,15 @@ export function connect(): Socket {
       'result_data',
       'current_heat',
       'raceclass_rank_method_list',
-      'race_points_method_list'
+      'race_points_method_list',
+      'race_status',
+      'current_laps',
+      'leaderboard',
+      'min_lap',
+      'race_list'
     );
+    state.sync = { samples: [], differential: null };
+    requestPiTime();
     socket?.emit('gridfpv_capture_get');
     socket?.emit('gridfpv_presets_get');
     socket?.emit('gridfpv_teams_get');
@@ -272,6 +342,7 @@ export function connect(): Socket {
   });
   socket.on('result_data', (p: Parameters<typeof applyResultData>[0]) => {
     state.results = applyResultData(p);
+    state.resultsVersion++;
     checkWaiters();
   });
   socket.on(
@@ -283,6 +354,99 @@ export function connect(): Socket {
 
   socket.on('race_points_method_list', (p: { methods: Array<{ name: string; label: string }> }) => {
     state.pointsMethods = (p.methods ?? []).map((m) => ({ name: m.name, label: m.label }));
+  });
+
+  // ---- the race side ----
+  socket.on('race_status', (p: Parameters<typeof applyRaceStatus>[0]) => {
+    const prev = state.race.status;
+    state.race = applyRaceStatus(p);
+    if (state.race.status === RACE_STATUS.DONE && prev !== RACE_STATUS.DONE)
+      state.clockFrozenAt ??= performance.now();
+    if (state.race.status !== RACE_STATUS.DONE) state.clockFrozenAt = null;
+    checkWaiters();
+  });
+  socket.on('stage_ready', (p: Parameters<typeof applyStageReady>[1]) => {
+    state.race = applyStageReady(state.race, p);
+    state.clockFrozenAt = null;
+    requestPiTime(3); // a fresh look at the clock for this race
+    checkWaiters();
+  });
+  socket.on('stop_timer', () => {
+    state.clockFrozenAt ??= performance.now();
+  });
+  socket.on('current_laps', (p: Parameters<typeof applyCurrentLaps>[0]) => {
+    state.live = applyCurrentLaps(p);
+    state.liveVersion++;
+    checkWaiters();
+  });
+  socket.on('leaderboard', (p: Parameters<typeof applyLeaderboard>[0]) => {
+    const lb = applyLeaderboard(p);
+    state.leaderboard = lb.current;
+    if (lb.last) state.lastRace = lb.last;
+    checkWaiters();
+  });
+  socket.on(
+    'race_saved',
+    (p: { race_id: number; heat_id: number; class_id: number; pilot_ids: number[] }) => {
+      state.lastSaved = {
+        raceId: Number(p.race_id),
+        heatId: Number(p.heat_id),
+        classId: Number(p.class_id),
+        at: Date.now()
+      };
+      state.clockFrozenAt = null;
+      // RotorHazard rebuilds its result cache in a thread; the heats may have changed too.
+      window.setTimeout(() => loadData('heat_data', 'result_data', 'race_list'), 800);
+      if (state.autoSeed) window.setTimeout(() => void seedAsYouGo(Number(p.heat_id)), 1600);
+      checkWaiters();
+    }
+  );
+  socket.on('pi_time', (p: { pi_time_s: number }) => {
+    if (piTimeRequestedAt == null) return;
+    const samples = addSyncSample(
+      state.sync.samples,
+      Number(p.pi_time_s),
+      piTimeRequestedAt,
+      performance.now()
+    );
+    piTimeRequestedAt = null;
+    state.sync = { samples, differential: syncDifferential(samples) };
+    if (piTimePending > 0 && samples.length < SYNC_SAMPLES) {
+      piTimePending--;
+      window.setTimeout(() => sendPiTime(), 400);
+    } else piTimePending = 0;
+  });
+  socket.on('priority_message', (p: { message: string; interrupt?: boolean }) => {
+    state.message = {
+      text: String(p.message ?? '').replace(/<[^>]+>/g, ''),
+      interrupt: Boolean(p.interrupt),
+      at: Date.now()
+    };
+  });
+  socket.on('clear_priority_messages', () => {
+    state.message = null;
+  });
+  socket.on(
+    'min_lap',
+    (p: { min_lap: number; min_first_crossing?: number; min_lap_behavior?: number }) => {
+      state.timing = {
+        minLapMs: Number(p.min_lap) * 1000,
+        minFirstCrossingMs: Number(p.min_first_crossing ?? 0) * 1000,
+        minLapBehavior: Number(p.min_lap_behavior ?? 0)
+      };
+    }
+  );
+  socket.on('current_marshal_data', (p: Parameters<typeof applyMarshalCurrent>[0]) => {
+    state.marshal.current = applyMarshalCurrent(p);
+    checkWaiters();
+  });
+  socket.on('race_list', (p: Parameters<typeof applyRaceList>[0]) => {
+    state.marshal.raceList = applyRaceList(p);
+    checkWaiters();
+  });
+  socket.on('race_details', (p: Parameters<typeof applyRaceDetails>[0]) => {
+    state.marshal.details = applyRaceDetails(p);
+    checkWaiters();
   });
 
   socket.on('gridfpv_event', (p: Partial<EventInfo>) => {
@@ -1066,4 +1230,192 @@ export function deleteFormat(id: number): Promise<WriteResult> {
             message: 'RotorHazard kept the format — formats with saved races cannot be deleted.'
           }
   );
+}
+
+// ---- the race side: clock sync, run controls, marshal -----------------------------
+
+let piTimeRequestedAt: number | null = null;
+let piTimePending = 0;
+function sendPiTime() {
+  if (!socket || piTimeRequestedAt != null) return;
+  piTimeRequestedAt = performance.now();
+  socket.emit('get_pi_time');
+}
+/** Sample RotorHazard's clock `count` more times (spaced out), as its run page does. */
+function requestPiTime(count = SYNC_SAMPLES) {
+  piTimePending = Math.max(piTimePending, count - 1);
+  sendPiTime();
+}
+export function resyncClock() {
+  state.sync = { samples: [], differential: null };
+  requestPiTime();
+}
+
+/** Load the heat on the timer (0 = practice, no heat). */
+export function setCurrentHeat(id: number): Promise<WriteResult> {
+  socket?.emit('set_current_heat', { heat: id });
+  return awaitState('Load heat', () => state.race.heatId === id && state.current.heatId === id);
+}
+
+/** Stage the race: RotorHazard counts down the staging delay, then starts it. */
+export function stageRace(): Promise<WriteResult> {
+  socket?.emit('stage_race');
+  return awaitState(
+    'Start',
+    () => state.race.status === RACE_STATUS.STAGING || state.race.status === RACE_STATUS.RACING
+  ).then((r) =>
+    r.ok
+      ? r
+      : {
+          ok: false,
+          message: 'RotorHazard did not start the race — is a race already stopped and unsaved?'
+        }
+  );
+}
+
+export function stopRace(): Promise<WriteResult> {
+  socket?.emit('stop_race');
+  return awaitState(
+    'Stop',
+    () => state.race.status === RACE_STATUS.DONE || state.race.status === RACE_STATUS.READY
+  );
+}
+
+/** Save the laps: RotorHazard stores the race, rebuilds results and moves to the next heat. */
+export function saveLaps(): Promise<WriteResult> {
+  const before = state.lastSaved?.at ?? 0;
+  socket?.emit('save_laps');
+  return awaitState(
+    'Save',
+    () => (state.lastSaved?.at ?? 0) > before && state.race.status === RACE_STATUS.READY
+  );
+}
+
+export function discardLaps(): Promise<WriteResult> {
+  socket?.emit('discard_laps');
+  return awaitState('Discard', () => state.race.status === RACE_STATUS.READY);
+}
+
+/** Delete / restore one lap of the current race (the live list's index). */
+export function deleteLap(seat: number, lapIndex: number): Promise<WriteResult> {
+  const before = state.liveVersion;
+  socket?.emit('delete_lap', { node: seat, lap_index: lapIndex });
+  return awaitState('Delete lap', () => state.liveVersion > before);
+}
+export function restoreLap(seat: number, lapIndex: number): Promise<WriteResult> {
+  const before = state.liveVersion;
+  socket?.emit('restore_deleted_lap', { node: seat, lap_index: lapIndex });
+  return awaitState('Restore lap', () => state.liveVersion > before);
+}
+
+/** Simulate a pass on a seat (RotorHazard's debug helper; works on mock nodes). */
+export function simulateLap(seat: number) {
+  socket?.emit('simulate_lap', { node: seat });
+}
+
+/**
+ * Seed as you go: after a saved race, every heat whose seats fill from that race's heat or
+ * stage gets a Seed now (all pending heats when no heat is given). Heats that are fully
+ * resolved are confirmed; the rest wait for more results.
+ */
+export async function seedAsYouGo(savedHeatId?: number): Promise<void> {
+  const todo = state.setup.heats.filter(
+    (h) => needsSeeding(h) && (savedHeatId == null || fedBy(h, savedHeatId))
+  );
+  const confirmed: string[] = [];
+  let waiting = 0;
+  state.autoSeeding = true;
+  try {
+    for (const h of todo) {
+      const r = await seedHeat(h.id);
+      if (!r.ok) continue;
+      if (r.waiting) waiting += r.waiting;
+      else confirmed.push(h.displayName);
+    }
+  } finally {
+    state.autoSeeding = false;
+  }
+  state.autoSeedReport = { confirmed, waiting, at: Date.now() };
+}
+
+/** Does any seat of `h` fill from the saved heat, or from the ranking of its stage? */
+function fedBy(h: { slots: Setup['heats'][number]['slots'] }, savedHeatId: number): boolean {
+  const saved = state.setup.heats.find((x) => x.id === savedHeatId);
+  const classId = saved?.classId ?? 0;
+  const inClass = new Set(
+    state.setup.heats.filter((x) => classId && x.classId === classId).map((x) => x.id)
+  );
+  return h.slots.some(
+    (s) =>
+      (s.method === SLOT_METHOD.HEAT_RESULT && s.seedId != null && inClass.has(s.seedId)) ||
+      (s.method === SLOT_METHOD.CLASS_RESULT && classId && s.seedId === classId)
+  );
+}
+
+// ---- marshal ----
+
+/** The stopped, unsaved race's traces and laps (only answered while the race is DONE). */
+export function requestMarshalCurrent(): Promise<WriteResult> {
+  state.marshal.current = null;
+  socket?.emit('current_race_marshal');
+  return awaitState('Load race', () => state.marshal.current != null);
+}
+export function loadRaceList() {
+  loadData('race_list');
+}
+/** One pilot's recorded race (trace, laps, thresholds) for a saved race. */
+export function loadPilotRace(pilotraceId: number): Promise<WriteResult> {
+  state.marshal.details = null;
+  socket?.emit('get_pilotrace', { pilotrace_id: pilotraceId });
+  return awaitState('Load race', () => state.marshal.details?.pilotraceId === pilotraceId);
+}
+
+/** Write marshaled laps and thresholds back onto a saved race; RotorHazard rebuilds results. */
+export function resaveLaps(spec: {
+  heatId: number;
+  round: number;
+  raceId: number;
+  pilotraceId: number;
+  seat: number;
+  pilotId: number;
+  callsign: string;
+  laps: MarshalLap[];
+  enter: number;
+  exit: number;
+}): Promise<WriteResult> {
+  const before = state.resultsVersion;
+  socket?.emit('resave_laps', {
+    heat_id: spec.heatId,
+    round_id: spec.round,
+    callsign: spec.callsign,
+    race_id: spec.raceId,
+    pilotrace_id: spec.pilotraceId,
+    seat: spec.seat,
+    pilot_id: spec.pilotId,
+    laps: lapsForSave(spec.laps),
+    enter_at: spec.enter,
+    exit_at: spec.exit
+  });
+  return awaitState('Save laps', () => state.resultsVersion > before).then((r) => {
+    if (r.ok) loadData('race_list');
+    return r;
+  });
+}
+
+/** Replace the stopped, unsaved race's laps for a seat (and its thresholds). */
+export function replaceCurrentLaps(spec: {
+  seat: number;
+  laps: MarshalLap[];
+  enter: number;
+  exit: number;
+}): Promise<WriteResult> {
+  const before = state.liveVersion;
+  socket?.emit('replace_current_laps', {
+    seat: spec.seat,
+    laps: lapsForSave(spec.laps),
+    enter_at: spec.enter,
+    exit_at: spec.exit
+  });
+  window.setTimeout(() => loadData('current_laps', 'leaderboard'), 300);
+  return awaitState('Replace laps', () => state.liveVersion > before);
 }

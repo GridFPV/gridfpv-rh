@@ -11,6 +11,8 @@
   import Stages from './screens/Stages.svelte';
   import Teams from './screens/Teams.svelte';
   import Formats from './screens/Formats.svelte';
+  import Run from './screens/Run.svelte';
+  import Marshal from './screens/Marshal.svelte';
 
   let { autoconnect = true }: { autoconnect?: boolean } = $props();
 
@@ -44,7 +46,9 @@
     { path: 'pilots', label: 'Pilots' },
     { path: 'teams', label: 'Teams' },
     { path: 'stages', label: 'Stages' },
-    { path: 'formats', label: 'Formats' }
+    { path: 'formats', label: 'Formats' },
+    { path: 'run', label: 'Run' },
+    { path: 'marshal', label: 'Marshal' }
   ];
   const active = (path: string) =>
     path === '' ? current === '' : current === path || current.startsWith(path + '/');
@@ -91,6 +95,10 @@
       <Teams />
     {:else if current === 'formats'}
       <Formats />
+    {:else if current === 'run'}
+      <Run />
+    {:else if current === 'marshal'}
+      <Marshal />
     {:else}
       <p class="muted">
         Nothing at <code>/grid/{current}</code>. <a href={href('')} onclick={link}>Home</a>.
