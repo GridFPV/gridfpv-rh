@@ -55,13 +55,19 @@ export function roundLabel(heats: Heat[]): string {
   if (names.length === 1 && names[0] === 'Final') return 'the final';
   if (names.every((n) => /^W\d+$/.test(n))) return 'winners';
   if (names.every((n) => /^L\d+$/.test(n))) return 'losers';
+  if (names.every((n) => /^[WL]\d+$/.test(n))) return 'winners and losers';
   if (names.every((n) => /^Semi /.test(n))) return 'semifinals';
   if (names.every((n) => /^Quarter /.test(n))) return 'quarterfinals';
   // Letter mains: `C Semi 1`, `C Final`, `C Heat 2` — all of one main.
-  const main = names.map((n) => /^([A-Z]) (?:Final|Semi \d+|Quarter \d+|Heat \d+)$/.exec(n)?.[1]);
+  const main = names.map(
+    (n) => /^([A-Z]) (?:Final|Semi \d+|Quarter \d+|Heat \d+|W\d+|L\d+)$/.exec(n)?.[1]
+  );
   if (main[0] && main.every((m) => m === main[0])) {
     const L = `${main[0]}-main`;
     if (names.length === 1 && names[0].endsWith('Final')) return `${L} final`;
+    if (names.every((n) => / W\d+$/.test(n))) return `${L} winners`;
+    if (names.every((n) => / L\d+$/.test(n))) return `${L} losers`;
+    if (names.every((n) => / [WL]\d+$/.test(n))) return `${L} winners and losers`;
     if (names.every((n) => n.includes(' Semi '))) return `${L} semifinals`;
     if (names.every((n) => n.includes(' Quarter '))) return `${L} quarterfinals`;
     return L;

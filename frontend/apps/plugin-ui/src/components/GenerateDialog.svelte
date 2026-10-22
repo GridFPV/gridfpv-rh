@@ -53,6 +53,7 @@
   let advance = $state('');
   let perMain = $state('');
   let bumps = $state('');
+  let inner: 'single' | 'double' = $state('double');
   $effect(() => {
     if (!sourceId && sources.length) sourceId = String(sources[0].id);
   });
@@ -60,7 +61,7 @@
     if (!seats && seatIndexes.length) {
       seats = String(Math.min(seatIndexes.length, 4));
       advance = String(Math.max(1, Math.floor(Number(seats) / 2)));
-      perMain = String(Number(seats) * 2);
+      perMain = String(Number(seats) * 4);
       bumps = advance;
     }
     if (!pilots && activePilots) pilots = String(activePilots);
@@ -75,7 +76,7 @@
           kind === 'double'
             ? doubleElimination(n)
             : kind === 'mains'
-              ? letterMains({ ...n, perMain: Number(perMain), bumps: Number(bumps) })
+              ? letterMains({ ...n, perMain: Number(perMain), bumps: Number(bumps), inner })
               : singleElimination(n),
         error: ''
       };
@@ -182,6 +183,18 @@
         >
       {/if}
     </div>
+    {#if kind === 'mains'}
+      <div class="row">
+        <span class="label">Each main runs</span>
+        <label class="radio"
+          ><input type="radio" bind:group={inner} value="double" disabled={busy} /> Double elimination
+          (MultiGP)</label
+        >
+        <label class="radio"
+          ><input type="radio" bind:group={inner} value="single" disabled={busy} /> Single elimination</label
+        >
+      </div>
+    {/if}
     <small class="muted">
       {#if kind === 'single'}
         The top {advance || '…'} of each heat go on, until one heat is left. The first round takes the
@@ -193,8 +206,10 @@
           '…'} of each bracket. First round from the top {pilots || '…'} of
         {source?.displayName ?? 'the source stage'}, snake-seeded.
       {:else}
-        Each main is its own single-elimination bracket of {perMain || '…'}: the top {advance ||
-          '…'} of each heat go on until that main's final. Mains fill from the top of
+        Each main is its own {inner === 'double' ? 'double' : 'single'}-elimination bracket of {perMain ||
+          '…'}: the top {advance || '…'} of each heat go on{inner === 'double'
+          ? ', the rest drop to that main’s losers bracket,'
+          : ''} until that main's final. Mains fill from the top of
         {source?.displayName ?? 'the source stage'}'s ranking, {Math.max(
           0,
           Number(perMain) - Number(bumps)
@@ -317,6 +332,18 @@
   }
   .muted {
     color: var(--gf-text-muted);
+  }
+  .label {
+    font-size: var(--gf-font-size-xs);
+    color: var(--gf-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    align-self: center;
+  }
+  .radio {
+    display: flex;
+    align-items: center;
+    gap: var(--gf-space-1);
   }
   .preview {
     display: grid;

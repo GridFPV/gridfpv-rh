@@ -173,7 +173,7 @@ describe('doubleElimination', () => {
 });
 
 describe('letterMains', () => {
-  const shape = { seats: 4, advance: 2, perMain: 8, bumps: 2 };
+  const shape = { seats: 4, advance: 2, perMain: 8, bumps: 2, inner: 'single' as const };
   it('20 pilots in mains of 8: three brackets, lowest first, finals feed upward', () => {
     const p = letterMains({ pilots: 20, ...shape });
     expect(p.rounds.map((r) => r.name)).toEqual([
@@ -254,7 +254,49 @@ describe('letterMains', () => {
     expect(p.rounds.map((r) => r.name)).toEqual(['A-main semifinals', 'A-main final']);
     expect(describePlan(p)).toBe('1 main, 3 heats: A 2 → 1');
   });
+  it('MultiGP shape: each main a double elimination, its final feeding the main above', () => {
+    const p = letterMains({ pilots: 36, seats: 4, advance: 2, perMain: 16, bumps: 4 });
+    // 36 = A 12 + B 12 + C 12 direct; B and A each add 4 bump-ups to make MultiGP's 16.
+    expect(describePlan(p)).toBe('3 mains, 41 heats: C 13 heats, B 14 heats, A 14 heats');
+    expect(p.rounds.slice(0, 3).map((r) => r.name)).toEqual([
+      'C-main winners round 1',
+      'C-main losers round 1',
+      'C-main winners round 2'
+    ]);
+    expect(p.rounds[0].heats.map((h) => h.name)).toEqual(['C W1', 'C W2', 'C W3']);
+    const cFinal = p.rounds.findIndex((r) => r.name === 'C-main final');
+    expect(p.rounds[cFinal].heats[0].name).toBe('C Final');
+    // B winners round 1: 12 direct (ranks 13–24) and the whole C Final as seeds 13–16.
+    const bw1 = p.rounds[cFinal + 1];
+    expect(bw1.name).toBe('B-main winners round 1');
+    expect(bw1.heats.map((h) => h.name)).toEqual(['B W1', 'B W2', 'B W3', 'B W4']);
+    expect(bw1.heats.flatMap((h) => h.seeds).filter((s) => s?.kind === 'heat')).toEqual([
+      { kind: 'heat', round: cFinal, heat: 0, rank: 4 },
+      { kind: 'heat', round: cFinal, heat: 0, rank: 3 },
+      { kind: 'heat', round: cFinal, heat: 0, rank: 2 },
+      { kind: 'heat', round: cFinal, heat: 0, rank: 1 }
+    ]);
+    expect(bw1.heats.flatMap((h) => h.seeds).filter((s) => s?.kind === 'class')).toHaveLength(12);
+    // Heat references inside a main point into that main.
+    const bFinal = p.rounds.findIndex((r) => r.name === 'B-main final');
+    for (const s of p.rounds[bFinal].heats[0].seeds)
+      expect(s && s.kind === 'heat' && s.round > cFinal && s.round < bFinal).toBe(true);
+    expect(p.rounds[p.rounds.length - 1].name).toBe('A-main final');
+    expect(p.inner).toBe('double');
+  });
+  it('a double-elimination main that fits one heat is just its final', () => {
+    const p = letterMains({ pilots: 17, seats: 4, advance: 2, perMain: 16, bumps: 2 });
+    expect(p.rounds[0].name).toBe('B-main final');
+    expect(p.rounds[0].heats[0].seeds.filter(Boolean)).toHaveLength(3); // ranks 15–17
+    expect(p.rounds[1].name).toBe('A-main winners round 1');
+  });
   it('rejects shapes that cannot work', () => {
+    expect(() => letterMains({ pilots: 36, seats: 4, advance: 3, perMain: 16, bumps: 4 })).toThrow(
+      BracketError
+    );
+    expect(() => letterMains({ pilots: 36, seats: 4, advance: 2, perMain: 4, bumps: 2 })).toThrow(
+      BracketError
+    );
     expect(() => letterMains({ pilots: 20, seats: 4, advance: 2, perMain: 8, bumps: 8 })).toThrow(
       BracketError
     );

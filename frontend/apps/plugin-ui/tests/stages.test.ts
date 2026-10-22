@@ -239,6 +239,11 @@ describe('seeding state and round labels', () => {
     expect(roundLabel(named('B Semi 1', 'B Semi 2'))).toBe('B-main semifinals');
     expect(roundLabel(named('A Heat 1', 'A Heat 2', 'A Heat 3'))).toBe('A-main');
     expect(roundLabel(named('A Semi 1', 'B Semi 1'))).toBe('');
+    expect(roundLabel(named('B W1', 'B W2', 'B W3'))).toBe('B-main winners');
+    expect(roundLabel(named('B L5'))).toBe('B-main losers');
+    expect(roundLabel(named('B L3', 'B W4'))).toBe('B-main winners and losers');
+    expect(roundLabel(named('L3', 'W4'))).toBe('winners and losers');
+    expect(roundLabel(named('B Final'))).toBe('B-main final');
     expect(roundLabel(named('Heat 1', 'Heat 2'))).toBe('');
   });
 });

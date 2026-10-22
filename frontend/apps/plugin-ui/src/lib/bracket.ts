@@ -30,9 +30,11 @@ export type BracketPlan = {
   seats: number;
   /** How many go on from each heat. */
   advance: number;
-  /** Mains only: pilots in each main's bracket, and how many of a main's final bump up. */
+  /** Mains only: pilots in each main's bracket, how many of a main's final bump up, and
+   * what each main runs (MultiGP: double elimination). */
   perMain?: number;
   bumps?: number;
+  inner?: 'single' | 'double';
   rounds: PlanRound[];
 };
 
@@ -52,7 +54,7 @@ export const BRACKET_KINDS: Array<{ id: BracketKind; label: string; blurb: strin
     id: 'mains',
     label: 'Letter mains',
     blurb:
-      'A-main, B-main, C-main… from the ranking, each its own elimination bracket. Lowest main first; the top of its final bump up into the main above.'
+      'A-main, B-main, C-main… from the ranking, each its own bracket (MultiGP: double elimination). Lowest main first; the top of its final bump up into the main above.'
   }
 ];
 
@@ -213,6 +215,21 @@ export function doubleElimination(opts: {
 }): BracketPlan {
   const { pilots, seats, advance } = opts;
   checkShape(pilots, seats, advance);
+  checkDouble(pilots, seats, advance);
+  const entries = Array.from({ length: pilots }, (_, i): SeedRef => ({
+    kind: 'class',
+    rank: i + 1
+  }));
+  return {
+    kind: 'double',
+    pilots,
+    seats,
+    advance,
+    rounds: doubleRounds(entries, seats, advance, 0)
+  };
+}
+
+function checkDouble(pilots: number, seats: number, advance: number) {
   if (advance * 2 > seats)
     throw new BracketError(
       'Twice the advancing count must fit one heat, so both brackets can meet in the final.'
@@ -221,41 +238,53 @@ export function doubleElimination(opts: {
     throw new BracketError(
       'A double elimination needs more pilots than one heat holds; use a single final instead.'
     );
+}
 
+/**
+ * Double-elimination rounds from an ordered entry list (best first). Heats are named
+ * W1, W2, … / L1, L2, … / Final, numbered through the bracket; `base` is the plan index of
+ * the first round, so heat references are plan-absolute. The last round is the final.
+ */
+function doubleRounds(
+  entries: SeedRef[],
+  seats: number,
+  advance: number,
+  base: number
+): PlanRound[] {
   const rounds: PlanRound[] = [];
-  const push = (name: string, heats: PlanHeat[], tag: string) => {
-    rounds.push({ name, heats: heats.map((h, i) => ({ ...h, name: `${tag}${i + 1}` })) });
-    return rounds.length - 1;
-  };
+  const at = () => base + rounds.length; // plan index of the round about to be pushed
   let heatNo = 0;
   const number = (heats: PlanHeat[], side: 'W' | 'L') =>
     heats.map((h) => ({ ...h, name: `${side}${++heatNo}` }));
 
   // Winners round 1.
-  let wbIndex = rounds.length;
-  let wb: PlanHeat[] = snakeSeed(pilots, Math.ceil(pilots / seats), seats).map((ranks) => ({
-    name: null,
-    seeds: Array.from({ length: seats }, (_, p) =>
-      p < ranks.length ? { kind: 'class' as const, rank: ranks[p] } : null
-    )
-  }));
+  let wbIndex = at();
+  let wb: PlanHeat[] = snakeSeed(entries.length, Math.ceil(entries.length / seats), seats).map(
+    (ranks) => ({
+      name: null,
+      seeds: Array.from({ length: seats }, (_, p) =>
+        p < ranks.length ? entries[ranks[p] - 1] : null
+      )
+    })
+  );
   rounds.push({ name: 'Winners round 1', heats: number(wb, 'W') });
   let wbRound = 1;
   let lbRound = 0;
   let pool: SeedRef[] = []; // losers-bracket pilots waiting for their next heat
   let lbIndex = -1;
+  const round = (i: number) => rounds[i - base];
 
   const lbPlay = (seeds: SeedRef[], name: string): SeedRef[] => {
     const heats = number(chunkHeats(seeds, seats), 'L');
+    lbIndex = at();
     rounds.push({ name, heats });
-    lbIndex = rounds.length - 1;
     return places(heats, lbIndex, 1, (h) => Math.min(advance, flown(h)));
   };
 
   for (;;) {
     // This winners round's losers.
-    const losers = places(rounds[wbIndex].heats, wbIndex, advance + 1, flown);
-    const wbHeats = rounds[wbIndex].heats.length;
+    const losers = places(round(wbIndex).heats, wbIndex, advance + 1, flown);
+    const wbHeats = round(wbIndex).heats.length;
     const winnersDone = wbHeats === 1;
     // Reduce the pool until it and the losers fit in as many heats as the winners round had.
     while (pool.length && pool.length + losers.length > seats * wbHeats) {
@@ -266,34 +295,37 @@ export function doubleElimination(opts: {
     pool = lbPlay([...pool, ...losers], winnersDone ? 'Losers final' : `Losers round ${++lbRound}`);
     if (winnersDone) break;
     // Next winners round.
-    const winners = places(rounds[wbIndex].heats, wbIndex, 1, (h) => Math.min(advance, flown(h)));
+    const winners = places(round(wbIndex).heats, wbIndex, 1, (h) => Math.min(advance, flown(h)));
     wb = chunkHeats(winners, seats);
     wbRound++;
+    wbIndex = at();
     rounds.push({
       name: wb.length === 1 ? 'Winners final' : `Winners round ${wbRound}`,
       heats: number(wb, 'W')
     });
-    wbIndex = rounds.length - 1;
   }
   // The losers final must be one heat; reduce until it is.
-  while (rounds[lbIndex].heats.length > 1) {
-    rounds[lbIndex].name = `Losers round ${++lbRound}`;
+  while (round(lbIndex).heats.length > 1) {
+    round(lbIndex).name = `Losers round ${++lbRound}`;
     pool = lbPlay(pool, 'Losers final');
   }
   const final: SeedRef[] = [
-    ...places(rounds[wbIndex].heats, wbIndex, 1, (h) => Math.min(advance, flown(h))),
-    ...places(rounds[lbIndex].heats, lbIndex, 1, (h) => Math.min(advance, flown(h)))
+    ...places(round(wbIndex).heats, wbIndex, 1, (h) => Math.min(advance, flown(h))),
+    ...places(round(lbIndex).heats, lbIndex, 1, (h) => Math.min(advance, flown(h)))
   ];
-  push('Final', chunkHeats(final, seats), 'Final');
-  rounds[rounds.length - 1].heats[0].name = 'Final';
-  return { kind: 'double', pilots, seats, advance, rounds };
+  rounds.push({
+    name: 'Final',
+    heats: chunkHeats(final, seats).map((h) => ({ ...h, name: 'Final' }))
+  });
+  return rounds;
 }
 
 /**
- * Letter mains (A-main, B-main, …): the ranking fills the mains from the top, `perMain - bumps`
- * direct qualifiers each, the lowest main taking whoever is left. Each main is its own
- * single-elimination bracket. Mains run lowest first; the top `bumps` of a main's final bump
- * up into the main above, as its lowest seeds.
+ * Letter mains (A-main, B-main, …), the MultiGP championship shape: the ranking fills the
+ * mains from the top, `perMain - bumps` direct qualifiers each, the lowest main taking
+ * whoever is left. Each main is its own bracket — double elimination (MultiGP's Top 16) or
+ * single. Mains run lowest first; the top `bumps` of a main's final bump up into the main
+ * above, as its lowest seeds.
  */
 export function letterMains(opts: {
   pilots: number;
@@ -301,9 +333,12 @@ export function letterMains(opts: {
   advance: number;
   perMain: number;
   bumps: number;
+  inner?: 'single' | 'double';
 }): BracketPlan {
   const { pilots, seats, advance, perMain, bumps } = opts;
+  const inner = opts.inner ?? 'double';
   checkShape(pilots, seats, advance);
+  if (inner === 'double') checkDouble(perMain, seats, advance);
   if (!Number.isInteger(perMain) || perMain < 2)
     throw new BracketError('Need at least 2 pilots per main.');
   if (!Number.isInteger(bumps) || bumps < 1)
@@ -337,20 +372,29 @@ export function letterMains(opts: {
         entries.push({ kind: 'heat', round: finalRound, heat: 0, rank: r });
     }
     const L = letter(m);
-    const mainRounds = eliminationRounds(entries, seats, advance, rounds.length);
-    const total = mainRounds.length;
-    mainRounds.forEach((heats, i) =>
-      rounds.push({
-        name: `${L}-main ${roundName(i, total).toLowerCase()}`,
-        heats: heats.map((h, k) => ({
-          ...h,
-          name: `${L} ${heatName(i, total, k, heats.length) ?? `Heat ${k + 1}`}`
-        }))
-      })
-    );
+    if (inner === 'double' && entries.length > seats) {
+      for (const r of doubleRounds(entries, seats, advance, rounds.length))
+        rounds.push({
+          name: `${L}-main ${r.name.toLowerCase()}`,
+          heats: r.heats.map((h) => ({ ...h, name: `${L} ${h.name}` }))
+        });
+    } else {
+      // Single elimination, or a main that fits one heat: just its final.
+      const mainRounds = eliminationRounds(entries, seats, advance, rounds.length);
+      const total = mainRounds.length;
+      mainRounds.forEach((heats, i) =>
+        rounds.push({
+          name: `${L}-main ${roundName(i, total).toLowerCase()}`,
+          heats: heats.map((h, k) => ({
+            ...h,
+            name: `${L} ${heatName(i, total, k, heats.length) ?? `Heat ${k + 1}`}`
+          }))
+        })
+      );
+    }
     finalRound = rounds.length - 1;
   }
-  return { kind: 'mains', pilots, seats, advance, perMain, bumps, rounds };
+  return { kind: 'mains', pilots, seats, advance, perMain, bumps, inner, rounds };
 }
 
 /** Total heats and seeded seats in a plan, for a progress count. */
@@ -393,7 +437,13 @@ export function describePlan(plan: BracketPlan): string {
       mains.set(L, [...(mains.get(L) ?? []), r.heats.length]);
     }
     const m = mains.size;
-    const shape = [...mains].map(([L, hs]) => `${L} ${hs.join(' → ')}`).join(', ');
+    const shape = [...mains]
+      .map(([L, hs]) =>
+        plan.inner === 'double' && hs.length > 1
+          ? `${L} ${hs.reduce((a, b) => a + b, 0)} heats`
+          : `${L} ${hs.join(' → ')}`
+      )
+      .join(', ');
     return `${m} main${m === 1 ? '' : 's'}, ${heats} heats: ${shape}`;
   }
   if (plan.kind === 'double') {
