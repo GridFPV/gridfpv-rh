@@ -252,8 +252,8 @@
     max-width: 34rem;
     padding: 16px 22px 18px;
     border-radius: 18px;
-    background: rgba(0, 0, 0, 0.58);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(8, 10, 14, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     backdrop-filter: blur(6px);
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
   }
