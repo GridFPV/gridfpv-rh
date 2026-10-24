@@ -1,0 +1,13 @@
+{
+  "domain": "racegow_overlay",
+  "name": "RaceGOW Overlay",
+  "author": "GridFPV",
+  "author_uri": "https://github.com/GridFPV",
+  "description": "Only GridFPV's race overlay for OBS, at /grid/live/race, with RaceGOW and ReconFPV branding. Not for use alongside the full GridFPV plugin.",
+  "documentation_uri": "https://github.com/GridFPV/gridfpv-rh",
+  "license": "AGPL-3.0-or-later",
+  "license_uri": "https://github.com/GridFPV/gridfpv-rh/blob/main/LICENSE",
+  "version": "0.3.3",
+  "required_rhapi_version": "1.4",
+  "zip_filename": "racegow_overlay.zip"
+}

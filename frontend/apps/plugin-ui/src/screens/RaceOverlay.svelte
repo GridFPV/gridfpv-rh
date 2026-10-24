@@ -33,6 +33,13 @@
   });
 
   const timer = rh();
+  /**
+   * Optional branding: the plugin serves `branding/left.png` and `branding/right.png` when
+   * it ships them (the RaceGOW overlay build does); each image hides itself if it is missing.
+   */
+  const BRANDING = `${import.meta.env.BASE_URL}branding/`;
+  let logoLeft = $state(true);
+  let logoRight = $state(true);
   const setup = $derived(timer.setup);
   const race = $derived(timer.race);
   const status = $derived(race.status);
@@ -136,7 +143,11 @@
 <div class="overlay" data-flying={flying} data-theme={theme} aria-label="Race overlay">
   <div class="panel">
     <div class="head">
-      <span class="brand">Grid<span class="fpv">FPV</span></span>
+      {#if logoLeft}
+        <img class="logo" src="{BRANDING}left.png" alt="" onerror={() => (logoLeft = false)} />
+      {:else}
+        <span class="brand">Grid<span class="fpv">FPV</span></span>
+      {/if}
       <span class="track">
         {#if timer.connection !== 'connected'}
           reconnecting to the timer…
@@ -146,6 +157,14 @@
           waiting for a race…
         {/if}
       </span>
+      {#if logoRight}
+        <img
+          class="logo right"
+          src="{BRANDING}right.png"
+          alt=""
+          onerror={() => (logoRight = false)}
+        />
+      {/if}
     </div>
 
     <div class="clockrow">
@@ -261,6 +280,14 @@
   }
   .fpv {
     color: var(--gf-brand-400);
+  }
+  .logo {
+    height: 44px;
+    width: auto;
+    flex: none;
+  }
+  .logo.right {
+    margin-left: auto;
   }
   .track {
     font-size: var(--gf-font-size-sm);

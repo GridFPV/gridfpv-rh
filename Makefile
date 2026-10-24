@@ -11,11 +11,13 @@ STATIC_DIR  := $(PLUGIN_DIR)/static
 DIST_DIR    := dist
 VERSION     := $(shell python3 -c 'import json;print(json.load(open("$(PLUGIN_DIR)/manifest.json"))["version"])')
 ZIP         := $(DIST_DIR)/gridfpv-$(VERSION).zip
+OVERLAY_DIR := plugin/racegow_overlay
+OVERLAY_ZIP := $(DIST_DIR)/racegow_overlay-$(VERSION).zip
 VENV        := .venv
 PY          := $(VENV)/bin/python
 COMPOSE     := docker compose -f dev/docker-compose.yml
 
-.PHONY: help setup build check lint format test py-test zip clean ci \
+.PHONY: help setup build check lint format test py-test zip zip-overlay deploy deploy-overlay clean ci \
         rig-up rig-down rig-restart rig-logs dev
 
 help: ## Show this help
@@ -63,7 +65,15 @@ zip: build ## Package the plugin (with the built UI) as $(ZIP)
 	rm -rf $(DIST_DIR)/stage
 	@echo "packaged $(ZIP):" && python3 -m zipfile -l $(ZIP)
 
-ci: setup lint check test build zip ## Everything CI runs
+zip-overlay: build ## Package the overlay-only RaceGOW plugin (same UI, branding) as $(OVERLAY_ZIP)
+	rm -rf $(DIST_DIR)/stage && mkdir -p $(DIST_DIR)/stage/racegow_overlay
+	cp -r $(OVERLAY_DIR)/*.py $(OVERLAY_DIR)/manifest.json $(OVERLAY_DIR)/README.md $(OVERLAY_DIR)/branding $(STATIC_DIR) $(DIST_DIR)/stage/racegow_overlay/
+	find $(DIST_DIR)/stage -name '__pycache__' -type d -prune -exec rm -rf {} +
+	rm -f $(OVERLAY_ZIP) && cd $(DIST_DIR)/stage && python3 -m zipfile -c ../$(notdir $(OVERLAY_ZIP)) racegow_overlay
+	rm -rf $(DIST_DIR)/stage
+	@echo "packaged $(OVERLAY_ZIP):" && python3 -m zipfile -l $(OVERLAY_ZIP)
+
+ci: setup lint check test build zip zip-overlay ## Everything CI runs
 
 clean: ## Remove build output, the venv and node_modules
 	rm -rf $(STATIC_DIR) $(DIST_DIR) $(VENV) frontend/node_modules frontend/*/*/node_modules frontend/*/*/dist
@@ -99,7 +109,11 @@ rig-passes: ## Inject a few gate passes into a mock seat (SEAT=0 N=4 BOUNCY=0) f
 
 deploy: zip ## Install the zip on a timer over SSH and restart RotorHazard (TIMER=host [SUDO_PASS=…])
 	@[ -n "$(TIMER)" ] || { echo "usage: make deploy TIMER=<ssh host>"; exit 1; }
-	dev/deploy.sh $(TIMER) $(ZIP)
+	REMOVE_PLUGINS=racegow_overlay dev/deploy.sh $(TIMER) $(ZIP) gridfpv
+
+deploy-overlay: zip-overlay ## Install the overlay-only plugin on a timer, removing the full plugin (TIMER=host [SUDO_PASS=…])
+	@[ -n "$(TIMER)" ] || { echo "usage: make deploy-overlay TIMER=<ssh host>"; exit 1; }
+	REMOVE_PLUGINS=gridfpv dev/deploy.sh $(TIMER) $(OVERLAY_ZIP) racegow_overlay
 
 dev: ## Vite dev server with hot reload, proxying socket.io to the rig on :5050
 	cd frontend && npm run dev

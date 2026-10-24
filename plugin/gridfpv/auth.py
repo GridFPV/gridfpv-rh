@@ -17,7 +17,7 @@ REALM = 'Basic realm="Login Required"'
 #: Path prefixes (relative to the blueprint prefix) that never require login.
 PUBLIC_PREFIXES = ("live",)
 #: Files the SPA shell needs before anyone can log in.
-PUBLIC_FILES = ("assets/", "favicon.svg", "index.html")
+PUBLIC_FILES = ("assets/", "branding/", "favicon.svg", "index.html")
 
 
 def is_public(subpath: str) -> bool:
