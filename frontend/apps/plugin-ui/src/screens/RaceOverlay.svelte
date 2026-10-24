@@ -288,8 +288,9 @@
   }
   .logo.right {
     margin-left: auto;
-    /* The ReconFPV crosshair is black on transparent; a light disc keeps it visible on dark. */
-    background: rgba(255, 255, 255, 0.92);
+    /* The ReconFPV crosshair is black on transparent; its own grey (#4F4F4F, from the
+       ReconFPV EdgeTX theme) behind it keeps it visible on the dark panel. */
+    background: #4f4f4f;
     border-radius: 50%;
     padding: 2px;
   }
