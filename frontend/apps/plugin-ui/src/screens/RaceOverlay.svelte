@@ -80,12 +80,9 @@
     last: number | undefined;
     best: number | undefined;
     window: ReturnType<typeof bestConsecutive>;
-    /** This pilot's best of the day in this heat: best run, or best lap. */
-    today: number | null;
     position: number | null;
   };
   const rows = $derived.by((): Row[] => {
-    const today = timer.results.heatBest[race.heatId] ?? [];
     const board = timer.leaderboard?.heatId === race.heatId ? timer.leaderboard.rows : [];
     const out: Row[] = [];
     for (const s of timer.seats) {
@@ -97,7 +94,6 @@
       // Practice (no heat): a seat with a frequency and laps is someone flying.
       if (!pilotId && !(race.heatId === 0 && s.frequency > 0 && laps.length)) continue;
       const lapMs = laps.map((l) => l.timeMs);
-      const best = today.find((t) => t.pilotId === pilotId);
       const lb = board.find((r) => (r.node != null ? r.node === s.index : r.pilotId === pilotId));
       out.push({
         seat: s.index,
@@ -108,7 +104,6 @@
         last: lapMs.at(-1),
         best: lapMs.length ? Math.min(...lapMs) : undefined,
         window: windowN === undefined ? undefined : bestConsecutive(lapMs, windowN),
-        today: best ? (windowN === undefined ? best.fastestLapMs : best.consecutivesMs) : null,
         position: lb?.position ?? null
       });
     }
@@ -166,12 +161,12 @@
       <div class="stats">
         {#if windowN !== undefined}
           <div class="stat">
-            <span class="l">Best {windowN} this race</span>
-            <span class="n">{formatLapMs(solo.window?.totalMs)}</span>
+            <span class="l">Laps</span>
+            <span class="n">{solo.lapMs.length}</span>
           </div>
           <div class="stat">
-            <span class="l">Best {windowN} today</span>
-            <span class="n">{formatLapMs(solo.today)}</span>
+            <span class="l">Best {windowN} this race</span>
+            <span class="n">{formatLapMs(solo.window?.totalMs)}</span>
           </div>
         {:else}
           <div class="stat">
@@ -181,10 +176,6 @@
           <div class="stat">
             <span class="l">Best lap</span>
             <span class="n">{formatLapMs(solo.best)}</span>
-          </div>
-          <div class="stat">
-            <span class="l">Best today</span>
-            <span class="n">{formatLapMs(solo.today)}</span>
           </div>
         {/if}
       </div>
