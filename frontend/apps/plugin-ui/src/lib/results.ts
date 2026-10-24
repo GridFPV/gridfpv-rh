@@ -27,15 +27,32 @@ export type RaceResult = {
 
 export type RankRow = { pilotId: number; callsign: string; position: number | null };
 
+/**
+ * One pilot's best figures across every saved round of a heat (RotorHazard's heat-level
+ * leaderboard): what "best today" means for a heat raced round after round.
+ */
+export type HeatBestRow = {
+  pilotId: number;
+  callsign: string;
+  starts: number;
+  laps: number;
+  /** Best run of `consecutivesBase` laps in a row, ms; null until the pilot has that many. */
+  consecutivesMs: number | null;
+  consecutivesBase: number;
+  fastestLapMs: number | null;
+};
+
 export type Results = {
   /** Saved races by heat id, sorted by round. */
   races: Record<number, RaceResult[]>;
   /** Class standings by class id, as ranked by the class's rank method. */
   ranking: Record<number, RankRow[]>;
+  /** Each pilot's best across all of a heat's saved rounds, by heat id. */
+  heatBest: Record<number, HeatBestRow[]>;
 };
 
 export function emptyResults(): Results {
-  return { races: {}, ranking: {} };
+  return { races: {}, ranking: {}, heatBest: {} };
 }
 
 type Raw = Record<string, unknown>;
@@ -58,11 +75,31 @@ function rowsOf(leaderboard: Raw | undefined): ResultRow[] {
   }));
 }
 
+const msOrNull = (v: unknown) => (v == null || v === '' || Number(v) <= 0 ? null : Number(v));
+
+function heatBestOf(leaderboard: Raw | undefined): HeatBestRow[] {
+  if (!leaderboard) return [];
+  const rows =
+    (leaderboard.by_consecutives as Raw[] | undefined) ??
+    (leaderboard.by_fastest_lap as Raw[] | undefined) ??
+    [];
+  return rows.map((r) => ({
+    pilotId: num(r.pilot_id),
+    callsign: str(r.callsign),
+    starts: num(r.starts),
+    laps: num(r.laps),
+    consecutivesMs: msOrNull(r.consecutives_raw),
+    consecutivesBase: num(r.consecutives_base),
+    fastestLapMs: msOrNull(r.fastest_lap_raw)
+  }));
+}
+
 export function applyResultData(payload: { heats?: Raw; classes?: Raw } | null): Results {
   const out = emptyResults();
   const heats = (payload?.heats as Record<string, Raw> | undefined) ?? {};
   for (const [key, h] of Object.entries(heats)) {
     const heatId = num(h.heat_id, Number(key));
+    out.heatBest[heatId] = heatBestOf(h.leaderboard as Raw | undefined);
     const rounds = ((h.rounds as Raw[] | undefined) ?? []).map((r) => ({
       heatId,
       round: num(r.id),

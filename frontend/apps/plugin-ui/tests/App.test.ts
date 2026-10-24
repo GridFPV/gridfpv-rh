@@ -79,3 +79,16 @@ describe('App shell', () => {
     expect(screen.getByText('Start capture')).toBeInTheDocument();
   });
 });
+
+describe('overlay routes', () => {
+  it('renders /grid/live/race bare, with no shell navigation', () => {
+    const state = rh();
+    state.connection = 'connected';
+    go('live/race', true);
+    render(App, { autoconnect: false });
+    expect(screen.queryByText('Stages')).toBeNull();
+    expect(screen.getByLabelText('Race overlay')).toBeInTheDocument();
+    expect(screen.getByText(/waiting for a race/)).toBeInTheDocument();
+    expect(document.documentElement.dataset.overlay).toBe('race');
+  });
+});

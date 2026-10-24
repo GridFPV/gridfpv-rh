@@ -44,8 +44,16 @@
       <a href={href('stages')} onclick={link}>Stages</a> — the day's stages, heats and rounds.
       <a href={href('formats')} onclick={link}>Formats</a> — how a race is run.
       <a href={href('run')} onclick={link}>Run</a> — race day: start, stop, save, seed as you go.
-      <a href={href('marshal')} onclick={link}>Marshal</a> — fix laps on the signal trace. These
+      <a href={href('marshal')} onclick={link}>Marshal</a> — fix laps on the signal trace.
+      <a href={href('overlays')} onclick={link}>Overlays</a> — the OBS pages and their URLs. These
       need the RotorHazard login. RotorHazard's own pages are still at <a href="/">/</a>.
+    </p>
+  </Card>
+
+  <Card title="Live" elevation="xs">
+    <p>
+      <a href={href('live/race')} onclick={link}>Race overlay</a> — the race clock and laps on a see-through
+      page for OBS. No login.
     </p>
   </Card>
 </section>

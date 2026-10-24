@@ -50,3 +50,13 @@ body::before {
 a {
   color: var(--gf-accent);
 }
+
+/* An overlay page (`/grid/live/...`) sits over video in OBS: the document is see-through. */
+html[data-overlay],
+html[data-overlay] body {
+  background: transparent;
+  min-height: 0;
+}
+html[data-overlay] body::before {
+  display: none;
+}

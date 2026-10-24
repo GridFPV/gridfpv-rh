@@ -13,6 +13,9 @@
   import Formats from './screens/Formats.svelte';
   import Run from './screens/Run.svelte';
   import Marshal from './screens/Marshal.svelte';
+  import Overlays from './screens/Overlays.svelte';
+  import RaceOverlay from './screens/RaceOverlay.svelte';
+  import { parseOverlayRoute } from './lib/overlay.js';
 
   let { autoconnect = true }: { autoconnect?: boolean } = $props();
 
@@ -38,6 +41,8 @@
   );
 
   const current = $derived(route());
+  /** `/grid/live/...` renders bare — no shell — for OBS. */
+  const overlay = $derived(parseOverlayRoute(current));
   const tuneMatch = $derived(/^seats\/(\d+)$/.exec(current));
   const NAV = [
     { path: '', label: 'Home' },
@@ -48,66 +53,83 @@
     { path: 'stages', label: 'Stages' },
     { path: 'formats', label: 'Formats' },
     { path: 'run', label: 'Run' },
-    { path: 'marshal', label: 'Marshal' }
+    { path: 'marshal', label: 'Marshal' },
+    { path: 'overlays', label: 'Overlays' }
   ];
   const active = (path: string) =>
     path === '' ? current === '' : current === path || current.startsWith(path + '/');
 </script>
 
-<div class="shell">
-  <header class="top">
-    <a class="brand" href={href('')} onclick={link}>
-      <svg class="mark" viewBox="20 20 60 60" role="img" aria-label="GridFPV">
-        <path
-          d="M71 33 H40 Q31 33 31 42 V58 Q31 67 40 67 H60 Q69 67 69 58 V51 H53"
-          fill="none"
-          stroke="var(--gf-brand-500)"
-          stroke-width="10"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-      <div>
-        <div class="word">GridFPV</div>
-        <div class="sub">for RotorHazard</div>
-      </div>
-    </a>
-    <nav>
-      {#each NAV as item (item.path)}
-        <a href={href(item.path)} onclick={link} class:active={active(item.path)}>{item.label}</a>
-      {/each}
-    </nav>
-    <StatusPill status={pillStatus} label={pillLabel} />
-  </header>
+{#if overlay}
+  {#if overlay.name === 'race'}
+    <RaceOverlay theme={overlay.theme} />
+  {:else}
+    <p class="muted bare">
+      No overlay called <code>{overlay.name}</code>.
+      <a href={href('overlays')} onclick={link}>Overlays</a>.
+    </p>
+  {/if}
+{:else}
+  <div class="shell">
+    <header class="top">
+      <a class="brand" href={href('')} onclick={link}>
+        <svg class="mark" viewBox="20 20 60 60" role="img" aria-label="GridFPV">
+          <path
+            d="M71 33 H40 Q31 33 31 42 V58 Q31 67 40 67 H60 Q69 67 69 58 V51 H53"
+            fill="none"
+            stroke="var(--gf-brand-500)"
+            stroke-width="10"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <div>
+          <div class="word">GridFPV</div>
+          <div class="sub">for RotorHazard</div>
+        </div>
+      </a>
+      <nav>
+        {#each NAV as item (item.path)}
+          <a href={href(item.path)} onclick={link} class:active={active(item.path)}>{item.label}</a>
+        {/each}
+      </nav>
+      <StatusPill status={pillStatus} label={pillLabel} />
+    </header>
 
-  <main>
-    {#if current === ''}
-      <Home />
-    {:else if current === 'event'}
-      <Event />
-    {:else if current === 'seats' || tuneMatch}
-      <Seats />
-    {:else if current === 'pilots'}
-      <Pilots />
-    {:else if current === 'stages' || current === 'heats'}
-      <Stages />
-    {:else if current === 'teams'}
-      <Teams />
-    {:else if current === 'formats'}
-      <Formats />
-    {:else if current === 'run'}
-      <Run />
-    {:else if current === 'marshal'}
-      <Marshal />
-    {:else}
-      <p class="muted">
-        Nothing at <code>/grid/{current}</code>. <a href={href('')} onclick={link}>Home</a>.
-      </p>
-    {/if}
-  </main>
-</div>
+    <main>
+      {#if current === ''}
+        <Home />
+      {:else if current === 'event'}
+        <Event />
+      {:else if current === 'seats' || tuneMatch}
+        <Seats />
+      {:else if current === 'pilots'}
+        <Pilots />
+      {:else if current === 'stages' || current === 'heats'}
+        <Stages />
+      {:else if current === 'teams'}
+        <Teams />
+      {:else if current === 'formats'}
+        <Formats />
+      {:else if current === 'run'}
+        <Run />
+      {:else if current === 'marshal'}
+        <Marshal />
+      {:else if current === 'overlays'}
+        <Overlays />
+      {:else}
+        <p class="muted">
+          Nothing at <code>/grid/{current}</code>. <a href={href('')} onclick={link}>Home</a>.
+        </p>
+      {/if}
+    </main>
+  </div>
+{/if}
 
 <style>
+  .bare {
+    padding: var(--gf-space-4);
+  }
   .shell {
     max-width: 1200px;
     margin: 0 auto;
