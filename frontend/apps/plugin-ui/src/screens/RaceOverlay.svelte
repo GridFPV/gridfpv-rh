@@ -288,6 +288,10 @@
   }
   .logo.right {
     margin-left: auto;
+    /* The ReconFPV crosshair is black on transparent; a light disc keeps it visible on dark. */
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 50%;
+    padding: 2px;
   }
   .track {
     font-size: var(--gf-font-size-sm);
