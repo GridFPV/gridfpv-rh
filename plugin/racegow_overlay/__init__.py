@@ -109,10 +109,25 @@ def register_socket(rhapi) -> None:
     rhapi.ui.socket_listen(EVT_EVENT_GET, on_event_get)
 
 
+STREAMS_PANEL = "racegow_overlay_streams"
+STREAMS_MARKDOWN = (
+    "- [RaceGOW race overlay (dark)](/grid/live/race)\n"
+    "- [RaceGOW race overlay (light)](/grid/live/race/light)\n\n"
+    "Copy a link into an OBS Browser source."
+)
+
+
+def register_streams(rhapi) -> None:
+    """List the overlay on RotorHazard's Streams page (``/streams``), under its own."""
+    rhapi.ui.register_panel(STREAMS_PANEL, "RaceGOW overlay", "streams", order=0, open=True)
+    rhapi.ui.register_markdown(STREAMS_PANEL, "links", STREAMS_MARKDOWN)
+
+
 def initialize(
     rhapi, static_dir: str = DEFAULT_STATIC_DIR, branding_dir: str = DEFAULT_BRANDING_DIR
 ) -> None:
     """RotorHazard's plugin entry point."""
+    register_streams(rhapi)
     register_socket(rhapi)
     rhapi.ui.blueprint_add(build_blueprint(static_dir, branding_dir))
     built = os.path.isfile(os.path.join(static_dir, "index.html"))

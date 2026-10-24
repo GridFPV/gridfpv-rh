@@ -67,6 +67,14 @@ class OverlayPluginTest(unittest.TestCase):
         # Normalised away or refused: never a file outside static/.
         self.assertNotIn(b"racegow_overlay", self.client.get("/grid/branding/../manifest.json").data)
 
+    def test_streams_panel(self):
+        self.rhapi.ui.register_panel.assert_called_once_with(
+            "racegow_overlay_streams", "RaceGOW overlay", "streams", order=0, open=True
+        )
+        (panel, _name, md) = self.rhapi.ui.register_markdown.call_args.args
+        self.assertEqual(panel, "racegow_overlay_streams")
+        self.assertIn("](/grid/live/race)", md)
+
     def test_socket(self):
         self.rhapi.listeners["gridfpv_hello"]()
         ack = self.rhapi.ui.socket_broadcast.call_args_list[-1].args

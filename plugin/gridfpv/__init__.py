@@ -10,7 +10,8 @@ Python side is registered here, and it is deliberately thin:
   tuning (``capture.py``), custom channel presets (``presets.py``), teams (``teams.py``)
   and the event's details (``event.py``);
 - a filter on RotorHazard's pilot data so its own pilot page offers our team names;
-- a *GridFPV* settings panel with the plugin's options;
+- a *GridFPV* settings panel with the plugin's options, and a panel on RotorHazard's
+  Streams page listing the overlay URLs;
 - an optional redirect that sends RotorHazard's home page to ``/grid``.
 
 Race logic stays in RotorHazard. The UI reads and writes through RotorHazard's own socket
@@ -119,6 +120,21 @@ def build_blueprint(rhapi, static_dir: str) -> Blueprint:
         return None
 
     return bp
+
+
+#: Panel on RotorHazard's own Streams page listing our overlay URLs next to its overlays.
+STREAMS_PANEL = "gridfpv_streams"
+STREAMS_MARKDOWN = (
+    "- [Race overlay (dark)](/grid/live/race)\n"
+    "- [Race overlay (light)](/grid/live/race/light)\n\n"
+    "Copy a link into an OBS Browser source. More on the [GridFPV Overlays page](/grid/overlays)."
+)
+
+
+def register_streams(rhapi) -> None:
+    """List our overlays on RotorHazard's Streams page (``/streams``), under its own."""
+    rhapi.ui.register_panel(STREAMS_PANEL, "GridFPV overlays", "streams", order=0, open=True)
+    rhapi.ui.register_markdown(STREAMS_PANEL, "links", STREAMS_MARKDOWN)
 
 
 def register_options(rhapi) -> None:
@@ -290,6 +306,7 @@ def register_filters(rhapi) -> None:
 def initialize(rhapi, static_dir: str = DEFAULT_STATIC_DIR, start_loop: bool = True) -> None:
     """RotorHazard's plugin entry point."""
     register_options(rhapi)
+    register_streams(rhapi)
     register_filters(rhapi)
     recorder = build_recorder(rhapi)
     register_socket(rhapi, recorder)

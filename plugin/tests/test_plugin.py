@@ -135,6 +135,7 @@ class PluginTests(unittest.TestCase):
         rhapi = FakeRhapi()
         gridfpv.initialize(rhapi, static_dir=self.static, start_loop=False)
         self.assertEqual(rhapi.panels[0][:3], (gridfpv.PANEL, "GridFPV", "settings"))
+        self.assertEqual(rhapi.panels[1][:3], (gridfpv.STREAMS_PANEL, "GridFPV overlays", "streams"))
         (field, panel), = rhapi.registered_options
         self.assertEqual((field.name, panel), (gridfpv.OPT_REDIRECT_HOME, gridfpv.PANEL))
         self.assertEqual(len(rhapi.blueprints), 1)
