@@ -20,7 +20,7 @@ RH_VERSION  ?= 4.4.0
 RH_SRC      := dev/rh-src/$(RH_VERSION)
 
 .PHONY: help setup build check lint format test py-test zip zip-overlay deploy deploy-overlay clean ci \
-        rig-up rig-down rig-restart rig-logs dev e2e e2e-install e2e-docker coverage coverage-scrape
+        rig-up rig-down rig-restart rig-logs dev e2e e2e-install e2e-docker coverage coverage-scrape rig-main-up rig-main-down
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
@@ -125,6 +125,20 @@ rig-restart: ## Restart RotorHazard (picks up Python changes to the plugin)
 
 rig-logs: ## Follow RotorHazard's log
 	$(COMPOSE) logs -f rotorhazard
+
+RH_MAIN_PORT ?= 5051
+rig-main-up: ## A second rig from RotorHazard *main* on :$(RH_MAIN_PORT) (#34; socket auth is on there)
+	docker build -q -t gridfpv-rotorhazard:main --build-arg RH_VERSION=main dev/rotorhazard
+	-docker rm -f gridfpv-rh-main >/dev/null 2>&1
+	docker run -d --name gridfpv-rh-main -p $(RH_MAIN_PORT):5000 -e GRIDFPV_RH_DEMO=1 \
+	  -v "$$(pwd)/dev/rotorhazard/mock_data_1.csv:/opt/RotorHazard/src/server/mock_data_1.csv:ro" \
+	  -v "$$(pwd)/$(PLUGIN_DIR):/opt/RotorHazard/src/server/plugins/gridfpv:ro" \
+	  -v "$$(pwd)/dev/plugins/gridfpv_mock:/opt/RotorHazard/src/server/plugins/gridfpv_mock:ro" \
+	  gridfpv-rotorhazard:main
+	@echo "RotorHazard main: http://localhost:$(RH_MAIN_PORT)   e2e: RH_URL=http://localhost:$(RH_MAIN_PORT) make e2e-docker"
+
+rig-main-down: ## Stop the main rig
+	-docker rm -f gridfpv-rh-main
 
 rig-passes: ## Inject a few gate passes into a mock seat (SEAT=0 N=4 BOUNCY=0) for the tuning screen
 	docker cp dev/passes.py gridfpv-rh-dev:/tmp/passes.py
