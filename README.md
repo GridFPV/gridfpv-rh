@@ -29,8 +29,14 @@ make build      # build the SPA into plugin/gridfpv/static  → http://localhost
 make dev        # or: Vite with hot reload on :5173/grid/, socket.io proxied to the rig
 make test       # plugin (unittest) + frontend (vitest)
 make lint check # ESLint + Prettier; svelte-check + py_compile
+make e2e        # browser e2e against the rig (Playwright; `make e2e-docker` on a box without Chromium's libs)
+make coverage   # every control on RotorHazard's admin pages is classified in rh-coverage.tsv
 make zip        # dist/gridfpv-<version>.zip, ready to drop into a timer
 ```
+
+The plan, its tiers and the gate each tier must pass are in issue #2; the e2e suite in
+`frontend/e2e` and the coverage map are that gate. `docs/rehearsal.md` has the race-day
+checklists, `docs/live-log.md` the convention for live sessions.
 
 `make help` lists everything. The rig's login is `admin` / `rotorhazard`.
 
