@@ -16,9 +16,11 @@ OVERLAY_ZIP := $(DIST_DIR)/racegow_overlay-$(VERSION).zip
 VENV        := .venv
 PY          := $(VENV)/bin/python
 COMPOSE     := docker compose -f dev/docker-compose.yml
+RH_VERSION  ?= 4.4.0
+RH_SRC      := dev/rh-src/$(RH_VERSION)
 
 .PHONY: help setup build check lint format test py-test zip zip-overlay deploy deploy-overlay clean ci \
-        rig-up rig-down rig-restart rig-logs dev e2e e2e-install e2e-docker
+        rig-up rig-down rig-restart rig-logs dev e2e e2e-install e2e-docker coverage coverage-scrape
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
@@ -62,6 +64,16 @@ PW_IMAGE := mcr.microsoft.com/playwright:v1.64.1-noble
 e2e-docker: build ## Same suite, browser from the Playwright image (for a box without Chromium's libraries)
 	docker run --rm --network host --user $$(id -u):$$(id -g) -e HOME=/tmp -e CI="$$CI" -e RH_URL="$${RH_URL:-http://localhost:5050}" \
 	  -v "$$(pwd)/frontend:/work" -w /work/e2e $(PW_IMAGE) npx playwright test $(E2E_ARGS)
+
+$(RH_SRC)/.ok: ## RotorHazard's source at the pinned tag (gitignored; for the coverage check)
+	rm -rf $(RH_SRC) && git clone --quiet --depth 1 --branch v$(RH_VERSION) https://github.com/RotorHazard/RotorHazard $(RH_SRC)
+	touch $@
+
+coverage: $(RH_SRC)/.ok ## Check rh-coverage.tsv classifies every control on RotorHazard's admin pages (#28)
+	python3 -I dev/rh_controls.py check $(RH_SRC) rh-coverage.tsv
+
+coverage-scrape: $(RH_SRC)/.ok ## Print RotorHazard's admin-page controls (page, id, kind, label)
+	python3 -I dev/rh_controls.py scrape $(RH_SRC)
 
 py-test-rig: ## Plugin tests inside the running rig (RotorHazard's own Python + Flask)
 	docker exec gridfpv-rh-dev rm -rf /tmp/gridfpv-tests

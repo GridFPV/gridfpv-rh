@@ -1,0 +1,247 @@
+page	id	kind	label	status	note
+settings	set_voice_language	select	Voice Select	planned:T3	audio cues and their settings (#38)
+settings	led-effects-select	select		planned:T6	LEDs; likely link to RotorHazard
+settings	set_led_color	button	LED Color	planned:T6	LEDs; likely link to RotorHazard
+settings	use-led-effect	button		planned:T6	LEDs; likely link to RotorHazard
+settings	led-event-	select	' + __(led_event.label) + '	planned:T6	LEDs; likely link to RotorHazard
+settings	set_profile	select	Profile	ours	Seats page, profile bar
+settings	add_profile	button		planned:T5	profile add/rename, calibration mode, start-of-race threshold lowering
+settings	delete_profile	button		ours	Seats page, profile bar
+settings	set_profile_name	input:text	Name	planned:T5	profile add/rename, calibration mode, start-of-race threshold lowering
+settings	set_calibrationMode	select	Calibration Mode	planned:T5	profile add/rename, calibration mode, start-of-race threshold lowering
+settings	set_start_thresh_lower_amount	input:number	Start of race EnterAt/ExitAt lowering amount (percent)	planned:T5	profile add/rename, calibration mode, start-of-race threshold lowering
+settings	set_start_thresh_lower_duration	input:number	Start of race EnterAt/ExitAt lowering duration (seconds)	planned:T5	profile add/rename, calibration mode, start-of-race threshold lowering
+settings	set_voice_string_language	select	Voice Language	planned:T3	audio cues and their settings (#38)
+settings	voice_test_text	input:text		planned:T3	audio cues and their settings (#38)
+settings	play_voice_test	button		planned:T3	audio cues and their settings (#38)
+settings	voice_callsign	select	Pilot Callsign	planned:T3	audio cues and their settings (#38)
+settings	voice_lap_count	select	Pilot Lap Number	planned:T3	audio cues and their settings (#38)
+settings	voice_lap_time	select	Pilot Lap Time	planned:T3	audio cues and their settings (#38)
+settings	voice_race_timer	select	Race Clock	planned:T3	audio cues and their settings (#38)
+settings	voice_team_lap_count	select	Team/Co-op Lap Total	planned:T3	audio cues and their settings (#38)
+settings	voice_race_winner	select	Race Winner	planned:T3	audio cues and their settings (#38)
+settings	voice_if_node_finished	select	Laps After Pilot Done	planned:T3	audio cues and their settings (#38)
+settings	voice_split_timer	select	Secondary/Split Timer	planned:T3	audio cues and their settings (#38)
+settings	voice_race_leader	select	Race Leader Pilot	planned:T3	audio cues and their settings (#38)
+settings	set_voice_volume	input:range	Voice Volume	planned:T3	audio cues and their settings (#38)
+settings	set_voice_rate	input:range	Voice Rate	planned:T3	audio cues and their settings (#38)
+settings	set_voice_pitch	input:range	Voice Pitch	planned:T3	audio cues and their settings (#38)
+settings	set_tone_volume	input:range	Tone Volume	planned:T3	audio cues and their settings (#38)
+settings	beep_on_first_pass_button	input:checkbox		planned:T3	audio cues and their settings (#38)
+settings	beep_crossing_entered	input:checkbox		planned:T3	audio cues and their settings (#38)
+settings	beep_crossing_exited	input:checkbox		planned:T3	audio cues and their settings (#38)
+settings	beep_manual_lap_button	input:checkbox		planned:T3	audio cues and their settings (#38)
+settings	beep_race_leader_lap	input:checkbox		planned:T3	audio cues and their settings (#38)
+settings	beep_race_winner_declared	input:checkbox		planned:T3	audio cues and their settings (#38)
+settings	beep_cluster_connect	input:checkbox		planned:T3	audio cues and their settings (#38)
+settings	use_mp3_tones	input:checkbox		planned:T3	audio cues and their settings (#38)
+settings	set_indicator_volume	input:range	Indicator Beeps Volume	planned:T3	audio cues and their settings (#38)
+settings	export_audio_settings	button		planned:T3	audio cues and their settings (#38)
+settings	select_audio_import_file	input:file	Select File to Import	planned:T3	audio cues and their settings (#38)
+settings	import_audio_settings	button		planned:T3	audio cues and their settings (#38)
+settings	default_audio_settings	button		planned:T3	audio cues and their settings (#38)
+settings	add_action	button		planned:T6	event actions
+settings	set_led_brightness	input:range	LED Brightness	planned:T6	LEDs; likely link to RotorHazard
+settings	import_plugin_file	input:file	Plugin Zipfile Max 50MB	planned:T6	plugin management; likely link
+settings	upload_plugin	button		planned:T6	plugin management; likely link
+settings	delete-plugin	button		planned:T6	plugin management; likely link
+settings	download_logs	button		planned:T6	system: logs, shutdown, restart
+settings	shutdown_pi	button		planned:T6	system: logs, shutdown, restart
+settings	reboot_pi	button		planned:T6	system: logs, shutdown, restart
+settings	kill_server	button		planned:T6	system: logs, shutdown, restart
+settings	set_admin_user	input:text	Username	planned:T6	admin login
+settings	set_admin_password	input:password	Password	planned:T6	admin login
+settings	set_language	select	Language	planned:T6	settings: UI, config files
+settings	set_time_format	input:text	Time Format	planned:T6	settings: UI, config files
+settings	set_time_format_phonetic	input:text	Phonetic Time Format	planned:T6	settings: UI, config files
+settings	set_timer_name	input:text	Timer Name	planned:T6	settings: UI, config files
+settings	set_timer_logo	input:text	Timer Logo	planned:T6	settings: UI, config files
+settings	set_hue_primary	input:range	Primary Hue	planned:T6	settings: UI, config files
+settings	set_sat_primary	input:range	Primary Saturation	planned:T6	settings: UI, config files
+settings	set_hue_secondary	input:range	Secondary Hue	planned:T6	settings: UI, config files
+settings	set_sat_secondary	input:range	Secondary Saturation	planned:T6	settings: UI, config files
+settings	backup_settings	button		planned:T6	settings: UI, config files
+settings	download_settings	button		planned:T6	settings: UI, config files
+settings	cfg_files_list	select	Saved Settings Files:	planned:T6	settings: UI, config files
+settings	rename_settings_btn	button		planned:T6	settings: UI, config files
+settings	reset_cfg_file_to_defaults	button		planned:T6	settings: UI, config files
+settings	restore_cfg_file	button		planned:T6	settings: UI, config files
+settings	new_cfg_file_name	input:text	Enter New File Name:	planned:T6	settings: UI, config files
+settings	rename_cfg_file	button		planned:T6	settings: UI, config files
+settings	delete_cfg_file	button		planned:T6	settings: UI, config files
+settings	load_cfg_file	button		planned:T6	settings: UI, config files
+settings	select_load_settings_file	input:file	Select Settings File to Load	planned:T6	settings: UI, config files
+advanced-settings	set-i2c-bus	input:number	I2C Bus	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-force-s32-bpill	select	Force STM32 BPill	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-shutdown-gpio	input:number	Shutdown Button GPIO Number	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-shutdown-button-delay	input:number	Shutdown Button Delay (ms)	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-node-update-url	input:text	Node Update URL Override	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-http-port	input:number	HTTP Port	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-cors-hosts	input:text	CORS Allowed Hosts	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-log-level-file	select	Logfile Level	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-log-file-retention	input:number	Logfile Retention (number)	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-log-level-console	select	Console Log Level	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-log-console-stream	input:text	Console Stream	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-log-level-system	select	System Log Level	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-sensor-data-rate	input:number	Sensor Log Rate	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-event-event-verbosity	select	Event Log Verbosity (debug only)	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-led-count	input:number	Count	planned:T6	LEDs; likely link to RotorHazard
+advanced-settings	set-led-rows	input:number	Panel Rows	planned:T6	LEDs; likely link to RotorHazard
+advanced-settings	set-led-panel-rotate	select	Panel Rotation	planned:T6	LEDs; likely link to RotorHazard
+advanced-settings	set-led-panel-row-invert	select	Panel Row Ordering	planned:T6	LEDs; likely link to RotorHazard
+advanced-settings	set-led-gpio	input:number	GPIO Pin	planned:T6	LEDs; likely link to RotorHazard
+advanced-settings	set-led-frequency	input:number	Frequency (Hz)	planned:T6	LEDs; likely link to RotorHazard
+advanced-settings	set-led-dma	input:number	DMA	planned:T6	LEDs; likely link to RotorHazard
+advanced-settings	set-led-invert	select	Inverted Control Signal	planned:T6	LEDs; likely link to RotorHazard
+advanced-settings	set-led-channel	input:number	Channel	planned:T6	LEDs; likely link to RotorHazard
+advanced-settings	set-led-strip-type	select	Strip Type	planned:T6	LEDs; likely link to RotorHazard
+advanced-settings	set-led-serial-port	input:text	Serial Controller Port	planned:T6	LEDs; likely link to RotorHazard
+advanced-settings	set-led-serial-baud	input:number	Serial Controller BAUD	planned:T6	LEDs; likely link to RotorHazard
+advanced-settings	set-debug-mode	select	Server Debug Mode	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-backup-retention	input:number	Database Backup Retention (days)	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-sync-delay	input:number	Race Start Delay (seconds)	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-mock-nodes	input:number	Mock Nodes (minimum)	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+advanced-settings	set-mock-node-behavior	select	Mock Node Signal	planned:T6	advanced/hardware setting; likely link or rh-only (Ryan to decide)
+format	name_	input:text	Name	ours	Pilots page
+format	color_	button	Color	ours	Pilots page
+format	callsign_	input:text	Callsign	ours	Pilots page
+format	phonetic_	input:text	Phonetic	ours	Pilots page
+format	set_pilot_team_	select	Team	ours	Pilots + Teams pages
+format	add_pilot	button		ours	Pilots page
+format	seatcolor_	button		planned:T6	customizations: pilot sort, seat colours
+format	reset-seat-color	button		planned:T6	customizations: pilot sort, seat colours
+format	do_import	button		planned:T6	data import/export
+format	generate_heats	button		ours	Stages, Generate bracket
+format	set_event_name	input:text	Event Name	ours	Event page
+format	set_event_description	textarea	Event Description	ours	Event page
+format	set_consecutives_count	input:number	Consecutive Laps Base	planned:T2	Event page lap-detection options (#35)
+format	set_min_lap	input:number	Minimum Lap Time	planned:T2	Event page lap-detection options (#35)
+format	set_min_lap_behavior	select	Minimum Lap Behavior	planned:T2	Event page lap-detection options (#35)
+format	set_min_first_crossing	input:number	Ignore Crossings Before	planned:T2	Event page lap-detection options (#35)
+format	database_list	select	Archived Events	ours	Event page, Archives
+format	download_database	button		planned:T6	data management
+format	reset_type	select	Items to Clear	planned:T6	data management
+format	archive-event	button		ours	Event page, Archive now
+format	reset_database	button		ours	Event page, New event
+format	restore_database	button		ours	Event page, Archives
+format	delete_database	button		ours	Event page, Archives
+format	set_pilotSort	select	Pilot Sort	planned:T6	customizations: pilot sort, seat colours
+format	set_ledColorMode	select	Color Mode	planned:T6	customizations: pilot sort, seat colours
+format	stop_save	button		ours	Run page Save
+format	stop_discard	button		ours	Run page Discard
+format	unlock_class	button		planned:T2	unlock raced entities; points settings dialog
+format	unlock_heat	button		planned:T2	unlock raced entities; points settings dialog
+format	generator_list	select	Generator	ours	Stages, Generate bracket
+format	generator_input_class	select	Input	ours	Stages, Generate bracket
+format	generator_output_class	select	Output	ours	Stages, Generate bracket
+format	generate_parameters	button		ours	Stages, Generate bracket
+format	set_race_format	select	Format:	ours	Formats page
+format	add_race_format	button		ours	Formats page, New format
+format	unlock_race_format_button	button		planned:T2	unlock raced entities; points settings dialog
+format	delete_race_format_button	button		ours	Formats page, Delete
+format	unlock_race_format	button		planned:T2	unlock raced entities; points settings dialog
+format	delete_race_format	button		ours	Formats page, Delete
+format	set_format_name	input:text	Name	ours	Formats dialog
+format	set_unlimited_time	select	Race Clock Mode	ours	Formats dialog
+format	set_fix_race_time	input:number	Timer Duration (seconds)	ours	Formats dialog
+format	set_lap_grace_time	input:number	Grace Period (seconds)	ours	Formats dialog
+format	set_staging_fixed_tones	input:number	Prestage Tones	ours	Formats dialog
+format	set_staging_delay_tones	select	Staging Tones	ours	Formats dialog
+format	set_start_delay_min	input:number	Minimum Staging Time (seconds)	ours	Formats dialog
+format	set_start_delay_max	input:number	Random Staging Time (seconds)	ours	Formats dialog
+format	set_start_behavior	select	First Crossing	ours	Formats dialog
+format	set_win_condition	select	Win Condition	ours	Formats dialog
+format	set_number_laps_win	input:number	Number of Laps to Win	ours	Formats dialog
+format	set_points_method	select	Points Assignment	ours	Formats dialog
+format	set_points_params	button		planned:T2	unlock raced entities; points settings dialog
+format	set_team_racing_mode	select	Team/Co-op Racing Mode	ours	Formats dialog
+format	backup_database	button		ours	Event page, Archive now
+format	importer_list	select	Importer	planned:T6	data import/export
+format	import_file	input:file	Data Source	planned:T6	data import/export
+format	import_data	button		planned:T6	data import/export
+format	exporter_list	select	Exporter	planned:T6	data import/export
+format	export_database	button		planned:T6	data import/export
+run	set_voice_language	select	Voice Select	planned:T3	audio cues and their settings (#38)
+run	led-effects-select	select		planned:T6	unassigned (review)
+run	set_led_color	button	LED Color	planned:T6	unassigned (review)
+run	use-led-effect	button		planned:T6	unassigned (review)
+run	callout_text_	input:text	Callout	planned:T3	audio cues and their settings (#38)
+run	play_callout_	button		planned:T3	audio cues and their settings (#38)
+run	del-callout-action_	button		planned:T3	audio cues and their settings (#38)
+run	set_current_heat	select	Current Heat	ours	Run page
+run	start_race	button		ours	Run page Start
+run	stop_race	button		ours	Run page Stop
+run	save_laps	button		ours	Run page Save
+run	discard_laps	button		ours	Run page Discard
+run	set_race_format	select	Race Format	ours	Formats page
+run	schedule_m	input:number	Minutes	planned:T3	format override and scheduled start on Run
+run	schedule_s	input:number	Seconds	planned:T3	format override and scheduled start on Run
+run	schedule_race	button		planned:T3	format override and scheduled start on Run
+run	cancel_schedule_race	button		planned:T3	format override and scheduled start on Run
+run	set_profile	select	Profile	ours	Seats page, profile bar
+run	set_min_lap	input:number	Minimum Lap Time	planned:T2	Event page lap-detection options (#35)
+run	set_min_lap_behavior	select	Minimum Lap Behavior	planned:T2	Event page lap-detection options (#35)
+run	set_min_first_crossing	input:number	Ignore Crossings Before	planned:T2	Event page lap-detection options (#35)
+run	heat_coop_num_laps_id	input:number	Co-op Best # of Laps	planned:T6	co-op racing
+run	heat_coop_best_time_id	input:text	Co-op Best Time	planned:T6	co-op racing
+run	message_body	input:text	Message Body	planned:T3	priority messages from the Run page
+run	message_interrupt	input:checkbox		planned:T3	priority messages from the Run page
+run	send_message	button		planned:T3	priority messages from the Run page
+run	set_voice_string_language	select	Voice Language	planned:T3	audio cues and their settings (#38)
+run	voice_callsign	select	Pilot Callsign	planned:T3	audio cues and their settings (#38)
+run	voice_lap_count	select	Pilot Lap Number	planned:T3	audio cues and their settings (#38)
+run	voice_lap_time	select	Pilot Lap Time	planned:T3	audio cues and their settings (#38)
+run	voice_race_timer	select	Race Clock	planned:T3	audio cues and their settings (#38)
+run	voice_team_lap_count	select	Team/Co-op Lap Total	planned:T3	audio cues and their settings (#38)
+run	voice_race_winner	select	Race Winner	planned:T3	audio cues and their settings (#38)
+run	voice_if_node_finished	select	Laps After Pilot Done	planned:T3	audio cues and their settings (#38)
+run	voice_split_timer	select	Secondary/Split Timer	planned:T3	audio cues and their settings (#38)
+run	voice_race_leader	select	Race Leader Pilot	planned:T3	audio cues and their settings (#38)
+run	set_voice_volume	input:range	Voice Volume	planned:T3	audio cues and their settings (#38)
+run	set_voice_rate	input:range	Voice Rate	planned:T3	audio cues and their settings (#38)
+run	set_voice_pitch	input:range	Voice Pitch	planned:T3	audio cues and their settings (#38)
+run	set_tone_volume	input:range	Tone Volume	planned:T3	audio cues and their settings (#38)
+run	beep_on_first_pass_button	input:checkbox		planned:T3	audio cues and their settings (#38)
+run	beep_crossing_entered	input:checkbox		planned:T3	audio cues and their settings (#38)
+run	beep_crossing_exited	input:checkbox		planned:T3	audio cues and their settings (#38)
+run	beep_manual_lap_button	input:checkbox		planned:T3	audio cues and their settings (#38)
+run	beep_race_leader_lap	input:checkbox		planned:T3	audio cues and their settings (#38)
+run	beep_race_winner_declared	input:checkbox		planned:T3	audio cues and their settings (#38)
+run	beep_cluster_connect	input:checkbox		planned:T3	audio cues and their settings (#38)
+run	use_mp3_tones	input:checkbox		planned:T3	audio cues and their settings (#38)
+run	set_indicator_volume	input:range	Indicator Beeps Volume	planned:T3	audio cues and their settings (#38)
+run	export_audio_settings	button		planned:T3	audio cues and their settings (#38)
+run	select_audio_import_file	input:file	Select File to Import	planned:T3	audio cues and their settings (#38)
+run	import_audio_settings	button		planned:T3	audio cues and their settings (#38)
+run	default_audio_settings	button		planned:T3	audio cues and their settings (#38)
+run	display_lap_id	input:checkbox		planned:T3	Run page display preferences; may become rh-only (browser-local)
+run	display_time_start	input:checkbox		planned:T3	Run page display preferences; may become rh-only (browser-local)
+run	display_time_first_pass	input:checkbox		planned:T3	Run page display preferences; may become rh-only (browser-local)
+run	display_laps_reversed	input:checkbox		planned:T3	Run page display preferences; may become rh-only (browser-local)
+run	hide_graphs	input:checkbox		planned:T3	Run page display preferences; may become rh-only (browser-local)
+run	set_led_brightness	input:range	LED Brightness	planned:T6	unassigned (review)
+run	add_callout	button		planned:T3	audio cues and their settings (#38)
+run	audio-unlock	button		planned:T3	audio cues and their settings (#38)
+run	m-enterat	input:number		ours	Marshal page thresholds
+run	m-exitat	input:number		ours	Marshal page thresholds
+run	m-load-transitions	button		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
+run	m-save-transitions	button		ours	Marshal page, Apply to seat
+run	m-manual-lap-time	input:number		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
+run	m-add-lap	button		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
+run	m-clean-laps	button		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
+run	m-save-laps	button		ours	Marshal page, Save laps
+run	m-discard-laps	button		ours	Run page Discard
+marshal	selected_heat	select	Heat	ours	Marshal page, Race
+marshal	selected_round	select	Round	ours	Marshal page, Race
+marshal	selected_pilot	select	Pilot	ours	Marshal page, Pilot
+marshal	enterat	input:number	EnterAt	ours	Marshal page thresholds
+marshal	exitat	input:number	ExitAt	ours	Marshal page thresholds
+marshal	load-transitions	button		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
+marshal	save-transitions	button		ours	Marshal page, Apply to seat
+marshal	manual-lap-time	input:number	Manual Lap Time	planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
+marshal	add-lap	button		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
+marshal	clean-laps	button		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
+marshal	reassign-heat-selector	select		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
+marshal	reassign-heat	button		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
+marshal	save-laps	button		ours	Marshal page, Save laps
+marshal	discard-laps	button		ours	Marshal page

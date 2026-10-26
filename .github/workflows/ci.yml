@@ -24,6 +24,8 @@ jobs:
       - run: make check
       - run: make test
       - run: make zip
+      # The rule (#28): every control on RotorHazard's admin pages is classified in rh-coverage.tsv.
+      - run: make coverage
       # Browser e2e against the rig (T1, #29): RotorHazard 4.4.0 with mock nodes in Docker.
       - run: make rig-up
       - run: make e2e-install
