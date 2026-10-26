@@ -57,6 +57,22 @@ export class RhPages {
     return this.inputValues('input.set_heat_name', true);
   }
 
+  /** Format names in the Race Formats panel's selector. */
+  async formatNames(): Promise<string[]> {
+    await this.openPanel('/format', 'Race Formats');
+    const options = this.page.locator('#set_race_format option');
+    await expect(options.first()).toBeAttached();
+    // The selector holds a "Loading..." placeholder until format_data arrives.
+    await expect(options.first()).not.toHaveText('Loading...');
+    return options.evaluateAll((els) => els.map((e) => e.textContent?.trim() ?? ''));
+  }
+
+  /** The event name as RotorHazard's Event page renders it (server side, from the option). */
+  async eventName(): Promise<string> {
+    await this.page.goto('/event');
+    return (await this.page.locator('main h2').first().textContent())?.trim() ?? '';
+  }
+
   /** Expect RotorHazard's Results page to mention `text` somewhere (collapsed rounds included). */
   async expectResultsToMention(text: string): Promise<void> {
     await this.page.goto('/results');

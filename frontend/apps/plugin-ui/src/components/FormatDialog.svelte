@@ -56,8 +56,15 @@
       points: x.pointsMethod ?? ''
     };
   }
+  // Reset the form when the dialog opens or is pointed at another format — not on every
+  // readback of the same format, or a late `format_data` would wipe what is being typed.
+  let formFor = untrack(() => (open ? format.id : null));
   $effect(() => {
-    if (open) f = fromFormat(format);
+    const id = open ? format.id : null;
+    if (id !== formFor) {
+      formFor = id;
+      if (id != null) f = fromFormat(format);
+    }
   });
 
   const raceTimeSec = $derived(

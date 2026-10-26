@@ -154,6 +154,24 @@ export class Rig {
     });
   }
 
+  /** Resolve on the next broadcast of `event` (RotorHazard emits data events after writes). */
+  next<T = unknown>(event: string, timeoutMs = 10_000): Promise<T> {
+    const socket = this.socket;
+    if (!socket) throw new Error('rig: not connected');
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        socket.off(event, handler);
+        reject(new Error(`rig: no ${event} within ${timeoutMs}ms`));
+      }, timeoutMs);
+      const handler = (payload: T) => {
+        clearTimeout(timer);
+        socket.off(event, handler);
+        resolve(payload);
+      };
+      socket.on(event, handler);
+    });
+  }
+
   // ---- readback -----------------------------------------------------------------------
 
   async api<T>(path: string): Promise<T> {
@@ -193,6 +211,35 @@ export class Rig {
 
   async status(): Promise<Status> {
     return (await this.api<{ status: { state: Status } }>('/api/status')).status.state;
+  }
+
+  /** Seat frequencies of the active profile, from RotorHazard's `frequency_data`. */
+  async frequencies(): Promise<
+    Array<{ band: string | null; channel: number | null; frequency: number }>
+  > {
+    return (
+      await this.loadData<{
+        fdata: Array<{ band: string | null; channel: number | null; frequency: number }>;
+      }>('frequency_data')
+    ).fdata;
+  }
+
+  async options(): Promise<Record<string, string | null>> {
+    return (await this.api<{ options: Record<string, string | null> }>('/api/options')).options;
+  }
+
+  async formats(): Promise<Array<{ id: number; name: string }>> {
+    return (await this.api<{ formats: Array<{ id: number; name: string }> }>('/api/format/all'))
+      .formats;
+  }
+
+  /** Set one of RotorHazard's options (`set_option`) and wait until the API shows it. */
+  async setOption(option: string, value: string): Promise<void> {
+    this.emit('set_option', { option, value });
+    await this.until(
+      `option ${option} = ${value}`,
+      async () => (await this.options())[option] === value
+    );
   }
 
   async heatData(): Promise<HeatData[]> {
@@ -237,6 +284,25 @@ export class Rig {
       if (kind !== 'races' && heats.length) return false;
       if ((kind === 'pilots' || kind === 'all') && pilots.length) return false;
       return true;
+    });
+    if (kind === 'all') {
+      // Formats and options survive 'all'; a spec must not inherit the last run's.
+      await this.resetFormats();
+      await this.setOption('eventName', 'E2E event');
+    }
+  }
+
+  /**
+   * `reset_database formats`: back to RotorHazard's defaults. The ids are reissued from 1,
+   * so they are no readback; RotorHazard broadcasts `format_data` when the reset is done.
+   */
+  async resetFormats(): Promise<void> {
+    const done = this.next('format_data');
+    this.emit('reset_database', { reset_type: 'formats', with_archive: false });
+    await done;
+    await this.until('default formats', async () => {
+      const now = await this.formats();
+      return now.length > 0 && !now.some((f) => /E2E|\(copy\)/.test(f.name));
     });
   }
 
