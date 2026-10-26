@@ -20,3 +20,7 @@ __pycache__/
 
 # Claude Code local state
 .claude/
+
+# Playwright (frontend/e2e)
+/frontend/e2e/test-results/
+/frontend/e2e/playwright-report/

@@ -18,7 +18,7 @@ PY          := $(VENV)/bin/python
 COMPOSE     := docker compose -f dev/docker-compose.yml
 
 .PHONY: help setup build check lint format test py-test zip zip-overlay deploy deploy-overlay clean ci \
-        rig-up rig-down rig-restart rig-logs dev
+        rig-up rig-down rig-restart rig-logs dev e2e e2e-install e2e-docker
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
@@ -51,6 +51,17 @@ test: py-test ## Frontend + plugin tests
 
 py-test: $(VENV)/.ok ## Plugin tests only (needs python3-venv; or use py-test-rig)
 	$(PY) -m unittest discover -s plugin/tests -v
+
+e2e: build ## Browser e2e against the rig (`make rig-up` first; RH_URL=… to point elsewhere)
+	cd frontend && npm run e2e
+
+e2e-install: ## Install Playwright's Chromium (once per machine; CI does this)
+	cd frontend && npx playwright install --with-deps chromium
+
+PW_IMAGE := mcr.microsoft.com/playwright:v1.64.1-noble
+e2e-docker: build ## Same suite, browser from the Playwright image (for a box without Chromium's libraries)
+	docker run --rm --network host --user $$(id -u):$$(id -g) -e HOME=/tmp -e CI="$$CI" -e RH_URL="$${RH_URL:-http://localhost:5050}" \
+	  -v "$$(pwd)/frontend:/work" -w /work/e2e $(PW_IMAGE) npx playwright test $(E2E_ARGS)
 
 py-test-rig: ## Plugin tests inside the running rig (RotorHazard's own Python + Flask)
 	docker exec gridfpv-rh-dev rm -rf /tmp/gridfpv-tests
@@ -91,7 +102,7 @@ dev/plugins/multigp_toolkit/manifest.json: ## Fetch the MultiGP Toolkit release 
 rig-multigp: dev/plugins/multigp_toolkit/manifest.json ## Ensure the MultiGP Toolkit is fetched for the rig
 
 rig-up: dev/plugins/multigp_toolkit/manifest.json ## Start RotorHazard 4.4.0 (mock nodes) on :5050 with the plugins mounted
-	$(COMPOSE) up -d --build
+	$(COMPOSE) up -d --build --wait
 	@echo "RotorHazard: http://localhost:$${RH_PORT:-5050}   GridFPV: http://localhost:$${RH_PORT:-5050}/grid   (admin / rotorhazard)"
 
 rig-down: ## Stop the rig
