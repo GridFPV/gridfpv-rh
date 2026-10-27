@@ -20,7 +20,7 @@ RH_VERSION  ?= 4.4.0
 RH_SRC      := dev/rh-src/$(RH_VERSION)
 
 .PHONY: help setup build check lint format test py-test zip zip-overlay deploy deploy-overlay clean ci \
-        rig-up rig-down rig-restart rig-logs dev e2e e2e-install e2e-docker coverage coverage-scrape rig-main-up rig-main-down
+        rig-up rig-down rig-restart rig-logs dev e2e e2e-install e2e-docker coverage coverage-scrape rig-main-up rig-main-down e2e-main
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
@@ -54,8 +54,8 @@ test: py-test ## Frontend + plugin tests
 py-test: $(VENV)/.ok ## Plugin tests only (needs python3-venv; or use py-test-rig)
 	$(PY) -m unittest discover -s plugin/tests -v
 
-e2e: build ## Browser e2e against the rig (`make rig-up` first; RH_URL=… to point elsewhere)
-	cd frontend && npm run e2e
+e2e: build ## Browser e2e against the rig (`make rig-up` first; RH_URL=… to point elsewhere; E2E_ARGS=… for playwright)
+	cd frontend && npm run e2e -- $(E2E_ARGS)
 
 e2e-install: ## Install Playwright's Chromium (once per machine; CI does this)
 	cd frontend && npx playwright install --with-deps chromium
@@ -135,7 +135,20 @@ rig-main-up: ## A second rig from RotorHazard *main* on :$(RH_MAIN_PORT) (#34; s
 	  -v "$$(pwd)/$(PLUGIN_DIR):/opt/RotorHazard/src/server/plugins/gridfpv:ro" \
 	  -v "$$(pwd)/dev/plugins/gridfpv_mock:/opt/RotorHazard/src/server/plugins/gridfpv_mock:ro" \
 	  gridfpv-rotorhazard:main
-	@echo "RotorHazard main: http://localhost:$(RH_MAIN_PORT)   e2e: RH_URL=http://localhost:$(RH_MAIN_PORT) make e2e-docker"
+	@for i in $$(seq 1 30); do curl -fsS -o /dev/null http://localhost:$(RH_MAIN_PORT)/ 2>/dev/null && break; sleep 5; done; \
+	  curl -fsS -o /dev/null http://localhost:$(RH_MAIN_PORT)/ || { docker logs gridfpv-rh-main | tail -50; exit 1; }
+	@echo "RotorHazard main: http://localhost:$(RH_MAIN_PORT)   e2e: RH_URL=http://localhost:$(RH_MAIN_PORT) make e2e-main"
+
+# The two layers of the suite against main (#34). The rig layer (socket.io from Node, which
+# sends basic auth on the handshake) must pass; the UI layer (writes from the browser) stays
+# red until T8's socket-session fix, so it runs short and never gates. Each writes one line
+# to $(E2E_SUMMARY) (CI points it at the job summary).
+E2E_SUMMARY ?= /dev/stdout
+e2e-main: build ## Both layers against the main rig; a PASS/FAIL line per layer (rig layer is the exit status)
+	@rig=PASS; RH_URL=http://localhost:$(RH_MAIN_PORT) $(MAKE) --no-print-directory e2e E2E_ARGS="race-loop" || rig=FAIL; \
+	 ui=PASS; RH_URL=http://localhost:$(RH_MAIN_PORT) $(MAKE) --no-print-directory e2e E2E_ARGS="--grep-invert rig-driven --retries=0 --timeout=20000" || ui=FAIL; \
+	 { echo "RotorHazard main rig layer: $$rig"; echo "RotorHazard main UI layer: $$ui (expected FAIL until T8, #34)"; } | tee -a $(E2E_SUMMARY); \
+	 [ "$$rig" = PASS ]
 
 rig-main-down: ## Stop the main rig
 	-docker rm -f gridfpv-rh-main

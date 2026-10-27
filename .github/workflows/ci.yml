@@ -43,3 +43,33 @@ jobs:
         with:
           name: gridfpv-plugin
           path: dist/*.zip
+
+  # RotorHazard main (#34): informational, never the gate. The rig layer must pass; the UI
+  # layer is expected red until T8's socket-session fix. The job summary says which passed.
+  rh-main:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: make setup
+      - run: make build
+      - run: make rig-main-up
+      - run: make e2e-install
+      - run: make e2e-main E2E_SUMMARY="$GITHUB_STEP_SUMMARY"
+      - if: failure()
+        run: docker logs gridfpv-rh-main 2>&1 | tail -200
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-rh-main
+          path: |
+            frontend/e2e/playwright-report
+            frontend/e2e/test-results
