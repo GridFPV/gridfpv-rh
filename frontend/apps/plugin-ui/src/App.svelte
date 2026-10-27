@@ -13,6 +13,7 @@
   import Formats from './screens/Formats.svelte';
   import Run from './screens/Run.svelte';
   import Marshal from './screens/Marshal.svelte';
+  import Results from './screens/Results.svelte';
   import Overlays from './screens/Overlays.svelte';
   import RaceOverlay from './screens/RaceOverlay.svelte';
   import Help from './screens/Help.svelte';
@@ -109,6 +110,8 @@
         <Run />
       {:else if current === 'marshal'}
         <Marshal />
+      {:else if current === 'results'}
+        <Results />
       {:else if current === 'overlays'}
         <Overlays />
       {:else if current === 'help' || current.startsWith('help/')}

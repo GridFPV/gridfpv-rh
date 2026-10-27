@@ -45,6 +45,8 @@
       <a href={href('formats')} onclick={link}>Formats</a> — how a race is run.
       <a href={href('run')} onclick={link}>Run</a> — race day: start, stop, save, seed as you go.
       <a href={href('marshal')} onclick={link}>Marshal</a> — fix laps on the signal trace.
+      <a href={href('results')} onclick={link}>Results</a> — every board RotorHazard's Results page
+      shows.
       <a href={href('overlays')} onclick={link}>Overlays</a> — the OBS pages and their URLs. These
       need the RotorHazard login. RotorHazard's own pages are still at <a href="/">/</a>.
     </p>

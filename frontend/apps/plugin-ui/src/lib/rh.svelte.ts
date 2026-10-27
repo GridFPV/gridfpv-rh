@@ -33,6 +33,7 @@ import {
   type Setup
 } from './setup.js';
 import { applyResultData, emptyResults, type Results } from './results.js';
+import { applyResultBoards, type ResultBoards } from './resultBoards.js';
 import { planSize, type BracketPlan } from './bracket.js';
 import {
   addSyncSample,
@@ -120,6 +121,8 @@ const state = $state({
   setup: emptySetup() as Setup,
   /** Saved races and class standings (RotorHazard's result_data). */
   results: emptyResults() as Results,
+  /** RotorHazard's Results page, whole (result_data as boards). */
+  boards: { classes: [], unclassified: [], event: null } as ResultBoards,
   /** The roster (#14): pilots kept across events by the plugin, flagged if in this event. */
   roster: [] as RosterPilot[],
   rosterPath: '',
@@ -432,6 +435,7 @@ export function connect(): Socket {
   });
   socket.on('result_data', (p: Parameters<typeof applyResultData>[0]) => {
     state.results = applyResultData(p);
+    state.boards = applyResultBoards(p as Parameters<typeof applyResultBoards>[0]);
     state.resultsVersion++;
     checkWaiters();
   });

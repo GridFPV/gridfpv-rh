@@ -9,5 +9,6 @@ export const SCREENS: Array<{ path: string; label: string; help: string }> = [
   { path: 'formats', label: 'Formats', help: 'formats' },
   { path: 'run', label: 'Run', help: 'run' },
   { path: 'marshal', label: 'Marshal', help: 'marshal' },
+  { path: 'results', label: 'Results', help: 'results' },
   { path: 'overlays', label: 'Overlays', help: 'overlays' }
 ];
