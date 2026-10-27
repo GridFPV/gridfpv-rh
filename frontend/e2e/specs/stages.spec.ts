@@ -356,7 +356,8 @@ test.describe('Stages', () => {
     const cls = (await rig.classes()).find((c) => c.name === 'E2E Grouped Empty')!;
     const data = async () => (await rig.classData()).find((c) => c.id === cls.id)!;
     // RotorHazard agrees: grouped, 2 rounds, and one heat (it cannot hold an empty grouped stage).
-    expect(Number((await data()).round_type)).toBe(1);
+    // The heading shows as soon as the class exists; the round type is the last write, so wait.
+    await rig.until('grouped', async () => Number((await data()).round_type) === 1);
     expect(Number((await data()).rounds)).toBe(2);
     const heats = (await rig.heats()).filter((h) => h.class_id === cls.id);
     expect(heats).toHaveLength(1);
@@ -378,6 +379,8 @@ test.describe('Stages', () => {
     await rounds.fill('3');
     await rounds.press('Tab');
     await expect(page.getByText(/Add a heat first/)).toBeVisible();
+    // The input shows RotorHazard's value again, not the refused one (#78).
+    await expect(rounds).toHaveValue('2');
     expect(Number((await data()).rounds)).toBe(2);
     // RotorHazard agrees: nothing it logged was an exception. The same write sent raw, past
     // Grid's refusal, is the exception the counter exists for (RotorHazard 4.4.0's

@@ -78,6 +78,10 @@ page (RotorHazard's own included) with ▶, kept on the timer; **Add callout** a
 
 ## Messages
 
-A message sent from RotorHazard shows as a banner. A plain one goes by itself after about
+Type a line under the sound row and press **Send message**: every connected page shows
+it, RotorHazard's own included, as RotorHazard's Send Message panel does. Tick **Pop-up
+alert** for one that stays until dismissed.
+
+A message sent from RotorHazard, or from here, shows as a banner. A plain one goes by itself after about
 8 seconds; one marked "interrupt" stays until you dismiss it. Either goes when another heat
 is picked or a new race is staged.

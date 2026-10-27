@@ -1694,6 +1694,19 @@ export function playCallout(text: string): Promise<WriteResult> {
   });
 }
 
+/**
+ * RotorHazard's "Send Message" (its Run page panel): a priority message to every connected
+ * page, ours included, which is the readback; "Pop-up alert" is its interrupt flag.
+ */
+export function sendMessage(text: string, interrupt: boolean): Promise<WriteResult> {
+  socket?.emit('broadcast_message', { message: text, interrupt });
+  return awaitState(
+    'Send message',
+    () =>
+      state.message != null && state.message.text === text && state.message.interrupt === interrupt
+  );
+}
+
 /** RotorHazard's "Schedule Race": the timer stages the race itself in m:ss from now. */
 export function scheduleRace(minutes: number, seconds: number): Promise<WriteResult> {
   socket?.emit('schedule_race', { m: minutes, s: seconds });

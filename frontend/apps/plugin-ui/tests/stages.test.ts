@@ -130,6 +130,10 @@ describe('nextUpText: what RotorHazard loaded after a save', () => {
   it('says again, another heat, the grouped round, or nothing', () => {
     expect(nextUpText(setup, 1, { heatId: 1, nextRound: 2 })).toBe('Next: H1 again, round 2 of 2.');
     expect(nextUpText(setup, 1, { heatId: 2, nextRound: 1 })).toBe('Next: H2, round 1 of 2.');
+    // Raced past its rounds with advance "none": an extra round, not "round 3 of 2" (QA nit).
+    expect(nextUpText(setup, 1, { heatId: 1, nextRound: 3 })).toBe(
+      'Next: H1 again, extra round 3.'
+    );
     expect(nextUpText(setup, 3, { heatId: 3, nextRound: 1 })).toBe(
       'Next: Main A in Round 2 of Mains.'
     );

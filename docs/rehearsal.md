@@ -121,6 +121,8 @@ save, next heat as the board says) is written at the end of the tier.
       start: after a race the chips come newest first with "@m:ss.sss"; RotorHazard's Run
       page shows the same preferences ticked. Add a callout "Pilots to the line", press ▶:
       every page speaks it; RotorHazard's Callouts panel lists it after a reload.
+- [ ] **Send message.** Type "Pilots to the line" and Send message: the banner shows here and
+      on RotorHazard's Run page; with Pop-up alert ticked it stays until dismissed on both.
 
 ## T4 — Marshal and Results parity
 

@@ -211,6 +211,28 @@ test.describe('Run', () => {
     expect(await rig.callouts()).toEqual(['Pilots to the line']);
   });
 
+  test("a message sent from Run reaches every page as RotorHazard's priority message", async ({
+    page,
+    rig
+  }) => {
+    await page.goto('/grid/run');
+    const plain = rig.next<{ message: string; interrupt?: boolean }>('priority_message', 10_000);
+    await page.getByLabel('Message to every page').fill('Pilots to the line');
+    await page.getByRole('button', { name: 'Send message' }).click();
+    // Our own banner shows it (RotorHazard broadcasts to the sender too) …
+    await expect(page.getByRole('status').filter({ hasText: 'Pilots to the line' })).toBeVisible();
+    // … and RotorHazard agrees: the broadcast carried that text, not an interrupt.
+    expect(await plain).toMatchObject({ message: 'Pilots to the line', interrupt: false });
+    await expect(page.getByLabel('Message to every page')).toHaveValue('');
+
+    const alert = rig.next<{ message: string; interrupt?: boolean }>('priority_message', 10_000);
+    await page.getByLabel('Message to every page').fill('Red flag');
+    await page.getByLabel('Pop-up alert').check();
+    await page.getByRole('button', { name: 'Send message' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'Red flag' })).toBeVisible();
+    expect(await alert).toMatchObject({ message: 'Red flag', interrupt: true });
+  });
+
   test("RotorHazard's messages: a plain one fades after 8 s, an interrupt stays until dismissed or the heat changes (#71)", async ({
     page,
     rig

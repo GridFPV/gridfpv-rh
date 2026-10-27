@@ -58,7 +58,8 @@
     scheduleRace,
     setRaceFormat,
     playCallout,
-    saveCallouts
+    saveCallouts,
+    sendMessage
   } from '../lib/rh.svelte.js';
   import {
     clockView,
@@ -323,6 +324,15 @@
   let editFormat: RaceFormat | null = $state(null);
   /** RotorHazard's Audio Control panel, as a dialog from the header. */
   let soundOpen = $state(false);
+  // RotorHazard's Send Message panel: a priority message to every page.
+  let messageText = $state('');
+  let messageInterrupt = $state(false);
+  async function send() {
+    const text = messageText.trim();
+    if (!text) return;
+    await run(() => sendMessage(text, messageInterrupt), 'Message sent to every page.');
+    if (timer.message?.text === text) messageText = '';
+  }
   /** RotorHazard's Display Settings (per browser, its rotorhazard.display_* keys). */
   let prefs: DisplayPrefs = $state(readDisplayPrefs(safeStorage()));
   function safeStorage(): Storage | null {
@@ -376,6 +386,29 @@
     <button type="button" class="linkish" onclick={() => (soundOpen = true)}>Sound settings…</button
     >
   </p>
+  <form
+    class="message"
+    aria-label="Send message"
+    onsubmit={(e) => {
+      e.preventDefault();
+      void send();
+    }}
+  >
+    <Input
+      size="sm"
+      maxlength={256}
+      placeholder="Message to every page, RotorHazard's included"
+      aria-label="Message to every page"
+      bind:value={messageText}
+      disabled={busy}
+    />
+    <label class="check"
+      ><input type="checkbox" bind:checked={messageInterrupt} disabled={busy} /> Pop-up alert</label
+    >
+    <Button size="sm" variant="secondary" type="submit" disabled={busy || !messageText.trim()}
+      >Send message</Button
+    >
+  </form>
   {#if offSeat.length && status === RACE_STATUS.READY}
     <Banner tone="warn">
       {#each offSeat as w (w.seat)}<span class="offline">{w.text}</span>{/each}
@@ -843,6 +876,16 @@
     margin-left: var(--gf-space-1);
     color: var(--gf-text-muted);
     font-size: var(--gf-font-size-xs);
+  }
+  .message {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gf-space-1) var(--gf-space-2);
+    align-items: center;
+    margin-bottom: var(--gf-space-2);
+  }
+  .message :global(.gf-input) {
+    flex: 1 1 16rem;
   }
   .soundrow {
     margin: 0;

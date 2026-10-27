@@ -184,9 +184,9 @@ run	set_min_lap_behavior	select	Minimum Lap Behavior	ours	Event page, Scoring an
 run	set_min_first_crossing	input:number	Ignore Crossings Before	ours	Event page, Scoring and Lap detection cards (#35)
 run	heat_coop_num_laps_id	input:number	Co-op Best # of Laps	planned:T6	co-op racing; ours in T6, lowest priority (off the race-day critical path)
 run	heat_coop_best_time_id	input:text	Co-op Best Time	planned:T6	co-op racing; ours in T6, lowest priority (off the race-day critical path)
-run	message_body	input:text	Message Body	planned:T3	priority messages from the Run page
-run	message_interrupt	input:checkbox		planned:T3	priority messages from the Run page
-run	send_message	button		planned:T3	priority messages from the Run page
+run	message_body	input:text	Message Body	ours	Run page, Send message form (broadcast_message; our own banner is the readback)
+run	message_interrupt	input:checkbox		ours	Run page, Send message form (broadcast_message; our own banner is the readback)
+run	send_message	button		ours	Run page, Send message form (broadcast_message; our own banner is the readback)
 run	set_voice_string_language	select	Voice Language	ours	Run page, Sound settings dialog (RotorHazard Audio Control panel; the same rotorhazard.* keys)
 run	voice_callsign	select	Pilot Callsign	ours	Run page, Sound settings dialog (RotorHazard Audio Control panel; the same rotorhazard.* keys)
 run	voice_lap_count	select	Pilot Lap Number	ours	Run page, Sound settings dialog (RotorHazard Audio Control panel; the same rotorhazard.* keys)

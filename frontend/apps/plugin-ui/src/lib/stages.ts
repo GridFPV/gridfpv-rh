@@ -365,9 +365,13 @@ export function nextUpText(
   if (cls && cls.roundType === ROUND_TYPE.GROUPED)
     return `Next: ${heatShortName(heat)} in Round ${(heat.groupId ?? 0) + 1} of ${cls.displayName}.`;
   const round = current.nextRound || 1;
-  const of = cls && cls.rounds > 0 ? ` of ${cls.rounds}` : '';
-  if (heat.id === lastHeatId) return `Next: ${heat.displayName} again, round ${round}${of}.`;
-  return `Next: ${heat.displayName}, round ${round}${of}.`;
+  // Past the stage's rounds (advance "none" keeps the heat loaded): an extra round, as
+  // RotorHazard counts it, never "round 3 of 2".
+  const extra = cls && cls.rounds > 0 && round > cls.rounds;
+  const of = cls && cls.rounds > 0 && !extra ? ` of ${cls.rounds}` : '';
+  const which = extra ? `extra round ${round}` : `round ${round}${of}`;
+  if (heat.id === lastHeatId) return `Next: ${heat.displayName} again, ${which}.`;
+  return `Next: ${heat.displayName}, ${which}.`;
 }
 
 /** One alter_race_class write and what the readback must show afterwards. */

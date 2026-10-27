@@ -550,12 +550,13 @@
               max="99"
               disabled={busy || c.rounds === 0}
               aria-label="Rounds"
-              onchange={(e: Event) =>
-                run(() =>
-                  alterClass(c.id, {
-                    rounds: Math.max(1, Number((e.currentTarget as HTMLInputElement).value) || 1)
-                  })
-                )}
+              onchange={async (e: Event) => {
+                const el = e.currentTarget as HTMLInputElement;
+                await run(() => alterClass(c.id, { rounds: Math.max(1, Number(el.value) || 1) }));
+                // Refused or not confirmed: show RotorHazard's value again, not the typed one (#78).
+                const now = setup.classes.find((x) => x.id === c.id);
+                el.value = now && now.rounds > 0 ? String(now.rounds) : '';
+              }}
             />
             <label class="check">
               <input

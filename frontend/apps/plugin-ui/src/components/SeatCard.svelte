@@ -69,8 +69,26 @@
    * never disabled during a write — tabbing from enter to exit would otherwise lose keystrokes.
    */
   let queued = false;
-  async function commitLevels() {
-    if (!levelsDirty || !levelsValid) return;
+  function revertLevels() {
+    enter = seat.enter == null ? '' : String(seat.enter);
+    exit = seat.exit == null ? '' : String(seat.exit);
+  }
+  async function commitLevels(e?: FocusEvent) {
+    if (!levelsDirty) return;
+    if (!levelsValid) {
+      // Still inside the pair (enter → exit by Tab): wait for the other field.
+      const next = e?.relatedTarget as HTMLElement | null;
+      if (next && next.closest('.levels') === (e?.currentTarget as HTMLElement)?.closest('.levels'))
+        return;
+      // Leaving with a pair RotorHazard would not take: say so and show its values again (#77).
+      onresult({
+        ok: false,
+        message:
+          "Not written: Exit must be above 0 and below Enter. Values are RotorHazard's again."
+      });
+      revertLevels();
+      return;
+    }
     if (busy) {
       queued = true;
       return;
@@ -126,7 +144,7 @@
     </div>
   </div>
 
-  <div class="row">
+  <div class="row levels">
     <label class="field narrow">
       <span>Enter</span>
       <Input
