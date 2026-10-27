@@ -41,17 +41,34 @@ test.describe('Event', () => {
       page.getByText('Laps under 5 s are discarded · crossings in the first 2 s ignored')
     ).toBeVisible();
 
-    // RotorHazard agrees: its socket answer, its options API, and its Format page's Event panel.
-    const m = await rig.minLap();
-    expect([Number(m.min_lap), Number(m.min_lap_behavior), Number(m.min_first_crossing)]).toEqual([
-      5, 1, 2
-    ]);
-    expect((await rig.options()).consecutivesCount).toBe('4');
-    expect(await rh.formatEventOptions()).toEqual({
-      consecutivesBase: '4',
-      minLap: '5',
-      minLapBehavior: '1',
-      minFirstCrossing: '2'
-    });
+    // RotorHazard agrees: its socket answer, its options API, and its Format page's Event
+    // panel. Each is polled for a few seconds: our notice fires on our readback, and
+    // RotorHazard's own write can land a beat after it.
+    await expect
+      .poll(
+        async () => {
+          const m = await rig.minLap();
+          return [Number(m.min_lap), Number(m.min_lap_behavior), Number(m.min_first_crossing)];
+        },
+        { message: 'RotorHazard min_lap answer', timeout: 5000 }
+      )
+      .toEqual([5, 1, 2]);
+    await expect
+      .poll(async () => (await rig.options()).consecutivesCount, {
+        message: 'RotorHazard /api/options consecutivesCount',
+        timeout: 5000
+      })
+      .toBe('4');
+    await expect
+      .poll(() => rh.formatEventOptions(), {
+        message: "RotorHazard Format page's Event panel",
+        timeout: 8000
+      })
+      .toEqual({
+        consecutivesBase: '4',
+        minLap: '5',
+        minLapBehavior: '1',
+        minFirstCrossing: '2'
+      });
   });
 });

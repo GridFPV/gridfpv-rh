@@ -7,7 +7,7 @@
   import { Badge, Banner, Button, Card } from '@gridfpv/components';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import FormatDialog from '../components/FormatDialog.svelte';
-  import { addFormat, alterFormat, deleteFormat, rh, type WriteResult } from '../lib/rh.svelte.js';
+  import { deleteFormat, rh, type WriteResult } from '../lib/rh.svelte.js';
   import {
     formatSummary,
     graceSummary,
@@ -35,29 +35,23 @@
   let editing: RaceFormat | null = $state(null);
   let editTitle = $state('Edit format');
   let removing: RaceFormat | null = $state(null);
-  const editingLive = $derived(
-    editing ? (timer.setup.formats.find((f) => f.id === editing!.id) ?? null) : null
-  );
+  /** A new format is a draft (id 0) copied from `createFrom`; nothing exists until Save (#42). */
+  let createFrom: number | null = $state(null);
+  const editingLive = $derived.by(() => {
+    const e = editing;
+    if (!e) return null;
+    return e.id === 0 ? e : (timer.setup.formats.find((f) => f.id === e.id) ?? null);
+  });
   $effect(() => {
-    if (editing && !timer.setup.formats.some((f) => f.id === editing!.id)) editing = null;
+    const e = editing;
+    if (e && e.id !== 0 && !timer.setup.formats.some((f) => f.id === e.id)) editing = null;
   });
 
-  /** New = copy the chosen format (RotorHazard's only way), name it, open it for editing. */
-  async function newFrom(source: RaceFormat) {
-    busy = true;
-    try {
-      const r = await addFormat(source.id);
-      if (!r.ok || r.id == null) {
-        onresult(r);
-        return;
-      }
-      const named = await alterFormat(r.id, { name: `${source.name} (copy)` });
-      if (!named.ok) onresult(named);
-      editTitle = 'New format';
-      editing = timer.setup.formats.find((f) => f.id === r.id) ?? null;
-    } finally {
-      busy = false;
-    }
+  /** New = a draft copied from the chosen format (RotorHazard creates formats by copying one). */
+  function newFrom(source: RaceFormat) {
+    editTitle = 'New format';
+    createFrom = source.id;
+    editing = { ...source, id: 0, name: `${source.name} (copy)`, locked: false };
   }
 
   async function remove(f: RaceFormat) {
@@ -76,8 +70,12 @@
     format={editingLive}
     pointsMethods={timer.pointsMethods}
     title={editTitle}
+    createFrom={editingLive.id === 0 ? createFrom : null}
     {onresult}
-    onclose={() => (editing = null)}
+    onclose={() => {
+      editing = null;
+      createFrom = null;
+    }}
   />
 {/if}
 

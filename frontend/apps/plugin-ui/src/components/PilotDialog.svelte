@@ -1,11 +1,18 @@
 <script lang="ts">
   /**
-   * Edit a pilot (or fill in a freshly added one): callsign, name, phonetic, team, colour,
+   * Edit a pilot, or create one from a draft (id 0): callsign, name, phonetic, team, colour,
    * and any attributes plugins registered (MultiGP id, …). Save writes each changed field
-   * with readback; nothing writes until Save.
+   * with readback; nothing writes until Save — for a draft, Save is what asks RotorHazard
+   * for the record (add_pilot) and fills it in, and a fill that fails deletes it again.
    */
   import { Button, Dialog, Input, Select } from '@gridfpv/components';
-  import { alterPilot, setPilotAttribute, type WriteResult } from '../lib/rh.svelte.js';
+  import {
+    addPilot,
+    alterPilot,
+    deletePilot,
+    setPilotAttribute,
+    type WriteResult
+  } from '../lib/rh.svelte.js';
   import type { AttributeType, Pilot } from '../lib/setup.js';
 
   let {
@@ -43,15 +50,20 @@
   }
   let busy = $state(false);
 
+  // Reset the form when the dialog opens or is pointed at another pilot — not on every
+  // readback (pilot_data re-sends the attribute types), or what is being typed is wiped.
+  let formFor: number | null = null;
   $effect(() => {
-    if (open) {
-      callsign = pilot.callsign;
-      name = pilot.name;
-      phonetic = pilot.phonetic;
-      team = pilot.team;
-      color = pilot.color || '#ffffff';
-      attrs = seed();
-    }
+    const id = open ? pilot.id : null;
+    if (id === formFor) return;
+    formFor = id;
+    if (id == null) return;
+    callsign = pilot.callsign;
+    name = pilot.name;
+    phonetic = pilot.phonetic;
+    team = pilot.team;
+    color = pilot.color || '#ffffff';
+    attrs = seed();
   });
 
   const dirty = $derived(
@@ -63,31 +75,58 @@
       attributeTypes.some((t) => (attrs[t.name] ?? '') !== String(pilot.attributes[t.name] ?? ''))
   );
 
+  const isDraft = $derived(pilot.id === 0);
+
   async function save() {
     if (!callsign.trim() || !dirty) return;
     busy = true;
     try {
+      let id = pilot.id;
       const fields: Parameters<typeof alterPilot>[1] = {};
-      if (callsign.trim() !== pilot.callsign) fields.callsign = callsign.trim();
-      if (name.trim() !== pilot.name) fields.name = name.trim();
-      if (phonetic.trim() !== pilot.phonetic) fields.phonetic = phonetic.trim();
-      if (team.trim() !== pilot.team) fields.team = team.trim();
-      if (color.toLowerCase() !== (pilot.color || '').toLowerCase()) fields.color = color;
-      if (Object.keys(fields).length) {
-        const r = await alterPilot(pilot.id, fields);
-        if (!r.ok) {
-          onresult(r);
+      // What was typed, taken now: a readback during the awaits below must not change it.
+      const typed = {
+        callsign: callsign.trim(),
+        name: name.trim(),
+        phonetic: phonetic.trim(),
+        team: team.trim(),
+        color
+      };
+      const typedAttrs = { ...attrs };
+      if (isDraft) {
+        const made = await addPilot();
+        if (!made.ok || made.id == null) {
+          onresult(made);
           return;
         }
+        id = made.id;
+        // RotorHazard's placeholder is "~Callsign N" / "~Pilot N Name": every field is ours.
+        fields.callsign = typed.callsign;
+        fields.name = typed.name || typed.callsign;
+        if (typed.phonetic) fields.phonetic = typed.phonetic;
+        if (typed.team) fields.team = typed.team;
+        // RotorHazard picks a colour for a new pilot; only a colour the director chose is sent.
+        if (typed.color.toLowerCase() !== '#ffffff') fields.color = typed.color;
+      } else {
+        if (callsign.trim() !== pilot.callsign) fields.callsign = callsign.trim();
+        if (name.trim() !== pilot.name) fields.name = name.trim();
+        if (phonetic.trim() !== pilot.phonetic) fields.phonetic = phonetic.trim();
+        if (team.trim() !== pilot.team) fields.team = team.trim();
+        if (color.toLowerCase() !== (pilot.color || '').toLowerCase()) fields.color = color;
+      }
+      const fail = async (r: WriteResult) => {
+        // A draft that RotorHazard would not fill in must not stay as a placeholder.
+        if (isDraft) await deletePilot(id);
+        onresult(r);
+      };
+      if (Object.keys(fields).length) {
+        const r = await alterPilot(id, fields);
+        if (!r.ok) return fail(r);
       }
       for (const t of attributeTypes) {
-        const v = attrs[t.name] ?? '';
+        const v = typedAttrs[t.name] ?? '';
         if (v !== String(pilot.attributes[t.name] ?? '')) {
-          const r = await setPilotAttribute(pilot.id, t.name, v);
-          if (!r.ok) {
-            onresult(r);
-            return;
-          }
+          const r = await setPilotAttribute(id, t.name, v);
+          if (!r.ok) return fail(r);
         }
       }
       onresult({ ok: true });

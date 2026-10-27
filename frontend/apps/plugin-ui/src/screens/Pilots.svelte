@@ -3,7 +3,7 @@
   import { Badge, Banner, Button, Card } from '@gridfpv/components';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import PilotDialog from '../components/PilotDialog.svelte';
-  import { addPilot, deletePilot, rh, type WriteResult } from '../lib/rh.svelte.js';
+  import { deletePilot, rh, type WriteResult } from '../lib/rh.svelte.js';
   import type { Pilot } from '../lib/setup.js';
   import { href, link } from '../lib/router.svelte.js';
 
@@ -31,27 +31,32 @@
   let editTitle = $state('Edit pilot');
   let removing: Pilot | null = $state(null);
 
-  // The dialog edits the live pilot record so a readback mid-edit does not stale it.
+  // The dialog edits the live pilot record so a readback mid-edit does not stale it. A new
+  // pilot is a draft (id 0) that exists nowhere until Save (#42): RotorHazard's add_pilot
+  // creates a "~Callsign N" placeholder, so it runs only once there is something to save.
   $effect(() => {
-    if (editing && !setup.pilots.some((p) => p.id === editing!.id)) editing = null;
+    const e = editing;
+    if (e && e.id !== 0 && !setup.pilots.some((p) => p.id === e.id)) editing = null;
   });
-  const editingLive = $derived(
-    editing ? (setup.pilots.find((p) => p.id === editing!.id) ?? null) : null
-  );
+  const editingLive = $derived.by(() => {
+    const e = editing;
+    if (!e) return null;
+    return e.id === 0 ? e : (setup.pilots.find((p) => p.id === e.id) ?? null);
+  });
 
-  async function newPilot() {
-    busy = true;
-    try {
-      const r = await addPilot();
-      if (!r.ok || r.id == null) {
-        onresult(r);
-        return;
-      }
-      editTitle = 'New pilot';
-      editing = setup.pilots.find((p) => p.id === r.id) ?? null;
-    } finally {
-      busy = false;
-    }
+  function newPilot() {
+    editTitle = 'New pilot';
+    editing = {
+      id: 0,
+      callsign: '',
+      name: '',
+      phonetic: '',
+      team: '',
+      color: '',
+      active: true,
+      locked: false,
+      attributes: {}
+    };
   }
 
   async function remove(p: Pilot) {

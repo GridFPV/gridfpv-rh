@@ -4,11 +4,19 @@
    * the clock, how a winner is decided, the start sequence, team mode — with RotorHazard's
    * settings behind each control (RHData.alter_raceFormat). Save writes the changed fields
    * with readback; RotorHazard refuses a change while a race is running, and the readback
-   * says so.
+   * says so. With `createFrom`, the format is a draft: Save first copies that format
+   * (RotorHazard's only way to add one) and then writes the name and changes onto the
+   * copy; a copy that cannot be filled in is deleted again, so Cancel never leaves one.
    */
   import { untrack } from 'svelte';
   import { Button, Dialog, Input, Select } from '@gridfpv/components';
-  import { alterFormat, type FormatFields, type WriteResult } from '../lib/rh.svelte.js';
+  import {
+    addFormat,
+    alterFormat,
+    deleteFormat,
+    type FormatFields,
+    type WriteResult
+  } from '../lib/rh.svelte.js';
   import {
     RACING_MODE,
     RACING_MODE_LABELS,
@@ -24,6 +32,7 @@
     format,
     pointsMethods,
     title = 'Edit format',
+    createFrom = null,
     onresult,
     onclose = undefined
   }: {
@@ -31,6 +40,8 @@
     format: RaceFormat;
     pointsMethods: Array<{ name: string; label: string }>;
     title?: string;
+    /** Create mode: the id of the format to copy on Save. */
+    createFrom?: number | null;
     onresult: (r: WriteResult) => void;
     onclose?: () => void;
   } = $props();
@@ -106,7 +117,7 @@
     if ((f.points || null) !== (format.pointsMethod || null)) out.pointsMethod = f.points || null;
     return out;
   });
-  const dirty = $derived(Object.keys(fields).length > 0);
+  const dirty = $derived(Object.keys(fields).length > 0 || createFrom != null);
   const valid = $derived(!!f.name.trim() && (!f.timed || raceTimeSec > 0));
 
   let busy = $state(false);
@@ -114,6 +125,18 @@
     if (!valid || !dirty) return;
     busy = true;
     try {
+      if (createFrom != null) {
+        const made = await addFormat(createFrom);
+        if (!made.ok || made.id == null) {
+          onresult(made);
+          return;
+        }
+        const r = await alterFormat(made.id, { ...fields, name: f.name.trim() });
+        if (!r.ok) await deleteFormat(made.id);
+        onresult(r);
+        if (r.ok) open = false;
+        return;
+      }
       const r = await alterFormat(format.id, fields);
       onresult(r);
       if (r.ok) open = false;
