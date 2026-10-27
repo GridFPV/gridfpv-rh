@@ -1,6 +1,43 @@
 import { expect, test } from '../src/fixtures.js';
 
 test.describe('Run', () => {
+  test("picking a seeded heat shows RotorHazard's heat plan; Confirm loads it (#69)", async ({
+    page,
+    rig,
+    rh
+  }) => {
+    test.setTimeout(90_000);
+    const ace = await rig.addPilot({ callsign: 'Ace' });
+    const bee = await rig.addPilot({ callsign: 'Bee' });
+    const quali = await rig.addClass({ name: 'E2E Quali' });
+    const q1 = await rig.addHeat({ name: 'Q1', classId: quali, pilots: [null, ace, bee] });
+    await rig.setMinLap(1);
+    await rig.raceHeat(q1, { 1: [500, 2000, 3500], 2: [600, 2400] }); // Ace 1st, Bee 2nd
+    const final = await rig.addClass({ name: 'E2E Final' });
+    const f1 = await rig.addHeat({ name: 'Final 1', classId: final, pilots: [] });
+    await rig.seedSeatFromHeat(f1, 1, q1, 1);
+    await rig.seedSeatFromHeat(f1, 2, q1, 2);
+
+    await page.goto('/grid/run');
+    await page.getByRole('combobox').first().selectOption(String(f1));
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('heading', { name: 'Heat plan: Final 1' })).toBeVisible();
+    const table = dialog.getByLabel('Heat plan');
+    await expect(table).toContainText('Ace');
+    await expect(table).toContainText('1st from Q1');
+    await expect(table).toContainText('Bee');
+    // RotorHazard has not loaded it yet.
+    expect((await rig.status()).current_heat).not.toBe(f1);
+
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(page.getByText('Final 1 is loaded on the timer.')).toBeVisible();
+    // RotorHazard agrees: Final 1 is the current heat, confirmed, with Ace and Bee seated.
+    expect((await rig.status()).current_heat).toBe(f1);
+    const h = (await rig.heats()).find((x) => x.heat_id === f1)!;
+    expect([h.nodes_pilots['1'], h.nodes_pilots['2']]).toEqual([ace, bee]);
+    expect(await rh.formatHeatNames()).toEqual(expect.arrayContaining(['Final 1']));
+  });
+
   test('a race run from the Run page is saved with its laps in RotorHazard', async ({
     page,
     rig,

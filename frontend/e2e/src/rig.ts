@@ -73,6 +73,8 @@ export interface HeatSlot {
   node_index: number | null;
   pilot_id: number;
   method: number;
+  seed_id?: number | null;
+  seed_rank?: number | null;
 }
 
 export interface HeatData {
@@ -397,6 +399,30 @@ export class Rig {
         )
       );
     }
+  }
+
+  /** Seed seat `seat` of a heat from another heat's result (method 1, rank `rank`). */
+  async seedSeatFromHeat(
+    heatId: number,
+    seat: number,
+    fromHeat: number,
+    rank: number
+  ): Promise<void> {
+    const data = (await this.heatData()).find((h) => h.id === heatId);
+    const slot = data?.slots.find((s) => s.node_index === seat);
+    if (!slot) throw new Error(`rig: heat ${heatId} has no slot for seat ${seat}`);
+    this.emit('alter_heat', {
+      heat: heatId,
+      slot_id: slot.id,
+      method: 1,
+      seed_heat_id: fromHeat,
+      seed_rank: rank
+    });
+    await this.until(`seat ${seat + 1} seeded`, async () => {
+      const h = (await this.heatData()).find((x) => x.id === heatId);
+      const sl = h?.slots.find((x) => x.id === slot.id);
+      return sl?.method === 1 && Number(sl.seed_id) === fromHeat && Number(sl.seed_rank) === rank;
+    });
   }
 
   /** RotorHazard's class_data message: classes with their plugin attributes. */

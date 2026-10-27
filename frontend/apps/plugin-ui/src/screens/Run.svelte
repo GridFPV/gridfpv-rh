@@ -11,13 +11,18 @@
   import { Badge, Banner, Button, Card, Select } from '@gridfpv/components';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import RaceClock from '../components/RaceClock.svelte';
+  import HeatPlanDialog from '../components/HeatPlanDialog.svelte';
+  import { planRows } from '../lib/heatplan.js';
   import { audioState, startCues } from '../lib/audio.svelte.js';
   import { seatTag } from '../lib/channels.js';
   import {
+    cancelHeatPlan,
+    confirmHeatPlan,
     deleteLap,
     discardLaps,
-    resyncClock,
+    reseedHeatPlan,
     restoreLap,
+    resyncClock,
     rh,
     saveLaps,
     seedAsYouGo,
@@ -145,9 +150,32 @@
       busy = false;
     }
   }
-  function onPick(e: Event) {
+  /** Bumped to redraw the picker when RotorHazard did not load what was picked (#69). */
+  let pickKey = $state(0);
+  async function onPick(e: Event) {
     const id = Number((e.currentTarget as HTMLSelectElement).value);
-    void run(() => setCurrentHeat(id));
+    busy = true;
+    try {
+      const r = await setCurrentHeat(id);
+      if (!r.ok || !r.plan) onresult(r);
+      if (!r.ok) pickKey++;
+    } finally {
+      busy = false;
+    }
+  }
+  const plan = $derived(timer.heatPlan);
+  async function planAction(fn: () => Promise<WriteResult>, okText = '') {
+    busy = true;
+    try {
+      const r = await fn();
+      onresult(r, okText);
+    } finally {
+      busy = false;
+    }
+  }
+  function planCancel() {
+    cancelHeatPlan();
+    pickKey++;
   }
   let confirmDiscard = $state(false);
   function discard() {
@@ -222,23 +250,25 @@
     <div class="head">
       <div class="pick">
         <span class="label">On the timer</span>
-        <Select value={String(race.heatId)} disabled={!canPick || busy} onchange={onPick}>
-          <option value="0">Practice — no heat</option>
-          {#each stages as c (c.id)}
-            {@const hs = stageHeats(c.id)}
-            {#if hs.length}
-              <optgroup label={c.displayName}>
-                {#each hs as h (h.id)}<option value={String(h.id)}>{h.displayName}</option>{/each}
+        {#key pickKey}
+          <Select value={String(race.heatId)} disabled={!canPick || busy} onchange={onPick}>
+            <option value="0">Practice — no heat</option>
+            {#each stages as c (c.id)}
+              {@const hs = stageHeats(c.id)}
+              {#if hs.length}
+                <optgroup label={c.displayName}>
+                  {#each hs as h (h.id)}<option value={String(h.id)}>{h.displayName}</option>{/each}
+                </optgroup>
+              {/if}
+            {/each}
+            {#if unclassified.length}
+              <optgroup label="No stage">
+                {#each unclassified as h (h.id)}<option value={String(h.id)}>{h.displayName}</option
+                  >{/each}
               </optgroup>
             {/if}
-          {/each}
-          {#if unclassified.length}
-            <optgroup label="No stage">
-              {#each unclassified as h (h.id)}<option value={String(h.id)}>{h.displayName}</option
-                >{/each}
-            </optgroup>
-          {/if}
-        </Select>
+          </Select>
+        {/key}
         <div class="sub">
           {#if heat}
             {roundsText}
@@ -422,6 +452,18 @@
     </tbody>
   </table>
 {/snippet}
+
+{#if plan}
+  <HeatPlanDialog
+    {plan}
+    rows={planRows(plan, setup)}
+    {busy}
+    onconfirm={() =>
+      planAction(() => confirmHeatPlan(plan.heatId), `${plan.name} is loaded on the timer.`)}
+    onreseed={() => planAction(() => reseedHeatPlan(plan.heatId))}
+    oncancel={planCancel}
+  />
+{/if}
 
 {#if lapToDelete}
   {@const d = lapToDelete}

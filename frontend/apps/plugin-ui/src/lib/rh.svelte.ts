@@ -61,6 +61,7 @@ import { needsSeeding } from './stages.js';
 import type { Timing } from './timing.js';
 import { applyDeletedRaces, type DeletedRace, type DeletedRacesPayload } from './rounds.js';
 import type { PointsMethod } from './points.js';
+import { applyHeatPlan, type HeatPlan } from './heatplan.js';
 import { applyRoster, type RosterPayload, type RosterPilot } from './roster.js';
 import { raceFor } from './results.js';
 
@@ -125,6 +126,8 @@ const state = $state({
   /** Deleted races the plugin can restore (#36), and whether RotorHazard itself keeps them. */
   deletedRaces: [] as DeletedRace[],
   deletedRacesNative: false,
+  /** RotorHazard's answer to loading a seeded heat it has not confirmed (#69): the plan to confirm. */
+  heatPlan: null as HeatPlan | null,
   /** The heat RotorHazard has loaded to race next, and which round that will be. */
   current: { heatId: 0, nextRound: null as number | null },
   /** Class ranking methods RotorHazard offers (its own plus plugins'), by name. */
@@ -410,6 +413,10 @@ export function connect(): Socket {
     state.setup = applyFormatData(state.setup, p);
     checkWaiters();
   });
+  socket.on('heat_plan_result', (p: Record<string, unknown>) => {
+    state.heatPlan = applyHeatPlan(p);
+    checkWaiters();
+  });
   socket.on('current_heat', (p: { current_heat?: number; next_round?: number | null }) => {
     state.current = { heatId: Number(p.current_heat ?? 0), nextRound: p.next_round ?? null };
     checkWaiters();
@@ -437,7 +444,7 @@ export function connect(): Socket {
   // ---- the race side ----
   socket.on('race_status', (p: Parameters<typeof applyRaceStatus>[0]) => {
     const prev = state.race.status;
-    state.race = applyRaceStatus(p);
+    state.race = applyRaceStatus(p, state.race);
     if (state.race.status === RACE_STATUS.DONE && prev !== RACE_STATUS.DONE)
       state.clockFrozenAt ??= performance.now();
     if (state.race.status !== RACE_STATUS.DONE) state.clockFrozenAt = null;
@@ -1552,10 +1559,42 @@ export function resyncClock() {
   requestPiTime();
 }
 
-/** Load the heat on the timer (0 = practice, no heat). */
-export function setCurrentHeat(id: number): Promise<WriteResult> {
+/**
+ * Load the heat on the timer (0 = practice, no heat). A seeded heat RotorHazard has not
+ * confirmed is not loaded: RotorHazard answers with its heat plan instead (#69), which the
+ * Run page shows for Confirm / Reseed / Cancel.
+ */
+export function setCurrentHeat(id: number): Promise<WriteResult & { plan?: boolean }> {
+  state.heatPlan = null;
   socket?.emit('set_current_heat', { heat: id });
-  return awaitState('Load heat', () => state.race.heatId === id && state.current.heatId === id);
+  return awaitState(
+    'Load heat',
+    () => (state.race.heatId === id && state.current.heatId === id) || state.heatPlan?.heatId === id
+  ).then((r) => (r.ok && state.heatPlan?.heatId === id ? { ...r, plan: true } : r));
+}
+
+/** Confirm RotorHazard's plan: it locks the lineup and, while Ready, loads the heat. */
+export function confirmHeatPlan(id: number): Promise<WriteResult> {
+  socket?.emit('confirm_heat_plan', { heat_id: id, source: 'run' });
+  reloadAfter(() => loadData('heat_data', 'current_heat'));
+  return awaitState(
+    'Confirm heat',
+    () => state.race.heatId === id && state.current.heatId === id
+  ).then((r) => {
+    if (r.ok) state.heatPlan = null;
+    return r;
+  });
+}
+
+/** Ask RotorHazard for the plan again, from the latest results. */
+export function reseedHeatPlan(id: number): Promise<WriteResult> {
+  state.heatPlan = null;
+  socket?.emit('calc_pilots', { heat: id });
+  return awaitState('Reseed', () => state.heatPlan?.heatId === id);
+}
+
+export function cancelHeatPlan() {
+  state.heatPlan = null;
 }
 
 /** Stage the race: RotorHazard counts down the staging delay, then starts it. */
