@@ -10,6 +10,7 @@
    */
   import { Badge, Banner, Button, Card, Select } from '@gridfpv/components';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
+  import RaceClock from '../components/RaceClock.svelte';
   import { seatTag } from '../lib/channels.js';
   import {
     deleteLap,
@@ -241,8 +242,14 @@
         </div>
       </div>
 
-      <div class="clock" data-phase={clock.phase}>
-        <div class="time">{clock.text}</div>
+      <div class="clock">
+        <RaceClock
+          {race}
+          differential={timer.sync.differential}
+          {now}
+          frozenAt={timer.clockFrozenAt}
+          size="xl"
+        />
         <div class="state">
           <Badge tone={statusTone}>{statusLabel}</Badge>
           {#if clock.phase === 'unsynced' && status !== RACE_STATUS.READY}
@@ -482,26 +489,6 @@
   .clock {
     text-align: center;
     min-width: 200px;
-  }
-  .time {
-    font-size: 56px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
-    letter-spacing: -0.02em;
-  }
-  .clock[data-phase='staging'] .time {
-    color: var(--gf-amber-400);
-  }
-  .clock[data-phase='racing'] .time {
-    color: var(--gf-green-400);
-  }
-  .clock[data-phase='overtime'] .time {
-    color: var(--gf-red-400);
-  }
-  .clock[data-phase='unsynced'] .time,
-  .clock[data-phase='idle'] .time {
-    color: var(--gf-text-muted);
   }
   .state {
     margin-top: var(--gf-space-1);
