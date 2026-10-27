@@ -345,3 +345,27 @@ export function heatsForPilots(activePilots: number, seats: number): number {
   if (seats <= 0) return 0;
   return Math.max(1, Math.ceil(activePilots / seats));
 }
+
+/**
+ * After a save, what RotorHazard loaded next (RHData.get_next_heat_id, by the stage's heat
+ * advance and round type), in words for the Run page: the same heat again at its next round,
+ * another heat, a grouped stage's next-round heat, or nothing (practice) when the stage is
+ * done and no later stage has a heat.
+ */
+export function nextUpText(
+  setup: Setup,
+  lastHeatId: number,
+  current: { heatId: number; nextRound: number }
+): string {
+  if (!current.heatId)
+    return 'Next: nothing loaded. RotorHazard found no heat to advance to; pick one, or race in practice.';
+  const heat = setup.heats.find((h) => h.id === current.heatId);
+  if (!heat) return `Next: heat ${current.heatId}.`;
+  const cls = setup.classes.find((c) => c.id === heat.classId);
+  if (cls && cls.roundType === ROUND_TYPE.GROUPED)
+    return `Next: ${heatShortName(heat)} in Round ${(heat.groupId ?? 0) + 1} of ${cls.displayName}.`;
+  const round = current.nextRound || 1;
+  const of = cls && cls.rounds > 0 ? ` of ${cls.rounds}` : '';
+  if (heat.id === lastHeatId) return `Next: ${heat.displayName} again, round ${round}${of}.`;
+  return `Next: ${heat.displayName}, round ${round}${of}.`;
+}

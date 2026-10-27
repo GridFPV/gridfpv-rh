@@ -15,7 +15,8 @@ import {
   nextRound,
   roundColumns,
   seatChips,
-  stageState
+  stageState,
+  nextUpText
 } from '../src/lib/stages.js';
 import {
   emptySetup,
@@ -109,6 +110,29 @@ describe('stageState', () => {
   });
   it('unlimited rounds never reach done', () => {
     expect(stageState(cls(0), [seated], raced(1, 7))).toBe('running');
+  });
+});
+
+describe('nextUpText: what RotorHazard loaded after a save', () => {
+  const c1 = { ...cls(2), id: 1, displayName: 'Quali', roundType: 0 };
+  const grouped = { ...cls(2), id: 2, displayName: 'Mains', roundType: 1 };
+  const h1 = { ...heat(1, []), classId: 1, displayName: 'H1' };
+  const h2 = { ...heat(2, []), classId: 1, displayName: 'H2' };
+  const g1 = {
+    ...heat(3, []),
+    classId: 2,
+    name: 'Main A',
+    displayName: 'Round 2 / Main A',
+    groupId: 1
+  };
+  const setup = { ...emptySetup(), classes: [c1, grouped], heats: [h1, h2, g1] };
+  it('says again, another heat, the grouped round, or nothing', () => {
+    expect(nextUpText(setup, 1, { heatId: 1, nextRound: 2 })).toBe('Next: H1 again, round 2 of 2.');
+    expect(nextUpText(setup, 1, { heatId: 2, nextRound: 1 })).toBe('Next: H2, round 1 of 2.');
+    expect(nextUpText(setup, 3, { heatId: 3, nextRound: 1 })).toBe(
+      'Next: Main A in Round 2 of Mains.'
+    );
+    expect(nextUpText(setup, 1, { heatId: 0, nextRound: 0 })).toMatch(/^Next: nothing loaded/);
   });
 });
 

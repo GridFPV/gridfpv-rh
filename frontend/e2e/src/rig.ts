@@ -351,7 +351,15 @@ export class Rig {
     return pilot.id;
   }
 
-  async addClass(fields: { name: string; formatId?: number; rounds?: number }): Promise<number> {
+  async addClass(fields: {
+    name: string;
+    formatId?: number;
+    rounds?: number;
+    /** RotorHazard's HeatAdvanceType: 0 none, 1 next heat, 2 next round. */
+    heatAdvanceType?: number;
+    /** RotorHazard's RoundType: 0 races per heat, 1 grouped. */
+    roundType?: number;
+  }): Promise<number> {
     const before = new Set((await this.classes()).map((c) => c.id));
     this.emit('add_race_class');
     const cls = await this.until('new class', async () =>
@@ -361,12 +369,45 @@ export class Rig {
       class_id: cls.id,
       class_name: fields.name,
       ...(fields.formatId != null ? { class_format: fields.formatId } : {}),
-      ...(fields.rounds != null ? { rounds: fields.rounds } : {})
+      ...(fields.rounds != null ? { rounds: fields.rounds } : {}),
+      ...(fields.heatAdvanceType != null ? { heat_advance_type: fields.heatAdvanceType } : {}),
+      ...(fields.roundType != null ? { round_type: fields.roundType } : {})
     });
     await this.until(`class ${fields.name}`, async () =>
       (await this.classes()).some((c) => c.id === cls.id && c.name === fields.name)
     );
     return cls.id;
+  }
+
+  /**
+   * Change a class's round type and/or heat advance, one field per alter_race_class as
+   * RotorHazard's own panel sends them. RotorHazard 4.4.0 raises (raceclass_prime_groups
+   * IndexError) on `rounds` for a grouped class with no heats, and switching to grouped
+   * turns heat advance "none" into "next heat", so: add heats, then the round type, then
+   * the advance.
+   */
+  async alterClass(
+    classId: number,
+    fields: { roundType?: number; heatAdvanceType?: number }
+  ): Promise<void> {
+    const find = async () => (await this.classData()).find((c) => c.id === classId);
+    if (fields.roundType != null) {
+      this.emit('alter_race_class', { class_id: classId, round_type: fields.roundType });
+      await this.until(`class ${classId} round type ${fields.roundType}`, async () => {
+        const c = await find();
+        return c != null && Number(c.round_type) === fields.roundType;
+      });
+    }
+    if (fields.heatAdvanceType != null) {
+      this.emit('alter_race_class', {
+        class_id: classId,
+        heat_advance_type: fields.heatAdvanceType
+      });
+      await this.until(`class ${classId} heat advance ${fields.heatAdvanceType}`, async () => {
+        const c = (await find()) as { heat_advance_type?: number } | undefined;
+        return c != null && Number(c.heat_advance_type) === fields.heatAdvanceType;
+      });
+    }
   }
 
   /**

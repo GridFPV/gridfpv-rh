@@ -141,6 +141,13 @@ export function applyCurrentLaps(p: Raw): LiveSeat[] {
 export function countedLaps(seat: LiveSeat): LiveLap[] {
   return seat.laps.filter((l) => !l.deleted);
 }
+/**
+ * Laps flown, as RotorHazard's leaderboard counts them: not deleted, not the hole shot
+ * (lap 0, only in hole-shot start behaviour) and not a late lap (RotorHazard numbers it −1).
+ */
+export function flownLaps(seat: LiveSeat): LiveLap[] {
+  return seat.laps.filter((l) => !l.deleted && l.number > 0);
+}
 
 // ---- leaderboard -----------------------------------------------------------------
 

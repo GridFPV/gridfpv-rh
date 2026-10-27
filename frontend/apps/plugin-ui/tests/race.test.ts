@@ -15,7 +15,10 @@ import {
   toggleLap,
   withLapTimes,
   emptyRaceStatus,
-  offSeatWarnings
+  offSeatWarnings,
+  flownLaps,
+  type LiveLap,
+  countedLaps
 } from '../src/lib/race.js';
 
 const rules = {
@@ -275,6 +278,36 @@ describe("applyRaceStatus keeps stage_ready's hide flag during a race (#72)", ()
     expect(racing.hideStageTimer).toBe(false);
     const ready = applyRaceStatus({ race_status: 0, hide_stage_timer: true }, racing);
     expect(ready.hideStageTimer).toBe(true);
+  });
+});
+
+describe('flownLaps', () => {
+  it('leaves out the hole shot, deleted laps and late laps, like the leaderboard count', () => {
+    const lap = (index: number, number: number, extra: Partial<LiveLap> = {}): LiveLap => ({
+      index,
+      number,
+      timeMs: 1000,
+      formatted: '0:01.000',
+      stampMs: 1000 * (index + 1),
+      deleted: false,
+      late: false,
+      source: null,
+      ...extra
+    });
+    const seat = {
+      laps: [
+        lap(0, 0),
+        lap(1, 1),
+        lap(2, 2, { deleted: true }),
+        lap(3, 2),
+        lap(4, -1, { late: true })
+      ],
+      fastestIndex: 1,
+      pilot: null,
+      finished: false
+    };
+    expect(flownLaps(seat).map((l) => l.index)).toEqual([1, 3]);
+    expect(countedLaps(seat).map((l) => l.index)).toEqual([0, 1, 3, 4]);
   });
 });
 

@@ -35,13 +35,14 @@
   import {
     clockView,
     countedLaps,
+    flownLaps,
     offSeatWarnings,
     RACE_STATUS,
     type LiveLap
   } from '../lib/race.js';
   import { href, link } from '../lib/router.svelte.js';
   import { classById, formatSummary, heatById, heatsInClass, pilotById } from '../lib/setup.js';
-  import { needsSeeding, stageState, STAGE_STATE_LABELS } from '../lib/stages.js';
+  import { needsSeeding, stageState, STAGE_STATE_LABELS, nextUpText } from '../lib/stages.js';
   import { aceLine, aceRule, isAceStage, stageTally } from '../lib/ace.js';
 
   const timer = rh();
@@ -214,9 +215,11 @@
       .filter((s) => s.frequency > 0 || timer.live[s.index]?.pilot)
       .map((s) => {
         const live = timer.live[s.index];
+        const position = timer.leaderboard?.rows.find((r) => r.node === s.index)?.position;
         const slot = heat?.slots.find((x) => x.nodeIndex === s.index);
         const pilot = slot?.pilotId ? pilotById(setup, slot.pilotId) : undefined;
-        const laps = live ? countedLaps(live) : [];
+        // The card counts laps as RotorHazard's leaderboard does: no hole shot, no late lap.
+        const laps = live ? flownLaps(live) : [];
         const best = live?.fastestIndex != null ? live.laps[live.fastestIndex] : undefined;
         return {
           seat: s,
@@ -229,6 +232,7 @@
           best,
           crossing: s.crossing,
           finished: live?.finished ?? false,
+          position: status === RACE_STATUS.READY ? undefined : position,
           off: offSeatIndexes.has(s.index)
         };
       })
@@ -247,6 +251,10 @@
   // ---- after a save ----
   const last = $derived(timer.lastRace);
   const lastHeat = $derived(last ? heatById(setup, last.heatId) : undefined);
+  /** What RotorHazard loaded after that save (its heat advance), in words. */
+  const nextUp = $derived(
+    last ? nextUpText(setup, last.heatId, { heatId: race.heatId, nextRound: race.nextRound }) : ''
+  );
   const pending = $derived(setup.heats.filter(needsSeeding).length);
   const report = $derived(timer.autoSeedReport);
 
@@ -389,6 +397,8 @@
                 >empty</span
               >{/if}
           </span>
+          {#if row.crossing}<span class="cross" role="status">crossing</span>{/if}
+          {#if row.finished}<span class="fin" role="status">finished</span>{/if}
           <span class="rssi" title="RSSI">{row.seat.rssi || ''}</span>
         </div>
         {#if row.off}
@@ -397,13 +407,18 @@
           </p>
         {/if}
         <div class="stats">
-          <div class="stat big">
+          <div class="stat big pos" title="Position">
+            <span class="n">{row.position ? `P${row.position}` : '—'}</span><span class="l"
+              >pos</span
+            >
+          </div>
+          <div class="stat big laps" title="Laps">
             <span class="n">{row.laps.length}</span><span class="l">laps</span>
           </div>
-          <div class="stat">
+          <div class="stat last" title="Last lap">
             <span class="n">{row.last ? row.last.formatted : '—'}</span><span class="l">last</span>
           </div>
-          <div class="stat">
+          <div class="stat best" title="Best lap">
             <span class="n">{row.best ? row.best.formatted : '—'}</span><span class="l">best</span>
           </div>
         </div>
@@ -439,6 +454,7 @@
   {#if last && status === RACE_STATUS.READY}
     <Card title="Last race: {lastHeat?.displayName ?? last.name}" subtitle="Round {last.round}">
       {@render board(last.rows, last.primary)}
+      <p class="nextup" role="status">{nextUp}</p>
       <div class="after">
         <a href={href(`marshal?heat=${last.heatId}&round=${last.round}`)} onclick={link}
           >Marshal this race</a
@@ -564,6 +580,23 @@
 <style>
   .offline {
     display: block;
+  }
+  .cross,
+  .fin {
+    font-size: var(--gf-font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0 var(--gf-space-1);
+    border-radius: var(--gf-radius-sm, 4px);
+    background: var(--gf-warning-500, #d29922);
+    color: var(--gf-bg, #000);
+  }
+  .fin {
+    background: var(--gf-success-500, #2ea043);
+  }
+  .nextup {
+    margin: var(--gf-space-2) 0 0;
+    font-weight: 600;
   }
   .offseat {
     margin: 0 0 var(--gf-space-1);

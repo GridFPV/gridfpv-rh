@@ -92,6 +92,12 @@ save, next heat as the board says) is written at the end of the tier.
 - [ ] **Reload mid-race.** Start a race, reload Grid's Run page while it runs and click once:
       the final-second ticks, the expiry tone and later lap callouts still come, and nothing
       is replayed. Reload during staging: the start tone still comes (#73).
+- [ ] **Heat advance.** Save a race: the picker moves to the heat RotorHazard loaded and the
+      Last race card says "Next: …" (the same heat again, the next heat, the next grouped
+      round, or nothing). The Stages board marks the same race "next". Try a stage set to
+      Next heat and one set to Next round.
+- [ ] **Seat status.** While racing, each seat card shows position, lap count, last and best
+      lap, and "crossing" while the quad is over the gate; "finished" once the pilot is done.
 
 ## T4 — Marshal and Results parity
 
