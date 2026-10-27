@@ -558,3 +558,29 @@ export function applyMarshalCurrent(p: Raw): MarshalCurrent {
       .sort((a, b) => a.node - b.node)
   };
 }
+
+// ---- warnings before a start -------------------------------------------------------
+
+/**
+ * Pilots seated on a seat whose frequency is Off (#70): RotorHazard would race them and
+ * time nothing. One line per pilot, for the seat card and the header.
+ */
+export function offSeatWarnings(
+  seats: Array<{ index: number; frequency: number }>,
+  slots: Array<{ nodeIndex: number | null; pilotId: number }>,
+  callsignOf: (pilotId: number) => string
+): Array<{ seat: number; pilotId: number; text: string }> {
+  const out: Array<{ seat: number; pilotId: number; text: string }> = [];
+  for (const slot of slots) {
+    if (slot.nodeIndex == null || !slot.pilotId) continue;
+    const seat = seats.find((s) => s.index === slot.nodeIndex);
+    if (!seat || seat.frequency > 0) continue;
+    const who = callsignOf(slot.pilotId) || `Pilot ${slot.pilotId}`;
+    out.push({
+      seat: slot.nodeIndex,
+      pilotId: slot.pilotId,
+      text: `${who} is on seat ${slot.nodeIndex + 1}, which has no frequency: set a channel on Seats or move the pilot.`
+    });
+  }
+  return out;
+}

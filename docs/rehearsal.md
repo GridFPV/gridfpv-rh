@@ -74,6 +74,14 @@ save, next heat as the board says) is written at the end of the tier.
 - [ ] **Messages.** From a second browser on RotorHazard's Run page, send a plain message:
       it shows on Grid's Run page and goes by itself after about 8 seconds. Send one with
       "interrupt" ticked: it stays until you dismiss it or pick another heat (#71).
+- [ ] **Off seat.** Put a pilot on a seat whose frequency is Off (Seats page). Pick that
+      heat on Run: the header and the seat card both say the pilot will not be timed. Fix the
+      frequency or move the pilot; the warning goes (#70).
+- [ ] **Practice.** Pick "Practice — no heat". The header says RotorHazard does not save
+      practice laps and Save is greyed. Start, fly a lap or two, Stop, Discard (#50).
+- [ ] **Leaderboard.** While Ready there is no leaderboard card; once a race has laps the
+      card appears, listing seats that have a pilot or laps, never an empty seat by its
+      frequency (#47).
 
 ## T4 — Marshal and Results parity
 

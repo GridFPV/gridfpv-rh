@@ -232,6 +232,15 @@ export class Rig {
     ).fdata;
   }
 
+  /** Set one seat's frequency on the active profile (0 = Off), confirmed through `frequency_data`. */
+  async setFrequency(seat: number, frequency: number): Promise<void> {
+    this.emit('set_frequency', { node: seat, frequency, band: null, channel: null });
+    await this.until(`seat ${seat + 1} = ${frequency}`, async () => {
+      const f = await this.frequencies();
+      return f[seat]?.frequency === frequency;
+    });
+  }
+
   /** RotorHazard's "send message" (its Run page's Director tools): a `priority_message` broadcast. */
   async sendMessage(message: string, interrupt = false): Promise<void> {
     const seen = this.next<{ message: string }>('priority_message', 10_000);

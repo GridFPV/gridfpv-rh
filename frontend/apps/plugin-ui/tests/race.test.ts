@@ -14,7 +14,8 @@ import {
   syncDifferential,
   toggleLap,
   withLapTimes,
-  emptyRaceStatus
+  emptyRaceStatus,
+  offSeatWarnings
 } from '../src/lib/race.js';
 
 const rules = {
@@ -274,5 +275,28 @@ describe("applyRaceStatus keeps stage_ready's hide flag during a race (#72)", ()
     expect(racing.hideStageTimer).toBe(false);
     const ready = applyRaceStatus({ race_status: 0, hide_stage_timer: true }, racing);
     expect(ready.hideStageTimer).toBe(true);
+  });
+});
+
+describe('offSeatWarnings (#70)', () => {
+  it('names each pilot on a seat with no frequency', () => {
+    const seats = [
+      { index: 0, frequency: 5658 },
+      { index: 7, frequency: 0 }
+    ];
+    const slots = [
+      { nodeIndex: 0, pilotId: 1 },
+      { nodeIndex: 7, pilotId: 2 },
+      { nodeIndex: 7, pilotId: 0 },
+      { nodeIndex: null, pilotId: 3 }
+    ];
+    const w = offSeatWarnings(seats, slots, (id) => ({ 1: 'Ace', 2: 'Bee' })[id] ?? '');
+    expect(w).toEqual([
+      {
+        seat: 7,
+        pilotId: 2,
+        text: 'Bee is on seat 8, which has no frequency: set a channel on Seats or move the pilot.'
+      }
+    ]);
   });
 });

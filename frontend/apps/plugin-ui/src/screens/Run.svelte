@@ -32,7 +32,13 @@
     stopRace,
     type WriteResult
   } from '../lib/rh.svelte.js';
-  import { clockView, countedLaps, RACE_STATUS, type LiveLap } from '../lib/race.js';
+  import {
+    clockView,
+    countedLaps,
+    offSeatWarnings,
+    RACE_STATUS,
+    type LiveLap
+  } from '../lib/race.js';
   import { href, link } from '../lib/router.svelte.js';
   import { classById, formatSummary, heatById, heatsInClass, pilotById } from '../lib/setup.js';
   import { needsSeeding, stageState, STAGE_STATE_LABELS } from '../lib/stages.js';
@@ -183,6 +189,25 @@
     else void run(discardLaps);
   }
 
+  // ---- warnings before a start (#70) ----
+  const offSeat = $derived(
+    heat
+      ? offSeatWarnings(timer.seats, heat.slots, (id) => pilotById(setup, id)?.callsign ?? '')
+      : []
+  );
+  const offSeatIndexes = $derived(new Set(offSeat.map((w) => w.seat)));
+  /** Practice (no heat): RotorHazard never saves those laps, so Save is not offered (#50). */
+  const practice = $derived(race.heatId === 0);
+  /**
+   * The leaderboard is for a race, not an idle timer's seat list (#47): nothing while Ready,
+   * and a seat RotorHazard lists by its frequency only once it has laps (practice).
+   */
+  const boardRows = $derived(
+    timer.leaderboard && status !== RACE_STATUS.READY
+      ? timer.leaderboard.rows.filter((r) => r.pilotId > 0 || r.laps > 0)
+      : []
+  );
+
   // ---- seats ----
   const seatRows = $derived(
     timer.seats
@@ -203,7 +228,8 @@
           last: laps[laps.length - 1],
           best,
           crossing: s.crossing,
-          finished: live?.finished ?? false
+          finished: live?.finished ?? false,
+          off: offSeatIndexes.has(s.index)
         };
       })
   );
@@ -258,6 +284,11 @@
       >Click anywhere once to enable sound: staging tones, start, lap callouts.</Banner
     >
   {/if}
+  {#if offSeat.length && status === RACE_STATUS.READY}
+    <Banner tone="warn">
+      {#each offSeat as w (w.seat)}<span class="offline">{w.text}</span>{/each}
+    </Banner>
+  {/if}
   {#if notice}
     <Banner tone={notice.tone === 'danger' ? 'danger' : 'success'} ondismiss={() => (notice = null)}
       >{notice.text}</Banner
@@ -299,7 +330,8 @@
             {#if stageBadge}<Badge tone="neutral">{STAGE_STATE_LABELS[stageBadge]}</Badge>{/if}
             {#if aceNote}<span class="acenote" role="note">{aceNote}</span>{/if}
           {:else}
-            Practice: whoever is on a seat, no results saved to a heat.
+            Practice: whoever is on a seat. RotorHazard does not save practice laps; Stop, then
+            Discard, clears them.
           {/if}
           {#if format}· {format.name}, {formatSummary(format)}{/if}
         </div>
@@ -334,7 +366,8 @@
         <Button
           variant="secondary"
           size="lg"
-          disabled={!canSave || busy}
+          disabled={!canSave || busy || practice}
+          title={practice ? 'Practice laps are never saved by RotorHazard' : undefined}
           onclick={() => run(saveLaps, 'Race saved.')}>Save</Button
         >
         <Button variant="ghost" size="lg" disabled={!canDiscard || busy} onclick={discard}
@@ -358,6 +391,11 @@
           </span>
           <span class="rssi" title="RSSI">{row.seat.rssi || ''}</span>
         </div>
+        {#if row.off}
+          <p class="offseat" role="alert">
+            No frequency on this seat: {row.callsign} will not be timed.
+          </p>
+        {/if}
         <div class="stats">
           <div class="stat big">
             <span class="n">{row.laps.length}</span><span class="l">laps</span>
@@ -392,9 +430,9 @@
     {/if}
   </div>
 
-  {#if timer.leaderboard && timer.leaderboard.rows.length}
+  {#if timer.leaderboard && boardRows.length}
     <Card title="Leaderboard" subtitle={timer.leaderboard.statusMsg || undefined}>
-      {@render board(timer.leaderboard.rows, timer.leaderboard.primary)}
+      {@render board(boardRows, timer.leaderboard.primary)}
     </Card>
   {/if}
 
@@ -524,6 +562,14 @@
 </ConfirmDialog>
 
 <style>
+  .offline {
+    display: block;
+  }
+  .offseat {
+    margin: 0 0 var(--gf-space-1);
+    color: var(--gf-warning-500, #d29922);
+    font-size: var(--gf-font-size-sm);
+  }
   .acenote {
     display: block;
     color: var(--gf-warning-500, #d29922);

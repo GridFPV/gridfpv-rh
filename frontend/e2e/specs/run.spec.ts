@@ -1,6 +1,59 @@
 import { expect, test } from '../src/fixtures.js';
 
 test.describe('Run', () => {
+  test('an Off seat is warned about, practice never saves, the board waits for a race (#70, #50, #47)', async ({
+    page,
+    rig,
+    rh
+  }) => {
+    test.setTimeout(120_000);
+    const seat = 7;
+    const [was] = [(await rig.frequencies())[seat]?.frequency ?? 0];
+    try {
+      await rig.setFrequency(seat, 0);
+      // Ready with nothing loaded: no leaderboard, so no empty seat shown by its frequency (#47).
+      await page.goto('/grid/run');
+      await expect(page.getByText('Practice: whoever is on a seat')).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Leaderboard' })).toHaveCount(0);
+
+      // A pilot on the Off seat: the header and the seat card both say so (#70).
+      const ace = await rig.addPilot({ callsign: 'Ace' });
+      const cls = await rig.addClass({ name: 'E2E Off' });
+      const pilots: Array<number | null> = [null, null, null, null, null, null, null, ace];
+      const heat = await rig.addHeat({ name: 'Heat O', classId: cls, pilots });
+      await page.getByRole('combobox').first().selectOption(String(heat));
+      await expect(page.getByText(/Ace is on seat 8, which has no frequency/)).toBeVisible();
+      await expect(
+        page.getByText(/No frequency on this seat: Ace will not be timed/)
+      ).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Start' })).toBeEnabled();
+
+      // Practice: Save is not offered; Stop, then Discard, clears the laps (#50).
+      await page.getByRole('combobox').first().selectOption('0');
+      await expect(page.getByText(/Ace is on seat 8/)).toHaveCount(0);
+      await expect(page.getByText(/RotorHazard does not save practice laps/)).toBeVisible();
+      await rig.setMinLap(1);
+      await page.getByRole('button', { name: 'Start' }).click();
+      await rig.until('racing', async () => (await rig.status()).race_status === 1, 30_000);
+      await rig.fly({ 1: [300, 1600] });
+      await expect(page.getByRole('heading', { name: 'Leaderboard' })).toBeVisible();
+      await page.getByRole('button', { name: 'Stop' }).click();
+      await rig.until('stopped', async () => (await rig.status()).race_status === 2, 20_000);
+      await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
+      await page.getByRole('button', { name: 'Discard' }).click();
+      await page.getByRole('dialog').getByRole('button', { name: 'Discard' }).click();
+      await rig.until('ready', async () => (await rig.status()).race_status === 0, 20_000);
+      await expect(page.getByRole('heading', { name: 'Leaderboard' })).toHaveCount(0);
+
+      // RotorHazard agrees: no round saved for any heat, and seat 8 is still Off.
+      expect((await rig.rounds()).filter((h) => h.rounds > 0)).toEqual([]);
+      expect((await rig.frequencies())[seat]?.frequency).toBe(0);
+      await rh.expectResultsNotToMention('Heat O', 'Results');
+    } finally {
+      await rig.setFrequency(seat, was);
+    }
+  });
+
   test("RotorHazard's messages: a plain one fades after 8 s, an interrupt stays until dismissed or the heat changes (#71)", async ({
     page,
     rig
