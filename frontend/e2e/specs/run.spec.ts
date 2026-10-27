@@ -233,6 +233,30 @@ test.describe('Run', () => {
     expect(await alert).toMatchObject({ message: 'Red flag', interrupt: true });
   });
 
+  test("a grouped stage's raced heat stays in the picker and can be loaded again", async ({
+    page,
+    rig
+  }) => {
+    test.setTimeout(90_000);
+    const ace = await rig.addPilot({ callsign: 'Ace' });
+    const mains = await rig.addClass({ name: 'E2E Mains', rounds: 2 });
+    const m1 = await rig.addHeat({ name: 'Main A', classId: mains, pilots: [null, ace] });
+    await rig.alterClass(mains, { roundType: 1, heatAdvanceType: 2 });
+    await rig.setMinLap(1);
+    await rig.raceHeat(m1, { 1: [500, 2000] }); // round 1 flown: RotorHazard deactivates M1
+    const copy = await rig.until('round 2 heat', async () =>
+      (await rig.heats()).find((h) => h.class_id === mains && h.heat_id !== m1)
+    );
+    expect((await rig.status()).current_heat).toBe(copy.heat_id);
+    await page.goto('/grid/run');
+    const picker = page.getByRole('combobox').first();
+    await expect(picker.locator('option', { hasText: 'Main A (raced)' })).toHaveCount(1);
+    await picker.selectOption(String(m1));
+    await expect(picker).toHaveValue(String(m1));
+    // RotorHazard agrees: the raced heat is the current one again, as from its own picker.
+    await rig.until('raced heat loaded', async () => (await rig.status()).current_heat === m1);
+  });
+
   test("RotorHazard's messages: a plain one fades after 8 s, an interrupt stays until dismissed or the heat changes (#71)", async ({
     page,
     rig

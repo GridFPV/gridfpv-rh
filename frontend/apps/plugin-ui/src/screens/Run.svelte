@@ -104,11 +104,14 @@
   /** A decided Chase the Ace is over: its heat is not offered (it stays pickable if loaded). */
   const aceDecided = (c: { id: number } & Parameters<typeof isAceStage>[0]) =>
     isAceStage(c) && !!stageTally(c as never, heatsInClass(setup, c.id), timer.results).ace;
+  /**
+   * Every heat of the stage, as RotorHazard's own picker lists them: a grouped stage's raced
+   * heats (RotorHazard deactivates them after their round) stay listed, marked "(raced)",
+   * so a director can load one again; only a decided Chase the Ace hides its heats.
+   */
   const stageHeats = (classId: number) =>
     heatsInClass(setup, classId).filter(
-      (h) =>
-        (h.active || h.id === race.heatId) &&
-        (h.id === race.heatId || !aceDecided(classById(setup, classId)!))
+      (h) => h.id === race.heatId || !aceDecided(classById(setup, classId)!)
     );
   const aceNote = $derived.by(() => {
     if (!cls || !isAceStage(cls)) return '';
@@ -436,7 +439,9 @@
               {@const hs = stageHeats(c.id)}
               {#if hs.length}
                 <optgroup label={c.displayName}>
-                  {#each hs as h (h.id)}<option value={String(h.id)}>{h.displayName}</option>{/each}
+                  {#each hs as h (h.id)}<option value={String(h.id)}
+                      >{h.displayName}{h.active ? '' : ' (raced)'}</option
+                    >{/each}
                 </optgroup>
               {/if}
             {/each}
