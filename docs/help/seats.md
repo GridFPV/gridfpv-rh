@@ -40,7 +40,9 @@ and a live bar of the seat's RSSI with the enter and exit marks on it. The card'
 channel box is the same dropdown as the row above.
 
 **Enter** and **Exit** are RotorHazard's enter-at and exit-at levels: a pass starts when
-the signal rises above enter and ends when it drops below exit. Type a value and press
+the signal rises above enter and ends when it drops below exit. RotorHazard does not
+announce a level changed from its own Settings page, so this page asks for the current
+pair every few seconds while it is open, and again as a race stages and starts. Type a value and press
 Enter or leave the box; the pair is written together once both are sane. They take whole
 numbers from 1 to 255 (RotorHazard's RSSI scale), exit above 0 and below enter; anything
 else is refused with the box named and RotorHazard's values come back. **Copy…** writes

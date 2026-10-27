@@ -198,7 +198,10 @@ loaded on Run.
        both. Start the heat from Run (Bee on seat 2, 100/80 pinned) and come back: seat 2
        says "Lowered to 94/74 for 5 s at start", RotorHazard's log says the same for node 2,
        its Sensor Tuning still shows 100/80; a practice race shows no such line, as
-       RotorHazard lowers nothing without pilots. Stop, discard; set Amount back to 0 (#57).
+       RotorHazard lowers nothing without pilots. Stop, discard. On RotorHazard's Sensor
+       Tuning set seat 2's exit to 82: the card shows 82 within a few seconds without a
+       reload; start the heat again: "Lowered to 95/77", RotorHazard's log agrees. Stop,
+       discard; set Amount back to 0 (#57, #90).
 4. [ ] **Help.** The `?` on Seats opens its help page: profiles, channels and presets, the
        cards, the Tune page, calibration and lowering, and what a race locks are all there,
        with no network (#41).

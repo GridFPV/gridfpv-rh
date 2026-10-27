@@ -421,6 +421,7 @@ export function connect(): Socket {
   socket.on('enter_and_exit_at_levels', (p: Parameters<typeof applyLevels>[1]) => {
     state.seats = applyLevels(state.seats, p);
     state.levelsVersion++;
+    replanLowering();
     checkWaiters();
   });
   socket.on('heartbeat', (p: Parameters<typeof applyHeartbeat>[1]) => {
@@ -434,7 +435,11 @@ export function connect(): Socket {
     state.seats = applyCrossingChange(state.seats, p);
   });
   socket.on('node_tuning', (p: Parameters<typeof applyNodeTuning>[0]) => {
+    const was = state.profiles.currentId;
     state.profiles = applyNodeTuning(p);
+    // Another client switched profiles: every seat's channel and pair changed with it (#90).
+    if (was != null && state.profiles.currentId !== was)
+      loadData('frequency_data', 'enter_and_exit_at_levels');
     checkWaiters();
   });
   socket.on('config_update', (p: Record<string, unknown>) => {
@@ -511,6 +516,9 @@ export function connect(): Socket {
     state.race = applyStageReady(state.race, p);
     state.clockFrozenAt = null;
     requestPiTime(3); // a fresh look at the clock for this race
+    // RotorHazard's set_enter_at_level / set_exit_at_level broadcast nothing, so a pair another
+    // client changed is only known by asking; ask as the race stages, before the start (#90).
+    loadData('enter_and_exit_at_levels', 'node_tuning');
     checkWaiters();
   });
   socket.on('stop_timer', () => {
@@ -725,23 +733,48 @@ export function connect(): Socket {
  * keep that for the duration; a stop or the duration running out clears it (#57).
  */
 let loweringTimer = 0;
+let loweringActive: Set<number> | null = null;
+let loweringStartedAt = 0;
 function noteLowering(prev: number) {
   if (state.race.status === RACE_STATUS.RACING) {
     if (prev === RACE_STATUS.RACING) return;
     // The seats with a pilot on them (RotorHazard's current_laps, sent as the race stages);
     // a practice race has none, and RotorHazard lowers nothing (RHRace.py, race start).
-    const active = new Set(state.live.flatMap((s, i) => (s.pilot ? [i] : [])));
-    state.lowered = planLowering(state.seats, state.tuning, active);
+    loweringActive = new Set(state.live.flatMap((s, i) => (s.pilot ? [i] : [])));
+    loweringStartedAt = performance.now();
+    state.lowered = planLowering(state.seats, state.tuning, loweringActive);
     window.clearTimeout(loweringTimer);
     if (state.lowered)
       loweringTimer = window.setTimeout(
         () => (state.lowered = null),
         state.lowered.duration * 1000
       );
-  } else if (state.lowered) {
-    window.clearTimeout(loweringTimer);
-    state.lowered = null;
+    // The pair RotorHazard used is the one it holds now, which another client may have changed
+    // without a broadcast (#90): read it back and replan when it arrives.
+    loadData('enter_and_exit_at_levels');
+  } else {
+    loweringActive = null;
+    if (state.lowered) {
+      window.clearTimeout(loweringTimer);
+      state.lowered = null;
+    }
   }
+}
+
+/** A levels readback within the first seconds of a race recomputes the lowered lines (#90). */
+function replanLowering() {
+  if (!loweringActive || performance.now() - loweringStartedAt > 3000) return;
+  const was = state.lowered;
+  const plan = planLowering(state.seats, state.tuning, loweringActive);
+  if (!plan) {
+    if (was) {
+      window.clearTimeout(loweringTimer);
+      state.lowered = null;
+    }
+    return;
+  }
+  state.lowered = plan;
+  if (!was) loweringTimer = window.setTimeout(() => (state.lowered = null), plan.duration * 1000);
 }
 
 // ---- writes (each with readback) ------------------------------------------------

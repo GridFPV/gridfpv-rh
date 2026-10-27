@@ -7,7 +7,7 @@
   import SeatCard from '../components/SeatCard.svelte';
   import TuningPanel from '../components/TuningPanel.svelte';
   import SeatTune from './SeatTune.svelte';
-  import { rh, type WriteResult } from '../lib/rh.svelte.js';
+  import { refreshLevels, rh, type WriteResult } from '../lib/rh.svelte.js';
   import { go, route } from '../lib/router.svelte.js';
   import { raceLockReason } from '../lib/seats.js';
 
@@ -15,6 +15,13 @@
   // While a race is staged or running, channel and profile writes are refused (#87); the
   // store refuses them too, this just says so up front.
   const lockReason = $derived(raceLockReason(timer.race.status));
+  // RotorHazard's set_enter_at_level / set_exit_at_level broadcast nothing, so a pair changed
+  // from its own Settings page (or any other client) is only seen by asking; while this page is
+  // open, ask every few seconds (#90). RotorHazard's own page has the same blind spot.
+  $effect(() => {
+    const id = window.setInterval(() => void refreshLevels(), 5000);
+    return () => window.clearInterval(id);
+  });
   // A seat's lowering note lasts until its first pass (RotorHazard restores the node then).
   const loweredFor = (index: number) => {
     const plan = timer.lowered;
