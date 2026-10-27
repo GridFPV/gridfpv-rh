@@ -646,52 +646,57 @@
     {/if}
   </div>
 
-  <Dialog bind:open={soundOpen} title="Sound settings" size="wide">
-    <section class="prefs" aria-label="Display settings">
-      <h3>Display</h3>
-      <div class="checks">
-        {#each DISPLAY_KEYS as key (key)}
-          <label class="check" data-key={key}>
-            <input
-              type="checkbox"
-              checked={prefs[key]}
-              onchange={(e) => setPref(key, (e.currentTarget as HTMLInputElement).checked)}
-            />
-            {DISPLAY_LABELS[key]}
-          </label>
-        {/each}
-      </div>
-      <p class="muted">
-        Per browser, as on RotorHazard's Run page: what each lap chip shows and in which order, and
-        whether the RSSI readout is shown. Lap numbers are always on the chips here.
-      </p>
-    </section>
-    <section class="prefs" aria-label="Callouts settings">
-      <h3>Callouts</h3>
-      <CalloutsPanel
-        callouts={timer.callouts}
-        onsave={(list) => run(() => saveCallouts(list), 'Callouts saved on the timer.')}
-        onplay={(text) => run(() => playCallout(text), `Spoken: ${text}`)}
+  <!-- Mounted only while open: a closed dialog's selects would otherwise stay in the DOM, and a
+       label wrapping a select takes its option texts as its name ("Race clock Never …"),
+       colliding with other controls' names on the page. -->
+  {#if soundOpen}
+    <Dialog bind:open={soundOpen} title="Sound settings" size="wide">
+      <section class="prefs" aria-label="Display settings">
+        <h3>Display</h3>
+        <div class="checks">
+          {#each DISPLAY_KEYS as key (key)}
+            <label class="check" data-key={key}>
+              <input
+                type="checkbox"
+                checked={prefs[key]}
+                onchange={(e) => setPref(key, (e.currentTarget as HTMLInputElement).checked)}
+              />
+              {DISPLAY_LABELS[key]}
+            </label>
+          {/each}
+        </div>
+        <p class="muted">
+          Per browser, as on RotorHazard's Run page: what each lap chip shows and in which order,
+          and whether the RSSI readout is shown. Lap numbers are always on the chips here.
+        </p>
+      </section>
+      <section class="prefs" aria-label="Callouts settings">
+        <h3>Callouts</h3>
+        <CalloutsPanel
+          callouts={timer.callouts}
+          onsave={(list) => run(() => saveCallouts(list), 'Callouts saved on the timer.')}
+          onplay={(text) => run(() => playCallout(text), `Spoken: ${text}`)}
+        />
+      </section>
+      <AudioSettingsPanel
+        settings={audio.settings}
+        voices={audio.voices}
+        languages={timer.languages}
+        onchange={applyAudioSettings}
+        ontest={speakTest}
+        onexport={exportAudioSettingsFile}
+        onimport={(file) => {
+          void importAudioSettingsFile(file).then((r) =>
+            onresult(r.ok ? { ok: true } : { ok: false, message: r.message }, r.message)
+          );
+        }}
+        ondefaults={() => {
+          resetAudioSettings();
+          onresult({ ok: true }, 'Audio settings back to RotorHazard defaults.');
+        }}
       />
-    </section>
-    <AudioSettingsPanel
-      settings={audio.settings}
-      voices={audio.voices}
-      languages={timer.languages}
-      onchange={applyAudioSettings}
-      ontest={speakTest}
-      onexport={exportAudioSettingsFile}
-      onimport={(file) => {
-        void importAudioSettingsFile(file).then((r) =>
-          onresult(r.ok ? { ok: true } : { ok: false, message: r.message }, r.message)
-        );
-      }}
-      ondefaults={() => {
-        resetAudioSettings();
-        onresult({ ok: true }, 'Audio settings back to RotorHazard defaults.');
-      }}
-    />
-  </Dialog>
+    </Dialog>
+  {/if}
 
   {#if editFormat}
     <FormatDialog
