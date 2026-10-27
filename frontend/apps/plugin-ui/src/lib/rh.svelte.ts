@@ -18,6 +18,8 @@ import {
   applyNodeTuning,
   type Profiles,
   type Seat,
+  levelsProblem,
+  profileNameTaken,
   raceLockReason
 } from './seats.js';
 import type { Crossing } from './crossings.js';
@@ -698,7 +700,10 @@ export function setChannel(
 
 /** Set a seat's enter and exit levels in the active profile. */
 export async function setLevels(seat: number, enter: number, exit: number): Promise<WriteResult> {
-  // RotorHazard treats 0 as "take the node's current value", so a real 0 is not settable.
+  // RotorHazard takes any int (#88) and treats 0 as "take the node's current value", so a
+  // real 0 is not settable; everything outside 0 < exit < enter <= 255 is refused here.
+  const problem = levelsProblem(String(enter), String(exit));
+  if (problem) return { ok: false, message: `Not written: ${problem}` };
   socket?.emit('set_enter_at_level', { node: seat, enter_at_level: enter });
   socket?.emit('set_exit_at_level', { node: seat, exit_at_level: exit });
   reloadAfter(() => loadData('enter_and_exit_at_levels'));
@@ -729,6 +734,12 @@ export function addProfile(): Promise<WriteResult> {
 
 /** Rename / describe the active profile. */
 export function alterProfile(name: string, description: string): Promise<WriteResult> {
+  const dup = profileNameTaken(state.profiles.list, name, state.profiles.currentId);
+  if (dup)
+    return Promise.resolve({
+      ok: false,
+      message: `Not written: a profile named “${dup.name}” already exists. RotorHazard would keep two with the same name; pick another.`
+    });
   socket?.emit('alter_profile', { profile_name: name, profile_description: description });
   reloadAfter(() => loadData('node_tuning'));
   return awaitState(

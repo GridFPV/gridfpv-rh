@@ -8,7 +8,7 @@
   import ChannelPicker from './ChannelPicker.svelte';
   import CopyLevelsDialog from './CopyLevelsDialog.svelte';
   import { channelLabel, seatTag } from '../lib/channels.js';
-  import { seatStatus, type Seat } from '../lib/seats.js';
+  import { levelsProblem, RSSI_MAX, seatStatus, type Seat } from '../lib/seats.js';
   import { setLevels, type WriteResult } from '../lib/rh.svelte.js';
   import { go } from '../lib/router.svelte.js';
 
@@ -63,7 +63,7 @@
     enter !== (seat.enter == null ? '' : String(seat.enter)) ||
       exit !== (seat.exit == null ? '' : String(seat.exit))
   );
-  const levelsValid = $derived(Number(enter) > Number(exit) && Number(exit) > 0);
+  const levelsProblemText = $derived(levelsProblem(enter, exit));
 
   /**
    * Write the thresholds when an edit completes (blur / Enter), if they changed and are sane.
@@ -78,16 +78,16 @@
   }
   async function commitLevels(e?: FocusEvent) {
     if (!levelsDirty) return;
-    if (!levelsValid) {
+    if (levelsProblemText) {
       // Still inside the pair (enter → exit by Tab): wait for the other field.
       const next = e?.relatedTarget as HTMLElement | null;
       if (next && next.closest('.levels') === (e?.currentTarget as HTMLElement)?.closest('.levels'))
         return;
-      // Leaving with a pair RotorHazard would not take: say so and show its values again (#77).
+      // Leaving with a pair RotorHazard would not take (or should not get, #88): say which
+      // box and why, and show RotorHazard's values again (#77).
       onresult({
         ok: false,
-        message:
-          "Not written: Exit must be above 0 and below Enter. Values are RotorHazard's again."
+        message: `Not written: ${levelsProblemText} Values are RotorHazard's again.`
       });
       revertLevels();
       return;
@@ -162,7 +162,7 @@
         size="sm"
         bind:value={enter}
         min="1"
-        max="255"
+        max={RSSI_MAX}
         onblur={commitLevels}
         onkeydown={onEnterKey}
       />
@@ -174,7 +174,7 @@
         size="sm"
         bind:value={exit}
         min="1"
-        max="255"
+        max={RSSI_MAX}
         onblur={commitLevels}
         onkeydown={onEnterKey}
       />

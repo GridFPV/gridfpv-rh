@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { RSSI_MAX } from '../lib/seats.js';
   /**
    * Capture-mode tuning for one seat (#7, review item 8): start a capture, fly passes, stop,
    * then drag enter / exit on the recording until the crossings look right, and apply.
@@ -81,7 +82,7 @@
   }
 
   function nudge(which: 'enter' | 'exit', delta: number) {
-    if (which === 'enter') enter = Math.max(exit + 1, enter + delta);
+    if (which === 'enter') enter = Math.min(RSSI_MAX, Math.max(exit + 1, enter + delta));
     else exit = Math.max(1, Math.min(enter - 1, exit + delta));
     commit();
   }

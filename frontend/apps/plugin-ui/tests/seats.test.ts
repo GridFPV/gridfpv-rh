@@ -8,7 +8,10 @@ import {
   applyNodeTuning,
   emptySeat,
   ensureSeats,
+  levelsProblem,
+  profileNameTaken,
   raceLockReason,
+  RSSI_MAX,
   seatStatus
 } from '../src/lib/seats.js';
 import { RACE_STATUS } from '../src/lib/race.js';
@@ -116,5 +119,46 @@ describe('raceLockReason (#87)', () => {
   it('says what is still allowed', () => {
     for (const st of [RACE_STATUS.STAGING, RACE_STATUS.RACING])
       expect(raceLockReason(st)).toMatch(/Thresholds still write live\.$/);
+  });
+});
+
+describe('levelsProblem (#77, #88)', () => {
+  it("takes what RotorHazard's scale allows", () => {
+    expect(levelsProblem('100', '80')).toBeNull();
+    expect(levelsProblem(' 255 ', '1')).toBeNull();
+    expect(levelsProblem(100, 80)).toBeNull(); // a bound number input holds numbers
+    expect(levelsProblem(null, 80)).toBe('Enter needs a value.'); // and null once emptied
+    expect(RSSI_MAX).toBe(255);
+  });
+  it('names the box that is wrong', () => {
+    expect(levelsProblem('', '80')).toBe('Enter needs a value.');
+    expect(levelsProblem('100', '')).toBe('Exit needs a value.');
+    expect(levelsProblem('1e3', '80')).toBe('Enter must be 255 or less (RSSI levels run 0–255).');
+    expect(levelsProblem('100.5', '80')).toBe('Enter must be a whole number.');
+    expect(levelsProblem('100', 'x')).toBe('Exit must be a whole number.');
+    expect(levelsProblem('300', '88')).toBe('Enter must be 255 or less (RSSI levels run 0–255).');
+    expect(levelsProblem('300', '280')).toBe('Enter must be 255 or less (RSSI levels run 0–255).');
+    expect(levelsProblem('255', '256')).toBe('Exit must be 255 or less (RSSI levels run 0–255).');
+    expect(levelsProblem('100', '0')).toBe('Exit must be above 0.');
+    expect(levelsProblem('100', '-5')).toBe('Exit must be above 0.');
+    expect(levelsProblem('80', '80')).toBe('Enter must be above Exit.');
+    expect(levelsProblem('70', '80')).toBe('Enter must be above Exit.');
+  });
+});
+
+describe('profileNameTaken (#89)', () => {
+  const list = [
+    { id: 1, name: 'Default' },
+    { id: 2, name: 'Night ' }
+  ];
+  it('finds an existing name regardless of case and surrounding spaces', () => {
+    expect(profileNameTaken(list, 'default')?.id).toBe(1);
+    expect(profileNameTaken(list, '  night')?.id).toBe(2);
+    expect(profileNameTaken(list, 'Outdoor')).toBeNull();
+    expect(profileNameTaken(list, '   ')).toBeNull();
+  });
+  it('leaves the profile being renamed out', () => {
+    expect(profileNameTaken(list, 'Default', 1)).toBeNull();
+    expect(profileNameTaken(list, 'Default', 2)?.id).toBe(1);
   });
 });

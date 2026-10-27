@@ -185,3 +185,9 @@ pilot, Ace, on seat 1 (the seat with a real signal), a heat with Ace in it loade
        and profile dropdown are unchanged. Type a new enter/exit on seat 2: written, shown
        on RotorHazard's Sensor Tuning. Stop and discard on Run: the banner goes, the same
        channel change is confirmed and RotorHazard shows it (#87).
+2. [ ] **Refusals.** On seat 2 type 300 into Enter: refused, "Enter must be 255 or less",
+       the box shows RotorHazard's value again and its Sensor Tuning is unchanged. Clear
+       Enter: refused naming Enter. Type 0 into Exit: refused naming Exit. Profile → New,
+       the active profile's own name: Create stays off with the reason; a new name is
+       created and listed on RotorHazard's page; Edit it to the first profile's name: Save
+       stays off; Delete it (#88, #89).

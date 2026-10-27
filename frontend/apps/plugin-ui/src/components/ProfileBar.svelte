@@ -16,7 +16,7 @@
     setProfile,
     type WriteResult
   } from '../lib/rh.svelte.js';
-  import type { Profiles } from '../lib/seats.js';
+  import { profileNameTaken, type Profiles } from '../lib/seats.js';
 
   let {
     profiles,
@@ -63,9 +63,12 @@
   const editDirty = $derived(
     editName.trim() !== profiles.name || editDescription.trim() !== profiles.description
   );
+  // RotorHazard allows two profiles with one name and then lists two identical entries; ours
+  // refuses to make the second (#89).
+  const editTaken = $derived(profileNameTaken(profiles.list, editName, profiles.currentId));
   async function saveEdit() {
     const n = editName.trim();
-    if (!n || !editDirty) return;
+    if (!n || !editDirty || editTaken) return;
     editOpen = false;
     await run(() => alterProfile(n, editDescription.trim()));
   }
@@ -73,9 +76,10 @@
   // ---- new profile ----
   let newOpen = $state(false);
   let newName = $state('');
+  const newTaken = $derived(profileNameTaken(profiles.list, newName));
   async function createProfile() {
     const n = newName.trim();
-    if (!n) return;
+    if (!n || newTaken) return;
     newOpen = false;
     // RotorHazard's add_profile copies the active profile and switches to the copy; the
     // rename then lands on the copy.
@@ -94,8 +98,14 @@
         bind:value={editName}
         placeholder="Profile name"
         maxlength="60"
+        invalid={editTaken != null}
         onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && saveEdit()}
       />
+      {#if editTaken}
+        <span class="hint" role="alert">
+          A profile named “{editTaken.name}” already exists. Pick another name.
+        </span>
+      {/if}
     </label>
     <label class="field">
       <span>Description</span>
@@ -108,7 +118,11 @@
   </div>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (editOpen = false)}>Cancel</Button>
-    <Button variant="primary" disabled={!editName.trim() || !editDirty || busy} onclick={saveEdit}>
+    <Button
+      variant="primary"
+      disabled={!editName.trim() || !editDirty || editTaken != null || busy}
+      onclick={saveEdit}
+    >
       Save
     </Button>
   {/snippet}
@@ -126,12 +140,22 @@
       placeholder="e.g. Outdoor, Indoor whoop"
       maxlength="60"
       disabled={busy}
+      invalid={newTaken != null}
       onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && createProfile()}
     />
+    {#if newTaken}
+      <span class="hint" role="alert">
+        A profile named “{newTaken.name}” already exists. Pick another name.
+      </span>
+    {/if}
   </label>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (newOpen = false)}>Cancel</Button>
-    <Button variant="primary" disabled={!newName.trim() || busy} onclick={createProfile}>
+    <Button
+      variant="primary"
+      disabled={!newName.trim() || newTaken != null || busy}
+      onclick={createProfile}
+    >
       Create
     </Button>
   {/snippet}
@@ -229,5 +253,11 @@
   .muted {
     color: var(--gf-text-muted);
     margin: 0 0 var(--gf-space-3);
+  }
+  .hint {
+    font-size: var(--gf-font-size-xs);
+    color: var(--gf-danger);
+    text-transform: none;
+    letter-spacing: 0;
   }
 </style>

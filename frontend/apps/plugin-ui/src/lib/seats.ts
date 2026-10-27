@@ -183,6 +183,49 @@ export function raceLockReason(status: number): string | null {
   return null;
 }
 
+/** RotorHazard's RSSI scale: node levels run 0–255 (`is_valid_rssi`). */
+export const RSSI_MAX = 255;
+
+/**
+ * Why a typed enter/exit pair cannot be written, or null when RotorHazard would take it
+ * (#77, #88). RotorHazard's own handler takes any int and an empty box as 0, so the check
+ * lives here: both present and whole, both within 0–255, exit above 0, enter above exit.
+ */
+export function levelsProblem(
+  enter: string | number | null | undefined,
+  exit: string | number | null | undefined
+): string | null {
+  // A number input bound in Svelte holds a number, or null once emptied.
+  const e = enter == null ? '' : String(enter).trim();
+  const x = exit == null ? '' : String(exit).trim();
+  if (e === '') return 'Enter needs a value.';
+  if (x === '') return 'Exit needs a value.';
+  const en = Number(e);
+  const ex = Number(x);
+  if (!Number.isInteger(en)) return 'Enter must be a whole number.';
+  if (!Number.isInteger(ex)) return 'Exit must be a whole number.';
+  if (en > RSSI_MAX) return `Enter must be ${RSSI_MAX} or less (RSSI levels run 0–${RSSI_MAX}).`;
+  if (ex > RSSI_MAX) return `Exit must be ${RSSI_MAX} or less (RSSI levels run 0–${RSSI_MAX}).`;
+  if (ex < 1) return 'Exit must be above 0.';
+  if (en <= ex) return 'Enter must be above Exit.';
+  return null;
+}
+
+/**
+ * The profile that already carries this name (case-insensitive, trimmed), or null (#89).
+ * RotorHazard allows duplicate names and its page then lists two identical entries; ours
+ * refuses to make one. `exceptId` leaves the profile being renamed out of the check.
+ */
+export function profileNameTaken(
+  list: Profile[],
+  name: string,
+  exceptId: number | null = null
+): Profile | null {
+  const n = name.trim().toLowerCase();
+  if (!n) return null;
+  return list.find((p) => p.id !== exceptId && p.name.trim().toLowerCase() === n) ?? null;
+}
+
 export type SeatStatus = 'off' | 'untuned' | 'idle' | 'crossing';
 
 export function seatStatus(seat: Seat): SeatStatus {

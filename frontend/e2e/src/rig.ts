@@ -739,6 +739,38 @@ export class Rig {
   }
 
   /** Exceptions RotorHazard has logged since it started (the mock plugin counts logger.exception). */
+  /**
+   * Remove every profile whose name starts with `prefix` (leftovers of an interrupted test:
+   * profiles survive RotorHazard's resets). RotorHazard deletes only the active profile, so each
+   * is made active first; the original active profile is restored afterwards.
+   */
+  async deleteProfilesNamed(prefix: string): Promise<void> {
+    type Tuning = { profile_ids: number[]; profile_names: string[]; current_profile: number };
+    const t = await this.loadData<Tuning>('node_tuning');
+    const doomed = t.profile_ids.filter((id, i) => (t.profile_names[i] ?? '').startsWith(prefix));
+    if (!doomed.length) return;
+    const keep = doomed.includes(Number(t.current_profile))
+      ? t.profile_ids.find((id) => !doomed.includes(id))!
+      : Number(t.current_profile);
+    for (const id of doomed) {
+      this.emit('set_profile', { profile: id });
+      await this.until(
+        `profile ${id} active`,
+        async () => Number((await this.loadData<Tuning>('node_tuning')).current_profile) === id
+      );
+      this.emit('delete_profile');
+      await this.until(
+        `profile ${id} gone`,
+        async () => !(await this.loadData<Tuning>('node_tuning')).profile_ids.includes(id)
+      );
+    }
+    this.emit('set_profile', { profile: keep });
+    await this.until(
+      `profile ${keep} active again`,
+      async () => Number((await this.loadData<Tuning>('node_tuning')).current_profile) === keep
+    );
+  }
+
   async exceptions(): Promise<number> {
     const done = this.next<{ action?: string; ok?: boolean; count?: number; error?: string }>(
       'gridfpv_mock_ack'
