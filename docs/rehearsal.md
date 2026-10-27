@@ -176,7 +176,8 @@ brackets are the issues the step proves.
 
 Setup: the rig, one browser on `/grid/seats`; a second browser on RotorHazard's Settings
 page (Frequency Setup and Sensor Tuning panels open) only for the "agrees" checks. One
-pilot, Ace, on seat 1 (the seat with a real signal), a heat with Ace in it loaded on Run.
+pilots Ace on seat 1 (the seat with a real signal) and Bee on seat 2, a heat with both
+loaded on Run.
 
 1. [ ] **Race on.** Start the race from Run, come back to Seats: a banner says channel and
        profile changes are refused until the race stops, every card says "Race on". Pick
@@ -191,3 +192,10 @@ pilot, Ace, on seat 1 (the seat with a real signal), a heat with Ace in it loade
        the active profile's own name: Create stays off with the reason; a new name is
        created and listed on RotorHazard's page; Edit it to the first profile's name: Save
        stays off; Delete it (#88, #89).
+3. [ ] **Calibration.** In the Calibration panel set Calibration mode to Manual: confirmed,
+       RotorHazard's Sensor Tuning shows Manual and the cards' "Adaptive" line goes; back to
+       Adaptive. Set lowering Amount 30 and Duration 5: confirmed, RotorHazard's page shows
+       both. Start the heat from Run (Bee on seat 2, 100/80 pinned) and come back: seat 2
+       says "Lowered to 94/74 for 5 s at start", RotorHazard's log says the same for node 2,
+       its Sensor Tuning still shows 100/80; a practice race shows no such line, as
+       RotorHazard lowers nothing without pilots. Stop, discard; set Amount back to 0 (#57).

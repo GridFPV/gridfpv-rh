@@ -771,6 +771,53 @@ export class Rig {
     );
   }
 
+  /** RotorHazard's log lines (INFO and up, the last 1000) containing `contains`, via the mock plugin. */
+  async log(contains: string): Promise<string[]> {
+    const done = this.next<{ action?: string; ok?: boolean; lines?: string[] }>('gridfpv_mock_ack');
+    this.emit('gridfpv_mock_log', { contains });
+    const ack = await done;
+    if (!ack.ok) throw new Error('rig: gridfpv_mock_log failed');
+    return ack.lines ?? [];
+  }
+
+  /** Config items as RotorHazard's own pages load them (`load_data` type config → `config_update`). */
+  async config(section: string, keys: string[]): Promise<Record<string, unknown>> {
+    const done = this.next<{ config: Record<string, Record<string, unknown>> }>('config_update');
+    this.emit('load_data', { load_types: [{ type: 'config', value: { [section]: keys } }] });
+    return (await done).config[section] ?? {};
+  }
+
+  async setConfig(section: string, key: string, value: unknown): Promise<void> {
+    this.emit('set_config', { section, key, value });
+    await this.until(
+      `config ${section}.${key} = ${String(value)}`,
+      async () => String((await this.config(section, [key]))[key]) === String(value)
+    );
+  }
+
+  /** Start-of-race lowering (RotorHazard config TIMING.startThreshLower*), as its own events report it. */
+  async lowering(): Promise<{ amount: number; duration: number }> {
+    const a = await this.loadData<{ start_thresh_lower_amount: number }>(
+      'start_thresh_lower_amount'
+    );
+    const d = await this.loadData<{ start_thresh_lower_duration: number }>(
+      'start_thresh_lower_duration'
+    );
+    return {
+      amount: Number(a.start_thresh_lower_amount),
+      duration: Number(d.start_thresh_lower_duration)
+    };
+  }
+
+  async setLowering(amount: number, duration: number): Promise<void> {
+    this.emit('set_start_thresh_lower_amount', { start_thresh_lower_amount: amount });
+    this.emit('set_start_thresh_lower_duration', { start_thresh_lower_duration: duration });
+    await this.until(`lowering ${amount} % / ${duration} s`, async () => {
+      const l = await this.lowering();
+      return l.amount === amount && l.duration === duration;
+    });
+  }
+
   async exceptions(): Promise<number> {
     const done = this.next<{ action?: string; ok?: boolean; count?: number; error?: string }>(
       'gridfpv_mock_ack'

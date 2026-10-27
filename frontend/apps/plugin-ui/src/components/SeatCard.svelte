@@ -9,17 +9,24 @@
   import CopyLevelsDialog from './CopyLevelsDialog.svelte';
   import { channelLabel, seatTag } from '../lib/channels.js';
   import { levelsProblem, RSSI_MAX, seatStatus, type Seat } from '../lib/seats.js';
+  import { loweredText, type Lowered } from '../lib/tuning.js';
   import { setLevels, type WriteResult } from '../lib/rh.svelte.js';
   import { go } from '../lib/router.svelte.js';
 
   let {
     seat,
     raceOn = false,
+    adaptive = false,
+    lowered = null,
     onresult
   }: {
     seat: Seat;
     /** A race is staged or running: the channel is locked, thresholds still write live (#87). */
     raceOn?: boolean;
+    /** RotorHazard's calibration mode is Adaptive: enter/exit follow marshalled races (#57). */
+    adaptive?: boolean;
+    /** What RotorHazard lowered this seat to as the running race started, and for how long (#57). */
+    lowered?: (Lowered & { duration: number }) | null;
     onresult: (r: WriteResult) => void;
   } = $props();
 
@@ -199,9 +206,35 @@
       </Button>
     </div>
   </div>
+
+  {#if lowered || adaptive}
+    <ul class="notes">
+      {#if lowered}
+        <li class="lowered">{loweredText(lowered, lowered.duration)}</li>
+      {/if}
+      {#if adaptive}
+        <li
+          title="Calibration mode Adaptive: when a heat is loaded or marshalled laps are saved, RotorHazard sets this seat's enter and exit from the pilot's best past race on it"
+        >
+          Adaptive: enter/exit follow marshalled races
+        </li>
+      {/if}
+    </ul>
+  {/if}
 </Card>
 
 <style>
+  .notes {
+    margin: var(--gf-space-2) 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--gf-font-size-xs);
+    color: var(--gf-text-muted);
+  }
+  .notes .lowered {
+    color: var(--gf-warn, var(--gf-text));
+    font-weight: var(--gf-font-weight-semibold);
+  }
   .badges {
     display: flex;
     gap: var(--gf-space-1);

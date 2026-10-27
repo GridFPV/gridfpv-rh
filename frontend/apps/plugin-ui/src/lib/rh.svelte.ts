@@ -10,6 +10,16 @@
  */
 import { io, type Socket } from 'socket.io-client';
 import {
+  applyConfigUpdate,
+  applyLowerAmount,
+  applyLowerDuration,
+  emptyTuning,
+  planLowering,
+  tuningProblem,
+  type LoweringPlan,
+  type Tuning
+} from './tuning.js';
+import {
   applyCrossingChange,
   applyFrequencyData,
   applyHeartbeat,
@@ -117,6 +127,10 @@ const state = $state({
   hello: null as HelloAck | null,
   seats: [] as Seat[],
   profiles: { list: [], currentId: null, name: '', description: '' } as Profiles,
+  /** RotorHazard's Sensor Tuning config: calibration mode, start-of-race lowering. */
+  tuning: emptyTuning() as Tuning,
+  /** The seats RotorHazard lowered as the running race started, until the duration is up. */
+  lowered: null as LoweringPlan | null,
   capture: null as Capture | null,
   /** Custom channel presets the plugin keeps in RotorHazard's database. */
   presets: [] as Preset[],
@@ -302,11 +316,20 @@ function loadData(...types: string[]) {
   socket?.emit('load_data', { load_types: types });
 }
 
+/** The TIMING config items ours shows; RotorHazard answers with `config_update`. */
+function loadTuningConfig() {
+  socket?.emit('load_data', {
+    load_types: [{ type: 'config', value: { TIMING: ['calibrationMode'] } }]
+  });
+}
+
 /** After a reset or restore every list may have changed; ask for all of it again. */
 function reloadEverything() {
   socket?.emit('get_race_scheduled');
   loadData('language');
   socket?.emit('reload_callouts');
+  loadTuningConfig();
+  loadData('start_thresh_lower_amount', 'start_thresh_lower_duration');
   loadData(
     'frequency_data',
     'enter_and_exit_at_levels',
@@ -351,6 +374,8 @@ export function connect(): Socket {
   socket.on('connect', () => {
     state.connection = 'connected';
     socket?.emit('gridfpv_hello', { client: 'plugin-ui' });
+    loadTuningConfig();
+    loadData('start_thresh_lower_amount', 'start_thresh_lower_duration');
     loadData(
       'frequency_data',
       'enter_and_exit_at_levels',
@@ -412,6 +437,18 @@ export function connect(): Socket {
     state.profiles = applyNodeTuning(p);
     checkWaiters();
   });
+  socket.on('config_update', (p: Record<string, unknown>) => {
+    state.tuning = applyConfigUpdate(state.tuning, p);
+    checkWaiters();
+  });
+  socket.on('start_thresh_lower_amount', (p: Record<string, unknown>) => {
+    state.tuning = applyLowerAmount(state.tuning, p);
+    checkWaiters();
+  });
+  socket.on('start_thresh_lower_duration', (p: Record<string, unknown>) => {
+    state.tuning = applyLowerDuration(state.tuning, p);
+    checkWaiters();
+  });
 
   // RotorHazard's setup entities. Each is the whole list; RotorHazard broadcasts after any
   // change it makes, and we also re-request after our own writes.
@@ -464,6 +501,7 @@ export function connect(): Socket {
   socket.on('race_status', (p: Parameters<typeof applyRaceStatus>[0]) => {
     const prev = state.race.status;
     state.race = applyRaceStatus(p, state.race);
+    noteLowering(prev);
     if (state.race.status === RACE_STATUS.DONE && prev !== RACE_STATUS.DONE)
       state.clockFrozenAt ??= performance.now();
     if (state.race.status !== RACE_STATUS.DONE) state.clockFrozenAt = null;
@@ -682,7 +720,58 @@ export function connect(): Socket {
   return socket;
 }
 
+/**
+ * As a race starts, work out which seats RotorHazard lowers (it says so only in its log) and
+ * keep that for the duration; a stop or the duration running out clears it (#57).
+ */
+let loweringTimer = 0;
+function noteLowering(prev: number) {
+  if (state.race.status === RACE_STATUS.RACING) {
+    if (prev === RACE_STATUS.RACING) return;
+    // The seats with a pilot on them (RotorHazard's current_laps, sent as the race stages);
+    // a practice race has none, and RotorHazard lowers nothing (RHRace.py, race start).
+    const active = new Set(state.live.flatMap((s, i) => (s.pilot ? [i] : [])));
+    state.lowered = planLowering(state.seats, state.tuning, active);
+    window.clearTimeout(loweringTimer);
+    if (state.lowered)
+      loweringTimer = window.setTimeout(
+        () => (state.lowered = null),
+        state.lowered.duration * 1000
+      );
+  } else if (state.lowered) {
+    window.clearTimeout(loweringTimer);
+    state.lowered = null;
+  }
+}
+
 // ---- writes (each with readback) ------------------------------------------------
+
+/** Calibration mode (RotorHazard config TIMING.calibrationMode), written as its page does. */
+export function setCalibrationMode(mode: 0 | 1): Promise<WriteResult> {
+  socket?.emit('set_config', { section: 'TIMING', key: 'calibrationMode', value: String(mode) });
+  reloadAfter(loadTuningConfig);
+  return awaitState('Calibration mode', () => state.tuning.calibrationMode === mode);
+}
+
+/** Start-of-race lowering amount (percent of the enter−exit gap). */
+export function setLowerAmount(value: string | number): Promise<WriteResult> {
+  const problem = tuningProblem('amount', value);
+  if (problem) return Promise.resolve({ ok: false, message: `Not written: ${problem}` });
+  const n = Number(value);
+  socket?.emit('set_start_thresh_lower_amount', { start_thresh_lower_amount: n });
+  reloadAfter(() => loadData('start_thresh_lower_amount'));
+  return awaitState('Lowering amount', () => state.tuning.lowerAmount === n);
+}
+
+/** Start-of-race lowering duration (seconds). */
+export function setLowerDuration(value: string | number): Promise<WriteResult> {
+  const problem = tuningProblem('duration', value);
+  if (problem) return Promise.resolve({ ok: false, message: `Not written: ${problem}` });
+  const n = Number(value);
+  socket?.emit('set_start_thresh_lower_duration', { start_thresh_lower_duration: n });
+  reloadAfter(() => loadData('start_thresh_lower_duration'));
+  return awaitState('Lowering duration', () => state.tuning.lowerDuration === n);
+}
 
 /** Set a seat's channel in the active profile. `frequency` 0 turns the seat off. */
 export function setChannel(

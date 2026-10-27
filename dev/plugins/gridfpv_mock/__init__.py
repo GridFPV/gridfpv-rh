@@ -189,6 +189,30 @@ def initialize(rhapi):
     def on_exceptions(_data=None):
         ack("exceptions", count=exceptions.count)
 
+    # The last INFO+ log lines, so a test can see what RotorHazard says it did where it emits
+    # nothing to the UI (start-of-race threshold lowering, for one).
+    from collections import deque
+
+    class _LogTail(logging.Handler):
+        def __init__(self):
+            super().__init__(level=logging.INFO)
+            self.lines = deque(maxlen=1000)
+
+        def emit(self, record):
+            try:
+                self.lines.append(record.getMessage())
+            except Exception:  # noqa: BLE001 - a logging handler must never raise
+                pass
+
+    tail = _LogTail()
+    logging.getLogger().addHandler(tail)
+
+    def on_log(data=None):
+        needle = (data or {}).get("contains", "")
+        ack("log", lines=[ln for ln in list(tail.lines) if needle in ln])
+
+    rhapi.ui.socket_listen("gridfpv_mock_log", on_log)
+
     rhapi.ui.socket_listen("gridfpv_mock_exceptions", on_exceptions)
     rhapi.ui.socket_listen("gridfpv_mock_block_backups", on_block_backups)
     rhapi.ui.socket_listen("gridfpv_mock_tune", on_tune)

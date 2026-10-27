@@ -5,6 +5,7 @@
   import ChannelGrid from '../components/ChannelGrid.svelte';
   import ProfileBar from '../components/ProfileBar.svelte';
   import SeatCard from '../components/SeatCard.svelte';
+  import TuningPanel from '../components/TuningPanel.svelte';
   import SeatTune from './SeatTune.svelte';
   import { rh, type WriteResult } from '../lib/rh.svelte.js';
   import { go, route } from '../lib/router.svelte.js';
@@ -14,6 +15,13 @@
   // While a race is staged or running, channel and profile writes are refused (#87); the
   // store refuses them too, this just says so up front.
   const lockReason = $derived(raceLockReason(timer.race.status));
+  // A seat's lowering note lasts until its first pass (RotorHazard restores the node then).
+  const loweredFor = (index: number) => {
+    const plan = timer.lowered;
+    const l = plan?.seats[index];
+    if (!plan || !l || timer.live[index]?.laps.length) return null;
+    return { ...l, duration: plan.duration };
+  };
 
   // /grid/seats/N opens the tuning modal over this page, so the link survives a refresh
   // and closing it is just navigating back to /grid/seats.
@@ -56,6 +64,8 @@
 
   <ProfileBar profiles={timer.profiles} {lockReason} {onresult} />
 
+  <TuningPanel tuning={timer.tuning} {onresult} />
+
   {#if timer.seats.length}
     <ChannelGrid seats={timer.seats} {onresult} />
   {/if}
@@ -69,7 +79,13 @@
   {:else}
     <div class="grid">
       {#each timer.seats as seat (seat.index)}
-        <SeatCard {seat} raceOn={lockReason != null} {onresult} />
+        <SeatCard
+          {seat}
+          raceOn={lockReason != null}
+          adaptive={timer.tuning.calibrationMode === 1}
+          lowered={loweredFor(seat.index)}
+          {onresult}
+        />
       {/each}
     </div>
   {/if}

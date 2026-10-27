@@ -5,12 +5,12 @@ settings	set_led_color	button	LED Color	planned:T6	LEDs; ours in T6, lowest prio
 settings	use-led-effect	button		planned:T6	LEDs; ours in T6, lowest priority (off the race-day critical path)
 settings	led-event-	select	' + __(led_event.label) + '	planned:T6	LEDs; ours in T6, lowest priority (off the race-day critical path)
 settings	set_profile	select	Profile	ours	Seats page, profile bar
-settings	add_profile	button		planned:T5	profile add/rename, calibration mode, start-of-race threshold lowering
+settings	add_profile	button		ours	Seats page, profile bar: New (copies the active profile under the typed name; duplicate names refused)
 settings	delete_profile	button		ours	Seats page, profile bar
-settings	set_profile_name	input:text	Name	planned:T5	profile add/rename, calibration mode, start-of-race threshold lowering
-settings	set_calibrationMode	select	Calibration Mode	planned:T5	profile add/rename, calibration mode, start-of-race threshold lowering
-settings	set_start_thresh_lower_amount	input:number	Start of race EnterAt/ExitAt lowering amount (percent)	planned:T5	profile add/rename, calibration mode, start-of-race threshold lowering
-settings	set_start_thresh_lower_duration	input:number	Start of race EnterAt/ExitAt lowering duration (seconds)	planned:T5	profile add/rename, calibration mode, start-of-race threshold lowering
+settings	set_profile_name	input:text	Name	ours	Seats page, profile bar: Edit (name and description; duplicate names refused)
+settings	set_calibrationMode	select	Calibration Mode	ours	Seats page, Calibration panel (set_config TIMING.calibrationMode, read back via config_update); cards say when Adaptive
+settings	set_start_thresh_lower_amount	input:number	Start of race EnterAt/ExitAt lowering amount (percent)	ours	Seats page, Calibration panel: Amount (%); cards show what a race start lowered each seat to
+settings	set_start_thresh_lower_duration	input:number	Start of race EnterAt/ExitAt lowering duration (seconds)	ours	Seats page, Calibration panel: Duration (s)
 settings	set_voice_string_language	select	Voice Language	ours	Run page, Sound settings dialog (RotorHazard Audio Control panel; the same rotorhazard.* keys)
 settings	voice_test_text	input:text		ours	Run page, Sound settings dialog (RotorHazard Audio Control panel; the same rotorhazard.* keys)
 settings	play_voice_test	button		ours	Run page, Sound settings dialog (RotorHazard Audio Control panel; the same rotorhazard.* keys)
