@@ -361,6 +361,19 @@ describe('CueEngine rules', () => {
     expect(h.tones.filter((t) => t.frequency === 880)).toHaveLength(2);
     expect(h.engine.msToNextTenth()).toBeNull();
   });
+  it('beeps the node tone on a manual lap only when "beep on manual lap" is set', () => {
+    const quiet = harness(laptime);
+    quiet.engine.manualLap(1);
+    expect(quiet.tones).toEqual([]);
+    const loud = harness({ ...laptime, beep_manual_lap_button: true });
+    loud.engine.manualLap(1);
+    expect(loud.tones.map((t) => [t.frequency, t.type, t.durationMs])).toEqual([
+      [466.2, 'sawtooth', 35]
+    ]);
+    const mp3 = harness({ ...laptime, beep_manual_lap_button: true, use_mp3_tones: true });
+    mp3.engine.manualLap(1);
+    expect(mp3.mp3s.map((m) => m.file)).toEqual(['beep']);
+  });
   it('stops on a Ready race_status and does not kick off from a later running one (#73)', () => {
     const h = harness(laptime);
     h.engine.raceStatus({ race_status: 0 }, 0);

@@ -1,7 +1,49 @@
 # Run
 
-Race day in one screen: pick the heat on the timer, **Start** (RotorHazard counts down
-the staging delay), watch laps land, **Stop**, **Save** or discard. The board on the
-Stages page says which heat is next.
+Race day in one screen. RotorHazard does the timing; this page drives it and shows what it
+sees, with sound, so its own Run page can stay closed.
 
-More arrives with the race-day tier: audio cues, the race clock, heat advance.
+## On the timer
+
+Pick the heat in the box at the top. The board on the Stages page says which heat is next,
+and the picker follows RotorHazard: after a save it moves to the heat RotorHazard loaded.
+"Practice — no heat" times whoever is on a seat; RotorHazard never saves practice laps, so
+Save is greyed and Stop then Discard clears them.
+
+If the heat is seeded from results, RotorHazard shows its **heat plan** first: who lands on
+which seat and where they came from. **Confirm** loads it, **Reseed** asks RotorHazard to
+work it out again, **Cancel** leaves the timer as it was.
+
+A pilot seated on a seat whose frequency is Off gets a warning in the header and on the
+seat card: RotorHazard would race them and time nothing. Set a channel on the Seats page or
+move the pilot.
+
+## Start, Stop, Save, Discard
+
+**Start** stages the race: RotorHazard counts down the format's staging delay, with tones,
+then the start tone. The big clock counts the race as RotorHazard's does. **Stop** ends it.
+**Save** stores the laps as a round of the heat and RotorHazard moves to the next heat by
+the stage's rules; the Last race card says what it loaded ("Next: …"). **Discard** clears
+the laps instead (it asks first when there are laps).
+
+## Seat cards
+
+One card per seat with a frequency. During a race each shows the pilot's position (from
+RotorHazard's leaderboard), laps flown, last and best lap, "crossing" while the quad is
+over the gate and "finished" once the pilot is done. Every lap is a chip: click one to
+delete it (RotorHazard renumbers the rest; it asks first), click a deleted one to restore
+it. **+ Lap** registers a pass on that seat now, exactly as RotorHazard's own + Lap button
+does, for a crossing the gate missed. **tune** opens that seat's tuning page.
+
+## Sound
+
+Click anywhere once to enable sound (browsers insist). Then the page plays what
+RotorHazard's own Run page would: staging tones, the start, lap callouts, the final-second
+beeps, "10 seconds", the leader and winner cues, using RotorHazard's audio settings for this
+browser. A page opened or reloaded mid-race picks the race up where it is.
+
+## Messages
+
+A message sent from RotorHazard shows as a banner. A plain one goes by itself after about
+8 seconds; one marked "interrupt" stays until you dismiss it. Either goes when another heat
+is picked or a new race is staged.

@@ -13,7 +13,7 @@
   import RaceClock from '../components/RaceClock.svelte';
   import HeatPlanDialog from '../components/HeatPlanDialog.svelte';
   import { planRows } from '../lib/heatplan.js';
-  import { audioState, startCues } from '../lib/audio.svelte.js';
+  import { audioState, cueManualLap, startCues } from '../lib/audio.svelte.js';
   import { seatTag } from '../lib/channels.js';
   import {
     cancelHeatPlan,
@@ -30,7 +30,8 @@
     setCurrentHeat,
     stageRace,
     stopRace,
-    type WriteResult
+    type WriteResult,
+    simulateLap
   } from '../lib/rh.svelte.js';
   import {
     clockView,
@@ -400,6 +401,23 @@
           {#if row.crossing}<span class="cross" role="status">crossing</span>{/if}
           {#if row.finished}<span class="fin" role="status">finished</span>{/if}
           <span class="rssi" title="RSSI">{row.seat.rssi || ''}</span>
+          <a
+            class="tune"
+            href={href(`seats/${row.seat.index}`)}
+            onclick={link}
+            title="Tune this seat">tune</a
+          >
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={status !== RACE_STATUS.RACING || busy}
+            title="Manual lap: register a pass on this seat now, as RotorHazard's + Lap does"
+            aria-label="Manual lap for seat {row.seat.index + 1}"
+            onclick={() => {
+              cueManualLap(row.seat.index);
+              void run(() => simulateLap(row.seat.index));
+            }}>+ Lap</Button
+          >
         </div>
         {#if row.off}
           <p class="offseat" role="alert">
@@ -580,6 +598,10 @@
 <style>
   .offline {
     display: block;
+  }
+  .tune {
+    font-size: var(--gf-font-size-xs);
+    color: var(--gf-text-muted);
   }
   .cross,
   .fin {

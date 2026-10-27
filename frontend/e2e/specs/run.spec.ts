@@ -148,6 +148,10 @@ test.describe('Run', () => {
     expect(pageErrors).toEqual([]);
     await expect(page.getByRole('button', { name: /^L2/ })).toHaveCount(1);
 
+    // "+ Lap" on the seat card: a manual pass lands as lap 3 (RotorHazard's simulate_lap).
+    await page.getByRole('button', { name: 'Manual lap for seat 2' }).click();
+    await expect(page.getByRole('button', { name: /^L3/ })).toHaveCount(1);
+
     await page.getByRole('button', { name: 'Stop' }).click();
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('Race saved.')).toBeVisible();
@@ -155,7 +159,7 @@ test.describe('Run', () => {
     const saved = await rig.race(heat, 1);
     const seat = saved.nodes.find((n) => n.node_index === 1);
     expect(seat?.callsign).toBe('Ace');
-    expect(seat?.laps.filter((l) => !l.deleted)).toHaveLength(3); // hole shot + 2 of the 3 laps
+    expect(seat?.laps.filter((l) => !l.deleted)).toHaveLength(4); // hole shot + 2 of 3 + manual
     await rh.expectResultsToMention('Heat A');
   });
 });

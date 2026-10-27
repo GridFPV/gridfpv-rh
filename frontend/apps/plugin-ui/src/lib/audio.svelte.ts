@@ -211,6 +211,11 @@ export function startCues(): () => void {
   return stopCues;
 }
 
+/** The director pressed "+ Lap" on a seat: RotorHazard's page beeps the node tone if asked. */
+export function cueManualLap(seat: number) {
+  engine?.manualLap(seat);
+}
+
 export function stopCues() {
   for (const s of stops) s();
   stops = [];

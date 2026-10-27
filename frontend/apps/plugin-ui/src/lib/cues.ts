@@ -404,6 +404,13 @@ export class CueEngine {
       if (!msg.domain || domain) this.speak(msg.text);
     }
   }
+  /** run.html's "+ Lap" click: the seat's node tone when "beep on manual lap" is set. */
+  manualLap(nodeIndex: number) {
+    const s = this.settings;
+    if (!s.beep_manual_lap_button) return;
+    if (s.use_mp3_tones) return this.mp3('beep', s.indicator_beep_volume);
+    this.beep(35, NODE_TONE[nodeIndex] ?? 440, s.indicator_beep_volume, 'sawtooth');
+  }
   firstPassRegistered(msg: { node_index: number }) {
     const s = this.settings;
     if (s.beep_crossing_exited || !s.beep_on_first_pass_button) return;

@@ -1646,9 +1646,14 @@ export function restoreLap(seat: number, lapIndex: number): Promise<WriteResult>
   return awaitState('Restore lap', () => state.liveVersion > before);
 }
 
-/** Simulate a pass on a seat (RotorHazard's debug helper; works on mock nodes). */
-export function simulateLap(seat: number) {
+/**
+ * A manual lap on a seat: RotorHazard's "+ Lap" (simulate_lap registers a pass on the node
+ * now, as a real crossing would; the lap lands through current_laps).
+ */
+export function simulateLap(seat: number): Promise<WriteResult> {
+  const before = state.liveVersion;
   socket?.emit('simulate_lap', { node: seat });
+  return awaitState('Manual lap', () => state.liveVersion > before);
 }
 
 /**

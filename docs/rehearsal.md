@@ -103,6 +103,9 @@ save, next heat as the board says) is written at the end of the tier.
       Next heat and one set to Next round.
 - [ ] **Seat status.** While racing, each seat card shows position, lap count, last and best
       lap, and "crossing" while the quad is over the gate; "finished" once the pilot is done.
+- [ ] **Manual lap.** While racing, press **+ Lap** on a seat card: a lap chip lands for that
+      seat, with the node tone if "beep on manual lap" is set in the audio settings;
+      RotorHazard's Marshal page shows the pass. **tune** on a card opens that seat's tuning.
 
 ## T4 — Marshal and Results parity
 
