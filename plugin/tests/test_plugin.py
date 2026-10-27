@@ -154,6 +154,8 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(payload["rh_version"], "4.4.0")
         self.assertEqual(payload["seat_count"], 8)
         self.assertEqual(payload["plugin_version"], gridfpv.PLUGIN_VERSION)
+        self.assertEqual(payload["data_dir"], os.getcwd())  # FakeRhapi names no data folder
+        self.assertTrue(payload["roster_path"].endswith(os.path.join("gridfpv-data", "roster.json")))
         self.assertTrue(payload["redirect_home"])
         self.assertIsNone(payload["capture"])
 

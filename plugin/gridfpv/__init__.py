@@ -23,7 +23,7 @@ import os
 
 from flask import Blueprint, abort, redirect, request, send_from_directory
 
-from . import archive, auth, capture, event, presets, races, roster, teams
+from . import archive, auth, capture, datadir, event, presets, races, roster, teams
 
 logger = logging.getLogger(__name__)
 
@@ -218,8 +218,11 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
                 "rhapi_version": f"{rhapi.API_VERSION_MAJOR}.{rhapi.API_VERSION_MINOR}",
                 "rh_version": info.get("release_version"),
                 "seat_count": len(rhapi.interface.seats or []),
-                "redirect_home": redirect_enabled(rhapi),
+                                "redirect_home": redirect_enabled(rhapi),
                 "capture": recorder.capture.summary() if recorder.capture else None,
+                # Where our files land, so a timer can be checked without a shell on it.
+                "data_dir": datadir.data_dir(rhapi),
+                "roster_path": roster.path(rhapi),
             },
         )
 

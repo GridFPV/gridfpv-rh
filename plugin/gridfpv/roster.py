@@ -2,8 +2,8 @@
 
 In RotorHazard an event *is* the database: a new event (reset) takes the pilots with it, so
 the director re-types the club every time. The roster is a plugin-owned JSON file next to
-RotorHazard's database (``gridfpv-data/roster.json`` under its working directory, where
-``database.db`` and ``db_bkp/`` live), so it survives resets, is not inside any archive, and
+RotorHazard's database (``gridfpv-data/roster.json`` in its data folder, where ``database.db``
+and ``db_bkp/`` live; see ``datadir``), so it survives resets, is not inside any archive, and
 travels with the timer. Pilots are captured into it automatically as they are added or
 edited in any event (RotorHazard's pilotAdd / pilotAlter events), matched by callsign;
 "Add from roster" on the Pilots page creates them in the current event through RHAPI.
@@ -14,7 +14,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
 import uuid
+
+from . import datadir
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -35,7 +38,20 @@ def path(rhapi=None) -> str:
     override = os.environ.get("GRIDFPV_ROSTER_PATH")
     if override:
         return override
-    return os.path.join(os.getcwd(), DIR_NAME, FILE_NAME)
+    p = os.path.join(datadir.data_dir(rhapi), DIR_NAME, FILE_NAME)
+    # Before datadir, the file went under the working directory. RotorHazard changes into its
+    # data folder at start so the two are one and the same there; where they differ, a roster
+    # left in the old place moves to the new one once.
+    legacy = os.path.join(os.getcwd(), DIR_NAME, FILE_NAME)
+    if legacy != p and os.path.isfile(legacy) and not os.path.isfile(p):
+        try:
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            shutil.move(legacy, p)
+            logger.info("gridfpv roster: moved %s to %s", legacy, p)
+        except OSError:
+            logger.exception("gridfpv roster: could not move %s to %s; using the old place", legacy, p)
+            return legacy
+    return p
 
 
 def _key(callsign) -> str:

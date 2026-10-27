@@ -13,6 +13,9 @@ import logging
 import os
 import re
 
+from . import datadir
+
+
 logger = logging.getLogger(__name__)
 
 #: Characters no sane filesystem (or RotorHazard's path building) accepts in a file name.
@@ -63,7 +66,7 @@ def archive(rhapi, name) -> str:
     ctx = getattr(rhapi, "_racecontext", None)
     if ctx is None:
         raise ArchiveError("this RotorHazard does not expose its data layer")
-    wanted = unused_name(safe_name(name))
+    wanted = unused_name(safe_name(name), os.path.join(datadir.data_dir(rhapi), BKP_DIR))
     try:
         path = ctx.rhdata.backup_db_file(True, use_filename=wanted)
     except Exception as e:  # backup_db_file catches its own errors; this is belt and braces
