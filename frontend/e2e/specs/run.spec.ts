@@ -69,8 +69,8 @@ test.describe('Run', () => {
     ).toBe(f3.id);
 
     // Schedule 0:30, see the countdown, cancel it.
-    await page.getByLabel('Minutes').fill('0');
-    await page.getByLabel('Seconds').fill('30');
+    await page.getByLabel('Minutes', { exact: true }).fill('0');
+    await page.getByLabel('Seconds', { exact: true }).fill('30');
     await page.getByRole('button', { name: 'Schedule start' }).click();
     await expect(
       page.getByRole('status').filter({ hasText: /^Starts in 0:[23]\d$/ })
@@ -81,7 +81,7 @@ test.describe('Run', () => {
     expect((await rig.raceScheduled()).scheduled).toBe(false);
 
     // Schedule 0:05: RotorHazard stages the race itself when the time is up.
-    await page.getByLabel('Seconds').fill('5');
+    await page.getByLabel('Seconds', { exact: true }).fill('5');
     await page.getByRole('button', { name: 'Schedule start' }).click();
     await expect(page.getByRole('status').filter({ hasText: /^Starts in 0:0\d$/ })).toBeVisible();
     await rig.until(
