@@ -1,0 +1,54 @@
+{
+  "name": "enter-above-crossing",
+  "enter": 139,
+  "exit": 80,
+  "note": "enter raised above some crossing peaks: those laps vanish",
+  "page_laps": [
+    {
+      "stamp": 26731,
+      "time": 26731,
+      "deleted": false,
+      "source": 2,
+      "peak": 148
+    },
+    {
+      "stamp": 32474,
+      "time": 5743,
+      "deleted": false,
+      "source": 2,
+      "peak": 146
+    },
+    {
+      "stamp": 39109,
+      "time": 6635,
+      "deleted": false,
+      "source": 2,
+      "peak": 147
+    }
+  ],
+  "saved_laps": [
+    {
+      "stamp": 26731,
+      "time": 26731,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    },
+    {
+      "stamp": 32474,
+      "time": 5743,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    },
+    {
+      "stamp": 39109,
+      "time": 6635,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    }
+  ],
+  "message": "Race times adjusted for: Heat 1 Round 1 / Ace",
+  "captured": "2026-10-27T07:34:05.582Z"
+}

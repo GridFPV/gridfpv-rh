@@ -61,7 +61,7 @@ export function speakTest(text: string) {
       rate: audio.settings.voice_rate,
       pitch: audio.settings.voice_pitch,
       volume: audio.settings.voice_volume,
-      voice: audio.settings.voice_language
+      voice: audio.settings.voice_language ?? ''
     });
 }
 /** RotorHazard's "Export Audio Settings": the same text file it writes, downloaded. */

@@ -19,7 +19,8 @@ import {
   flownLaps,
   type LiveLap,
   countedLaps,
-  countdownText
+  countdownText,
+  formatLapMs
 } from '../src/lib/race.js';
 
 const rules = {
@@ -206,7 +207,7 @@ describe('marshal recalculation', () => {
     const laps = recalcLaps({ times, values }, 60, 40, 100, rules);
     expect(laps.map((l) => Math.round(l.stampMs))).toEqual([2000, 10000, 12000]);
     expect(laps.map((l) => l.deleted)).toEqual([false, false, true]); // 12 s is 2 s after 10 s
-    expect(laps.map((l) => Math.round(l.timeMs))).toEqual([2000, 8000, 2000]);
+    expect(laps.map((l) => Math.round(l.timeMs))).toEqual([2000, 8000, 0]); // deleted: 0, as RotorHazard's
     expect(laps[0].source).toBe(2);
   });
   it('keeps laps under the minimum when the timer is set to keep them', () => {
@@ -326,6 +327,14 @@ describe('flownLaps', () => {
     };
     expect(flownLaps(seat).map((l) => l.index)).toEqual([1, 3]);
     expect(countedLaps(seat).map((l) => l.index)).toEqual([0, 1, 3, 4]);
+  });
+});
+
+describe('formatLapMs', () => {
+  it("shows thousandths like RotorHazard's Marshal page", () => {
+    expect(formatLapMs(875)).toBe('0:00.875');
+    expect(formatLapMs(61_005.4)).toBe('1:01.005');
+    expect(formatLapMs(0)).toBe('0:00.000');
   });
 });
 

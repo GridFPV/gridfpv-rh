@@ -72,12 +72,13 @@
       <label class="field" data-key="voice_language">
         <span>Voice</span>
         <Select
-          value={settings.voice_language}
+          value={settings.voice_language ?? ''}
           size="sm"
-          onchange={(e: Event) => set('voice_language', selValue(e))}
+          onchange={(e: Event) => set('voice_language', selValue(e) || null)}
         >
-          {#if !voices.includes(settings.voice_language)}
-            <option value={settings.voice_language}>{settings.voice_language || '(default)'}</option
+          {#if !voices.includes(settings.voice_language ?? '')}
+            <option value={settings.voice_language ?? ''}
+              >{settings.voice_language || '(default)'}</option
             >
           {/if}
           {#each voices as v (v)}<option value={v}>{v}</option>{/each}

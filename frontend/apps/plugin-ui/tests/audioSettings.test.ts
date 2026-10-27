@@ -54,6 +54,12 @@ describe('audio settings as RotorHazard stores and exports them', () => {
     expect(store.size).toBe(AUDIO_KEYS.length);
     expect(store.get('rotorhazard.voice_rate')).toBe('1.25');
     expect(store.get('rotorhazard.voice_string_language')).toBe('"match-timer"');
+    // RotorHazard's own Set Defaults stores voice_language as null (#81), and so do ours.
+    expect(store.get('rotorhazard.voice_language')).toBe('null');
+    expect(exportAudioSettings(AUDIO_DEFAULTS, null)).toContain('rotorhazard.voice_language=null');
+    expect(
+      importAudioSettings('rotorhazard.voice_language=null\n').settings.voice_language
+    ).toBeNull();
     expect(exportFileName(new Date(2026, 9, 27, 8, 5, 9))).toBe(
       'rhAudioSettings_20261027_080509.cfg'
     );

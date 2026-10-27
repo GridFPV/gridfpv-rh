@@ -268,6 +268,14 @@ export type ClockView = {
   raceMs: number | null;
 };
 
+/** m:ss.sss, as RotorHazard's Marshal page shows lap times and stamps. */
+export function formatLapMs(ms: number): string {
+  const sign = ms < 0 ? '-' : '';
+  const t = Math.round(Math.abs(ms));
+  const m = Math.floor(t / 60000);
+  const s = Math.floor((t % 60000) / 1000);
+  return `${sign}${m}:${String(s).padStart(2, '0')}.${String(t % 1000).padStart(3, '0')}`;
+}
 export function formatClockMs(ms: number, tenths = true): string {
   const sign = ms < 0 ? '-' : '';
   const t = Math.abs(ms);
@@ -396,7 +404,7 @@ export function recalcLaps(
     }
     out.push(lap);
   }
-  return withLapTimes(applyLateLaps(out, rules));
+  return incrementalLapTimes(applyLateLaps(out, rules));
 }
 
 /** After time runs out, the first lap still counts and the rest are deleted. */
@@ -410,9 +418,88 @@ export function applyLateLaps(laps: MarshalLap[], rules: MarshalRules): MarshalL
   });
 }
 
+/**
+ * RotorHazard's marshal.js setEnter / setExit: a threshold is clamped to the graph's range,
+ * never crosses the other one, and dragging one past the other drags the other along.
+ */
+export function setEnterThreshold(
+  _enter: number,
+  exit: number,
+  rssi: number,
+  range = { min: 0, max: 255 }
+): { enter: number; exit: number } {
+  let chk = Math.max(Math.min(rssi, range.max), range.min);
+  if (chk < exit) chk = exit;
+  return { enter: chk, exit: rssi < exit ? rssi : exit };
+}
+export function setExitThreshold(
+  enter: number,
+  _exit: number,
+  rssi: number,
+  range = { min: 0, max: 255 }
+): { enter: number; exit: number } {
+  let chk = Math.max(Math.min(rssi, range.max), range.min);
+  if (chk > enter) chk = enter;
+  return { enter: rssi > enter ? rssi : enter, exit: chk };
+}
+
+/**
+ * marshal.js updateIncrementalLapTimes: laps sorted by stamp; a counted lap's time measures
+ * from the previous counted one (the first from the start); a deleted lap's time is 0.
+ */
+export function incrementalLapTimes(laps: MarshalLap[]): MarshalLap[] {
+  const sorted = [...laps].sort((a, b) => a.stampMs - b.stampMs);
+  let last: number | null = null;
+  return sorted.map((l) => {
+    if (l.deleted) return { ...l, timeMs: 0 };
+    const timeMs = last == null ? l.stampMs : l.stampMs - last;
+    last = l.stampMs;
+    return { ...l, timeMs };
+  });
+}
+
+/**
+ * marshal.js recalcRace: the crossings found with these thresholds replace the recorded
+ * laps, except manual (1) and API (4) laps, which survive and merge in by time.
+ */
+export function recalcRace(
+  trace: Trace,
+  enter: number,
+  exit: number,
+  startTimeS: number,
+  rules: MarshalRules,
+  existing: MarshalLap[]
+): MarshalLap[] {
+  const kept = existing.filter(
+    (l) => l.source === LAP_SOURCE.MANUAL || l.source === LAP_SOURCE.API
+  );
+  return incrementalLapTimes([...recalcLaps(trace, enter, exit, startTimeS, rules), ...kept]);
+}
+
+/** marshal.js addManualLap: a lap at that many seconds (ms truncated), source manual. */
+export function addManualLap(laps: MarshalLap[], seconds: number): MarshalLap[] {
+  return incrementalLapTimes([
+    ...laps,
+    {
+      stampMs: Math.trunc(seconds * 1000),
+      timeMs: 0,
+      deleted: false,
+      source: LAP_SOURCE.MANUAL,
+      peakRssi: null,
+      crossingStart: 0,
+      crossingEnd: 0
+    }
+  ]);
+}
+
+/** marshal.js cleanDeletedLaps: deleted laps are dropped, not flagged, so a save forgets them. */
+export function cleanDeletedLaps(laps: MarshalLap[]): MarshalLap[] {
+  return incrementalLapTimes(laps.filter((l) => !l.deleted));
+}
+
 /** Stored laps (`race_details.laps` or `current_marshal_data` seat laps) as marshal laps. */
 export function lapsFromStored(raw: Raw[]): MarshalLap[] {
-  return withLapTimes(
+  return incrementalLapTimes(
     raw.map((l) => ({
       stampMs: num(l.lap_time_stamp),
       timeMs: num(l.lap_time),
@@ -424,7 +511,7 @@ export function lapsFromStored(raw: Raw[]): MarshalLap[] {
 }
 
 export function toggleLap(laps: MarshalLap[], index: number): MarshalLap[] {
-  return withLapTimes(laps.map((l, i) => (i === index ? { ...l, deleted: !l.deleted } : l)));
+  return incrementalLapTimes(laps.map((l, i) => (i === index ? { ...l, deleted: !l.deleted } : l)));
 }
 
 /** Stored laps as trace ticks: where the timer actually recorded a pass. */

@@ -38,7 +38,8 @@ export type CueOutputs = {
 /** RotorHazard's per-browser audio settings, with its defaults (rotorhazard.js). */
 export type AudioSettings = {
   voice_string_language: string;
-  voice_language: string;
+  /** The speech voice's name; null until one is picked (RotorHazard's default), #81. */
+  voice_language: string | null;
   voice_volume: number;
   voice_rate: number;
   voice_pitch: number;
@@ -65,7 +66,7 @@ export type AudioSettings = {
 
 export const AUDIO_DEFAULTS: AudioSettings = {
   voice_string_language: 'match-timer',
-  voice_language: '',
+  voice_language: null,
   voice_volume: 1.0,
   voice_rate: 1.25,
   voice_pitch: 1.0,
@@ -112,7 +113,7 @@ export function readAudioSettings(
     else if (typeof d === 'number') {
       const n = typeof v === 'boolean' ? (v ? 1 : 0) : Number(v);
       if (Number.isFinite(n)) (out as Record<string, unknown>)[key] = n;
-    } else (out as Record<string, unknown>)[key] = v == null ? '' : String(v);
+    } else (out as Record<string, unknown>)[key] = v == null ? (d === null ? null : '') : String(v);
   }
   return out;
 }
@@ -250,7 +251,7 @@ export class CueEngine {
         rate: this.settings.voice_rate,
         pitch: this.settings.voice_pitch,
         volume: this.settings.voice_volume,
-        voice: this.settings.voice_language
+        voice: this.settings.voice_language ?? ''
       });
       return true;
     }

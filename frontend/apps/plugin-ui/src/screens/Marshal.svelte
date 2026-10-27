@@ -8,7 +8,7 @@
    * RotorHazard rebuilds the results.
    */
   import { onMount, untrack } from 'svelte';
-  import { Badge, Banner, Button, Card, Select } from '@gridfpv/components';
+  import { Badge, Banner, Button, Card, Input, Select } from '@gridfpv/components';
   import RssiTrace from '../components/RssiTrace.svelte';
   import { seatTag } from '../lib/channels.js';
   import {
@@ -22,14 +22,16 @@
     type WriteResult
   } from '../lib/rh.svelte.js';
   import {
-    formatClockMs,
     lapTicks,
     MARSHAL_TYPE,
     RACE_STATUS,
-    recalcLaps,
     toggleLap,
     type MarshalLap,
-    type MarshalRules
+    type MarshalRules,
+    recalcRace,
+    setEnterThreshold,
+    setExitThreshold,
+    formatLapMs
   } from '../lib/race.js';
   import { href, link } from '../lib/router.svelte.js';
   import { heatById, pilotById } from '../lib/setup.js';
@@ -211,13 +213,25 @@
     return l ? lapTicks(l.stored, l.startTime) : [];
   });
 
-  /** A threshold edit finished: recalculate the laps from the trace. */
+  /**
+   * A threshold edit finished: recalculate the laps from the trace, as RotorHazard's
+   * marshal.js recalcRace does (manual and API laps survive and merge in by time); a
+   * threshold never crosses the other, it drags it along (setEnter / setExit).
+   */
   function recalc(e: number, x: number) {
     if (!loaded || !hasTrace) return;
-    enter = e;
-    exit = x;
-    laps = recalcLaps(loaded.trace, e, x, loaded.startTime, rules);
+    const t = e !== enter ? setEnterThreshold(enter, exit, e) : setExitThreshold(enter, exit, x);
+    enter = t.enter;
+    exit = t.exit;
+    laps = recalcRace(loaded.trace, t.enter, t.exit, loaded.startTime, rules, laps);
     dirty = true;
+  }
+  /** The number boxes beside the sliders: RotorHazard's EnterAt / ExitAt inputs. */
+  function typed(which: 'enter' | 'exit', raw: string) {
+    const n = Math.round(Number(raw));
+    if (!Number.isFinite(n)) return;
+    if (which === 'enter') recalc(n, exit);
+    else recalc(enter, n);
   }
   function toggle(i: number) {
     laps = toggleLap(laps, i);
@@ -365,8 +379,8 @@
               title={l.deleted ? 'Click to restore' : 'Click to delete'}
             >
               <td>{l.deleted ? '—' : n === 0 ? 'start' : n}</td>
-              <td class="t">{formatClockMs(l.timeMs)}</td>
-              <td class="t">{formatClockMs(l.stampMs)}</td>
+              <td class="t">{l.deleted ? '—' : formatLapMs(l.timeMs)}</td>
+              <td class="t">{formatLapMs(l.stampMs)}</td>
               <td>{l.peakRssi ?? ''}</td>
               <td class="muted"
                 >{['timer', 'manual', 'recalc', 'auto', 'api'][l.source] ?? l.source}</td
@@ -381,8 +395,32 @@
       </table>
 
       <div class="foot">
-        <span class="muted"
-          >{counted.length} lap{counted.length === 1 ? '' : 's'} counted · enter {enter}, exit {exit}
+        <span class="muted thresholds"
+          >{counted.length} lap{counted.length === 1 ? '' : 's'} counted ·
+          <label
+            >enter <Input
+              type="number"
+              size="sm"
+              min="0"
+              max="255"
+              value={String(enter)}
+              disabled={!hasTrace || busy}
+              aria-label="Enter at"
+              onchange={(ev: Event) => typed('enter', (ev.currentTarget as HTMLInputElement).value)}
+            /></label
+          >
+          <label
+            >exit <Input
+              type="number"
+              size="sm"
+              min="0"
+              max="255"
+              value={String(exit)}
+              disabled={!hasTrace || busy}
+              aria-label="Exit at"
+              onchange={(ev: Event) => typed('exit', (ev.currentTarget as HTMLInputElement).value)}
+            /></label
+          >
           {#if loaded.enter !== enter || loaded.exit !== exit}<Badge tone="warn"
               >thresholds changed</Badge
             >{/if}</span
@@ -403,6 +441,14 @@
 </section>
 
 <style>
+  .thresholds label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gf-space-1);
+  }
+  .thresholds :global(.gf-input) {
+    width: 4.5rem;
+  }
   .page {
     display: grid;
     gap: var(--gf-space-3);

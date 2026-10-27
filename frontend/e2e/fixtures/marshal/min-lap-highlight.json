@@ -1,0 +1,212 @@
+{
+  "name": "min-lap-highlight",
+  "enter": 98,
+  "exit": 80,
+  "options": {
+    "minLap": 2,
+    "behavior": 0
+  },
+  "note": "same min lap, highlight: nothing deleted",
+  "page_laps": [
+    {
+      "stamp": 3262,
+      "time": 3262,
+      "deleted": false,
+      "source": 2,
+      "peak": 139
+    },
+    {
+      "stamp": 3523,
+      "time": 261,
+      "deleted": false,
+      "source": 2,
+      "peak": 132
+    },
+    {
+      "stamp": 3792,
+      "time": 269,
+      "deleted": false,
+      "source": 2,
+      "peak": 123
+    },
+    {
+      "stamp": 9938,
+      "time": 6147,
+      "deleted": false,
+      "source": 2,
+      "peak": 138
+    },
+    {
+      "stamp": 15402,
+      "time": 5464,
+      "deleted": false,
+      "source": 2,
+      "peak": 137
+    },
+    {
+      "stamp": 21687,
+      "time": 6285,
+      "deleted": false,
+      "source": 2,
+      "peak": 139
+    },
+    {
+      "stamp": 21960,
+      "time": 274,
+      "deleted": false,
+      "source": 2,
+      "peak": 137
+    },
+    {
+      "stamp": 22242,
+      "time": 282,
+      "deleted": false,
+      "source": 2,
+      "peak": 129
+    },
+    {
+      "stamp": 26731,
+      "time": 4489,
+      "deleted": false,
+      "source": 2,
+      "peak": 148
+    },
+    {
+      "stamp": 32474,
+      "time": 5743,
+      "deleted": false,
+      "source": 2,
+      "peak": 146
+    },
+    {
+      "stamp": 39109,
+      "time": 6635,
+      "deleted": false,
+      "source": 2,
+      "peak": 147
+    },
+    {
+      "stamp": 44870,
+      "time": 5761,
+      "deleted": false,
+      "source": 2,
+      "peak": 139
+    },
+    {
+      "stamp": 45131,
+      "time": 261,
+      "deleted": false,
+      "source": 2,
+      "peak": 132
+    },
+    {
+      "stamp": 45399,
+      "time": 268,
+      "deleted": false,
+      "source": 2,
+      "peak": 123
+    }
+  ],
+  "saved_laps": [
+    {
+      "stamp": 3262,
+      "time": 3262,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    },
+    {
+      "stamp": 3523,
+      "time": 261,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    },
+    {
+      "stamp": 3792,
+      "time": 269,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    },
+    {
+      "stamp": 9938,
+      "time": 6147,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    },
+    {
+      "stamp": 15402,
+      "time": 5464,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    },
+    {
+      "stamp": 21687,
+      "time": 6285,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    },
+    {
+      "stamp": 21960,
+      "time": 274,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    },
+    {
+      "stamp": 22242,
+      "time": 282,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    },
+    {
+      "stamp": 26731,
+      "time": 4489,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    },
+    {
+      "stamp": 32474,
+      "time": 5743,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    },
+    {
+      "stamp": 39109,
+      "time": 6635,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    },
+    {
+      "stamp": 44870,
+      "time": 5761,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    },
+    {
+      "stamp": 45131,
+      "time": 261,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    },
+    {
+      "stamp": 45399,
+      "time": 268,
+      "deleted": false,
+      "source": 2,
+      "peak": null
+    }
+  ],
+  "message": "Race times adjusted for: Heat 1 Round 1 / Ace",
+  "captured": "2026-10-27T07:34:26.923Z"
+}
