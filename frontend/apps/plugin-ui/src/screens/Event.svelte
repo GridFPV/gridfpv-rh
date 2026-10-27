@@ -21,6 +21,7 @@
     setMinLapBehavior,
     type WriteResult
   } from '../lib/rh.svelte.js';
+  import { archiveFileName, eventNameProblem } from '../lib/event.js';
   import {
     CONSECUTIVES_MAX,
     CONSECUTIVES_MIN,
@@ -71,8 +72,10 @@
   const dirty = $derived(
     (Object.keys(f) as Array<keyof typeof f>).some((k) => f[k].trim() !== ev[k])
   );
+  /** The archive is a file named after the event (#43), so the name must be a file name. */
+  const nameProblem = $derived(f.name.trim() ? eventNameProblem(f.name) : null);
   async function save() {
-    if (!f.name.trim() || !dirty) return;
+    if (!f.name.trim() || !dirty || nameProblem) return;
     editOpen = false;
     const changed: Partial<typeof f> = {};
     for (const k of Object.keys(f) as Array<keyof typeof f>) {
@@ -83,16 +86,39 @@
 
   // ---- lap detection and scoring (#35): each field saves on change, with readback ----
   // The inputs are text the director is typing; they follow the timer until a change lands.
+  // Each input follows its own number only when that number changes. The timing object is
+  // replaced on every min_lap or gridfpv_event message, and resetting all four inputs then
+  // wiped what was being typed before its change event fired (the #35 CI failure).
   let minLapText = $state('');
   let firstCrossingText = $state('');
   let consecText = $state('');
   let behaviorText = $state('0');
-  $effect(() => {
-    minLapText = String(Math.round(timing.minLapMs / 1000));
-    firstCrossingText = String(Math.round(timing.minFirstCrossingMs / 1000));
-    consecText = String(timing.consecutivesBase);
-    behaviorText = String(timing.minLapBehavior);
-  });
+  const follow = (read: () => string, write: (v: string) => void) => {
+    let last: string | null = null;
+    $effect(() => {
+      const v = read();
+      if (v !== last) {
+        last = v;
+        write(v);
+      }
+    });
+  };
+  follow(
+    () => String(Math.round(timing.minLapMs / 1000)),
+    (v) => (minLapText = v)
+  );
+  follow(
+    () => String(Math.round(timing.minFirstCrossingMs / 1000)),
+    (v) => (firstCrossingText = v)
+  );
+  follow(
+    () => String(timing.consecutivesBase),
+    (v) => (consecText = v)
+  );
+  follow(
+    () => String(timing.minLapBehavior),
+    (v) => (behaviorText = v)
+  );
   async function saveSeconds(
     text: string,
     currentMs: number,
@@ -134,13 +160,20 @@
     keepPilots = true;
     newOpen = true;
   }
+  const newNameProblem = $derived(newName.trim() ? eventNameProblem(newName) : null);
   async function startNew() {
-    if (!newName.trim()) return;
+    if (!newName.trim() || newNameProblem) return;
     newOpen = false;
-    await run(
-      () => newEvent(newName.trim(), keepPilots),
-      `New event started. The previous one is archived as "${ev.name}".`
-    );
+    busy = true;
+    try {
+      const r = await newEvent(newName.trim(), keepPilots);
+      onresult(
+        r,
+        `New event started. The previous one is archived as "${r.archive ?? archiveFileName(ev.name)}".`
+      );
+    } finally {
+      busy = false;
+    }
   }
 
   // ---- archives ----
@@ -151,7 +184,10 @@
 
 <Dialog bind:open={editOpen} title="Edit event">
   <div class="form">
-    <label class="field"><span>Name</span><Input bind:value={f.name} maxlength="80" /></label>
+    <label class="field"
+      ><span>Name</span><Input bind:value={f.name} maxlength="80" invalid={!!nameProblem} /></label
+    >
+    {#if nameProblem}<p class="problem" role="alert">{nameProblem}</p>{/if}
     <label class="field"
       ><span>Description</span><Input
         bind:value={f.description}
@@ -188,8 +224,10 @@
   </div>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (editOpen = false)}>Cancel</Button>
-    <Button variant="primary" disabled={!f.name.trim() || !dirty || busy} onclick={save}
-      >Save</Button
+    <Button
+      variant="primary"
+      disabled={!f.name.trim() || !dirty || !!nameProblem || busy}
+      onclick={save}>Save</Button
     >
   {/snippet}
 </Dialog>
@@ -197,8 +235,10 @@
 <Dialog bind:open={newOpen} title="New event">
   <div class="form">
     <p class="muted">
-      The current event, <strong>{ev.name}</strong>, is archived first. Races, heats and classes are
-      cleared. Formats, frequency profiles, teams and presets always stay.
+      The current event, <strong>{ev.name}</strong>, is archived first as
+      <strong>{archiveFileName(ev.name)}</strong>; if that archive cannot be made, nothing is reset.
+      Races, heats and classes are cleared. Formats, frequency profiles, teams and presets always
+      stay.
     </p>
     <label class="field">
       <span>Name</span>
@@ -206,9 +246,11 @@
         bind:value={newName}
         placeholder="e.g. 2026-11-01 Club Night"
         maxlength="80"
+        invalid={!!newNameProblem}
         onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && startNew()}
       />
     </label>
+    {#if newNameProblem}<p class="problem" role="alert">{newNameProblem}</p>{/if}
     <label class="check">
       <input type="checkbox" bind:checked={keepPilots} />
       <span>Keep the {counts.pilots} pilot{counts.pilots === 1 ? '' : 's'} (recommended)</span>
@@ -216,8 +258,10 @@
   </div>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (newOpen = false)}>Cancel</Button>
-    <Button variant="primary" disabled={!newName.trim() || busy} onclick={startNew}
-      >Archive and start</Button
+    <Button
+      variant="primary"
+      disabled={!newName.trim() || !!newNameProblem || busy}
+      onclick={startNew}>Archive and start</Button
     >
   {/snippet}
 </Dialog>
@@ -494,6 +538,11 @@
     border-radius: var(--gf-radius-md);
     padding: var(--gf-space-2);
     resize: vertical;
+  }
+  .problem {
+    margin: calc(-1 * var(--gf-space-2)) 0 0;
+    color: var(--gf-danger-500, #e5484d);
+    font-size: var(--gf-font-size-sm);
   }
   .check {
     display: flex;

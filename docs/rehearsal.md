@@ -47,8 +47,11 @@ Grid), pilots added in Grid.
         pilot has won twice: the stage card says who the ace is and turns Done; the heat's
         next-round cell disappears. RotorHazard's Format page shows the class with "GridFPV
         stage: ace"; its Results page ranks the class by last heat position with the ace first.
-11. [ ] **New event**: archive and start a new event from Grid; pilots survive (roster);
-        RotorHazard's Data management shows the archive.
+11. [ ] **New event**: first rename the event to one with a date, e.g. "Club Night 10/27": the
+        Edit dialog refuses the "/" and says why; use "Club Night 10-27". Archive and start a
+        new event from Grid; the banner names the archive file; pilots survive (roster);
+        RotorHazard's Format page, Data management, lists the archive, and its Classes and
+        Heats panel is empty.
 
 RotorHazard's Format page was not needed for any step: pass.
 

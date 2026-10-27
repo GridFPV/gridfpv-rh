@@ -24,6 +24,8 @@ Handlers (each replies ``gridfpv_mock_ack`` to the asking client):
 - ``gridfpv_mock_reset`` ``{node?}`` — clear a node's (or all nodes') dense history + RSSI, between
   races.
 - ``gridfpv_mock_state`` — reply with per-node ``{index, frequency, current_rssi}``.
+- ``gridfpv_mock_block_backups`` ``{block}`` — make RotorHazard's ``db_bkp`` unusable (or restore
+  it), so a test can see a database archive fail.
 """
 
 import logging
@@ -142,6 +144,32 @@ def initialize(rhapi):
         except Exception as ex:  # noqa: BLE001
             nack("state", ex)
 
+    def on_block_backups(data=None):
+        # Make RotorHazard's db_bkp unusable (a regular file in its place) or put it back, so a
+        # test can see what happens when an archive cannot land. The container runs as root, so
+        # permissions would not do it.
+        import os
+        import shutil
+
+        data = data or {}
+        try:
+            bkp = os.path.join(os.getcwd(), "db_bkp")
+            aside = bkp + ".aside"
+            if data.get("block"):
+                if os.path.isdir(bkp):
+                    shutil.move(bkp, aside)
+                if not os.path.exists(bkp):
+                    open(bkp, "w").close()
+            else:
+                if os.path.isfile(bkp):
+                    os.remove(bkp)
+                if os.path.isdir(aside) and not os.path.exists(bkp):
+                    shutil.move(aside, bkp)
+            ack("block_backups", blocked=os.path.isfile(bkp))
+        except Exception as ex:  # noqa: BLE001
+            nack("block_backups", ex)
+
+    rhapi.ui.socket_listen("gridfpv_mock_block_backups", on_block_backups)
     rhapi.ui.socket_listen("gridfpv_mock_tune", on_tune)
     rhapi.ui.socket_listen("gridfpv_mock_set_rssi", on_set_rssi)
     rhapi.ui.socket_listen("gridfpv_mock_lap", on_lap)

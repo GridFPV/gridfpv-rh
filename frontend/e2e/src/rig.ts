@@ -565,6 +565,26 @@ export class Rig {
     );
   }
 
+  /** RotorHazard's archives (db_bkp), as its backups_list message reports them. */
+  async backups(): Promise<string[]> {
+    const p = await this.loadData<{ backup_files: string[] | null }>('backups_list');
+    return p.backup_files ?? [];
+  }
+
+  /** Delete an archive (RotorHazard's delete_database), so a spec leaves db_bkp as it found it. */
+  async deleteBackup(file: string): Promise<void> {
+    this.emit('delete_database', { backup_file: file });
+    await this.until(`archive ${file} deleted`, async () => !(await this.backups()).includes(file));
+  }
+
+  /** Dev rig only: make RotorHazard's backup folder unusable, or put it back (gridfpv_mock). */
+  async blockBackups(block: boolean): Promise<void> {
+    const done = this.next<{ action?: string; ok?: boolean; error?: string }>('gridfpv_mock_ack');
+    this.emit('gridfpv_mock_block_backups', { block });
+    const ack = await done;
+    if (ack.ok === false) throw new Error(`rig: block backups failed: ${ack.error}`);
+  }
+
   /** HTTP status of a JSON API path (RotorHazard answers 500 for a round that does not exist). */
   async apiStatus(path: string): Promise<number> {
     const res = await fetch(this.url + path, { headers: { Authorization: this.authHeader } });

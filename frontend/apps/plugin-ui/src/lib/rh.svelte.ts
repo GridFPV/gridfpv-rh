@@ -202,6 +202,7 @@ type Waiter = {
   pred: () => boolean;
   resolve: (r: WriteResult) => void;
   timer: number;
+  poll: number;
   what: string;
 };
 const waiters: Waiter[] = [];
@@ -211,10 +212,36 @@ function checkWaiters() {
     const w = waiters[i];
     if (w.pred()) {
       clearTimeout(w.timer);
+      clearInterval(w.poll);
       waiters.splice(i, 1);
       w.resolve({ ok: true });
     }
   }
+}
+
+const RELOAD_FIRST_MS = 200;
+const RELOAD_EVERY_MS = 300;
+/**
+ * The re-request the next `awaitState` should keep sending until its predicate holds. Set
+ * by `reloadAfter` right before the write's `awaitState` call (same synchronous flow); a
+ * microtask clears it so it can never attach to an unrelated later wait.
+ */
+let pendingReload: (() => void) | null = null;
+
+/**
+ * Re-request `reload` after a write: once soon, then on an interval until the readback
+ * agrees or times out. RotorHazard handles socket events on gevent, so a single
+ * re-request can be answered from before the write landed; asking again is what makes the
+ * readback a readback.
+ */
+function reloadAfter(reload: () => void) {
+  pendingReload = reload;
+  queueMicrotask(() => {
+    if (pendingReload === reload) {
+      pendingReload = null;
+      window.setTimeout(reload, RELOAD_FIRST_MS);
+    }
+  });
 }
 
 /** Resolve once `pred` holds (checked after every incoming update), or fail after a timeout. */
@@ -223,18 +250,26 @@ function awaitState(
   pred: () => boolean,
   timeoutMs = READBACK_MS
 ): Promise<WriteResult> {
+  const reload = pendingReload;
+  pendingReload = null;
   if (pred()) return Promise.resolve({ ok: true });
   return new Promise((resolve) => {
     const w: Waiter = {
       what,
       pred,
       resolve,
+      poll: 0,
       timer: window.setTimeout(() => {
         const idx = waiters.indexOf(w);
         if (idx >= 0) waiters.splice(idx, 1);
+        clearInterval(w.poll);
         resolve({ ok: false, message: `${what}: RotorHazard did not confirm the change` });
       }, timeoutMs)
     };
+    if (reload) {
+      window.setTimeout(reload, RELOAD_FIRST_MS);
+      w.poll = window.setInterval(reload, RELOAD_EVERY_MS);
+    }
     waiters.push(w);
   });
 }
@@ -469,6 +504,10 @@ export function connect(): Socket {
     checkWaiters();
   });
 
+  socket.on('gridfpv_archived', (p: { ok: boolean; file: string | null; message?: string }) => {
+    archived = { ok: Boolean(p?.ok), file: p?.file ?? null, message: p?.message };
+    checkWaiters();
+  });
   socket.on('gridfpv_races_deleted', (p: DeletedRacesPayload) => {
     state.deletedRaces = applyDeletedRaces(p);
     state.deletedRacesNative = Boolean(p?.native);
@@ -575,7 +614,7 @@ export function setChannel(
   frequency: number
 ): Promise<WriteResult> {
   socket?.emit('set_frequency', { node: seat, band, channel, frequency });
-  window.setTimeout(() => loadData('frequency_data'), 150);
+  reloadAfter(() => loadData('frequency_data'));
   return awaitState(`Seat ${seat + 1} channel`, () => state.seats[seat]?.frequency === frequency);
 }
 
@@ -584,7 +623,7 @@ export async function setLevels(seat: number, enter: number, exit: number): Prom
   // RotorHazard treats 0 as "take the node's current value", so a real 0 is not settable.
   socket?.emit('set_enter_at_level', { node: seat, enter_at_level: enter });
   socket?.emit('set_exit_at_level', { node: seat, exit_at_level: exit });
-  window.setTimeout(() => loadData('enter_and_exit_at_levels'), 200);
+  reloadAfter(() => loadData('enter_and_exit_at_levels'));
   return awaitState(
     `Seat ${seat + 1} thresholds`,
     () => state.seats[seat]?.enter === enter && state.seats[seat]?.exit === exit
@@ -594,10 +633,7 @@ export async function setLevels(seat: number, enter: number, exit: number): Prom
 /** Make a profile the active one; RotorHazard re-tunes every seat from it. */
 export function setProfile(id: number): Promise<WriteResult> {
   socket?.emit('set_profile', { profile: id });
-  window.setTimeout(
-    () => loadData('node_tuning', 'frequency_data', 'enter_and_exit_at_levels'),
-    200
-  );
+  reloadAfter(() => loadData('node_tuning', 'frequency_data', 'enter_and_exit_at_levels'));
   return awaitState('Profile switch', () => state.profiles.currentId === id);
 }
 
@@ -605,14 +641,14 @@ export function setProfile(id: number): Promise<WriteResult> {
 export function addProfile(): Promise<WriteResult> {
   const before = state.profiles.list.length;
   socket?.emit('add_profile');
-  window.setTimeout(() => loadData('node_tuning'), 300);
+  reloadAfter(() => loadData('node_tuning'));
   return awaitState('New profile', () => state.profiles.list.length > before);
 }
 
 /** Rename / describe the active profile. */
 export function alterProfile(name: string, description: string): Promise<WriteResult> {
   socket?.emit('alter_profile', { profile_name: name, profile_description: description });
-  window.setTimeout(() => loadData('node_tuning'), 200);
+  reloadAfter(() => loadData('node_tuning'));
   return awaitState(
     'Profile rename',
     () => state.profiles.name === name && state.profiles.description === description
@@ -623,10 +659,7 @@ export function alterProfile(name: string, description: string): Promise<WriteRe
 export function deleteProfile(): Promise<WriteResult> {
   const id = state.profiles.currentId;
   socket?.emit('delete_profile');
-  window.setTimeout(
-    () => loadData('node_tuning', 'frequency_data', 'enter_and_exit_at_levels'),
-    300
-  );
+  reloadAfter(() => loadData('node_tuning', 'frequency_data', 'enter_and_exit_at_levels'));
   return awaitState('Delete profile', () => state.profiles.currentId !== id);
 }
 
@@ -685,7 +718,7 @@ export function deletePreset(id: string): Promise<WriteResult> {
 export async function addPilot(): Promise<WriteResult & { id?: number }> {
   const before = new Set(state.setup.pilots.map((p) => p.id));
   socket?.emit('add_pilot');
-  window.setTimeout(() => loadData('pilot_data'), 200);
+  reloadAfter(() => loadData('pilot_data'));
   const r = await awaitState('New pilot', () => state.setup.pilots.some((p) => !before.has(p.id)));
   const added = state.setup.pilots.find((p) => !before.has(p.id));
   // RotorHazard gives every new pilot team "A" by default; a new pilot starts with no team
@@ -714,7 +747,7 @@ export function alterPilot(id: number, fields: PilotFields): Promise<WriteResult
   if (fields.team !== undefined) payload.team_name = fields.team;
   if (fields.color !== undefined) payload.color = fields.color;
   socket?.emit('alter_pilot', payload);
-  window.setTimeout(() => loadData('pilot_data'), 200);
+  reloadAfter(() => loadData('pilot_data'));
   return awaitState(`Pilot ${fields.callsign ?? ''}`.trim(), () => {
     const p = state.setup.pilots.find((x) => x.id === id);
     if (!p) return false;
@@ -731,7 +764,7 @@ export function alterPilot(id: number, fields: PilotFields): Promise<WriteResult
 /** Set one plugin attribute on a pilot (RotorHazard takes one per call). */
 export function setPilotAttribute(id: number, name: string, value: string): Promise<WriteResult> {
   socket?.emit('alter_pilot', { pilot_id: id, pilot_attr: name, value });
-  window.setTimeout(() => loadData('pilot_data'), 200);
+  reloadAfter(() => loadData('pilot_data'));
   return awaitState(`Pilot attribute ${name}`, () => {
     const p = state.setup.pilots.find((x) => x.id === id);
     return !!p && String(p.attributes[name] ?? '') === value;
@@ -741,7 +774,7 @@ export function setPilotAttribute(id: number, name: string, value: string): Prom
 /** RotorHazard refuses to delete a pilot who is in a saved race; the readback reports it. */
 export function deletePilot(id: number): Promise<WriteResult> {
   socket?.emit('delete_pilot', { pilot: id });
-  window.setTimeout(() => loadData('pilot_data'), 200);
+  reloadAfter(() => loadData('pilot_data'));
   return awaitState('Delete pilot', () => !state.setup.pilots.some((p) => p.id === id)).then((r) =>
     r.ok
       ? r
@@ -757,7 +790,7 @@ export function deletePilot(id: number): Promise<WriteResult> {
 export async function addClass(): Promise<WriteResult & { id?: number }> {
   const before = new Set(state.setup.classes.map((c) => c.id));
   socket?.emit('add_race_class');
-  window.setTimeout(() => loadData('class_data'), 200);
+  reloadAfter(() => loadData('class_data'));
   const r = await awaitState('New class', () => state.setup.classes.some((c) => !before.has(c.id)));
   return { ...r, id: state.setup.classes.find((c) => !before.has(c.id))?.id };
 }
@@ -787,7 +820,7 @@ export function alterClass(id: number, fields: ClassFields): Promise<WriteResult
   if (fields.heatAdvanceType !== undefined) payload.heat_advance_type = fields.heatAdvanceType;
   if (fields.roundType !== undefined) payload.round_type = fields.roundType;
   if (Object.keys(payload).length > 1) socket?.emit('alter_race_class', payload);
-  window.setTimeout(() => loadData('class_data'), 200);
+  reloadAfter(() => loadData('class_data'));
   return awaitState('Class', () => {
     const c = state.setup.classes.find((x) => x.id === id);
     if (!c) return false;
@@ -845,7 +878,7 @@ export async function createStage(spec: {
 export function duplicateClass(id: number): Promise<WriteResult> {
   const before = state.setup.classes.length;
   socket?.emit('duplicate_race_class', { class: id });
-  window.setTimeout(() => loadData('class_data', 'heat_data'), 300);
+  reloadAfter(() => loadData('class_data', 'heat_data'));
   return awaitState('Duplicate class', () => state.setup.classes.length > before);
 }
 
@@ -863,7 +896,7 @@ export async function deleteStage(id: number): Promise<WriteResult> {
 
 export function deleteClass(id: number): Promise<WriteResult> {
   socket?.emit('delete_class', { class: id });
-  window.setTimeout(() => loadData('class_data', 'heat_data'), 200);
+  reloadAfter(() => loadData('class_data', 'heat_data'));
   return awaitState('Delete class', () => !state.setup.classes.some((c) => c.id === id)).then(
     (r) =>
       r.ok
@@ -880,7 +913,7 @@ export function deleteClass(id: number): Promise<WriteResult> {
 export async function addHeat(classId: number, group = 0): Promise<WriteResult & { id?: number }> {
   const before = new Set(state.setup.heats.map((h) => h.id));
   socket?.emit('add_heat', classId ? { class: classId, group } : {});
-  window.setTimeout(() => loadData('heat_data'), 200);
+  reloadAfter(() => loadData('heat_data'));
   const r = await awaitState('New heat', () => state.setup.heats.some((h) => !before.has(h.id)));
   return { ...r, id: state.setup.heats.find((h) => !before.has(h.id))?.id };
 }
@@ -888,7 +921,7 @@ export async function addHeat(classId: number, group = 0): Promise<WriteResult &
 export function duplicateHeat(id: number): Promise<WriteResult> {
   const before = state.setup.heats.length;
   socket?.emit('duplicate_heat', { heat: id });
-  window.setTimeout(() => loadData('heat_data'), 300);
+  reloadAfter(() => loadData('heat_data'));
   return awaitState('Duplicate heat', () => state.setup.heats.length > before);
 }
 
@@ -906,7 +939,7 @@ export function alterHeat(id: number, fields: HeatFields): Promise<WriteResult> 
   if (fields.autoFrequency !== undefined) payload.auto_frequency = fields.autoFrequency;
   if (fields.groupId !== undefined) payload.group_id = fields.groupId;
   socket?.emit('alter_heat', payload);
-  window.setTimeout(() => loadData('heat_data'), 200);
+  reloadAfter(() => loadData('heat_data'));
   return awaitState('Heat', () => {
     const h = state.setup.heats.find((x) => x.id === id);
     if (!h) return false;
@@ -921,7 +954,7 @@ export function alterHeat(id: number, fields: HeatFields): Promise<WriteResult> 
 
 export function deleteHeat(id: number): Promise<WriteResult> {
   socket?.emit('delete_heat', { heat: id });
-  window.setTimeout(() => loadData('heat_data'), 200);
+  reloadAfter(() => loadData('heat_data'));
   return awaitState('Delete heat', () => !state.setup.heats.some((h) => h.id === id)).then((r) =>
     r.ok
       ? r
@@ -959,7 +992,7 @@ export async function seedHeat(id: number): Promise<WriteResult & { waiting?: nu
   const waiting = unresolved();
   if (waiting > 0) return { ok: true, waiting };
   socket?.emit('confirm_heat_plan', { heat_id: id });
-  window.setTimeout(() => loadData('heat_data'), 300);
+  reloadAfter(() => loadData('heat_data'));
   const r = await awaitState('Seed', () => heat()?.status === HEAT_STATUS.CONFIRMED);
   return { ...r, waiting: 0 };
 }
@@ -967,7 +1000,7 @@ export async function seedHeat(id: number): Promise<WriteResult & { waiting?: nu
 /** Back to a plan: RotorHazard drops the confirmation and will recompute seats on the next seed. */
 export function unseedHeat(id: number): Promise<WriteResult> {
   socket?.emit('calc_reset', { heat: id });
-  window.setTimeout(() => loadData('heat_data'), 300);
+  reloadAfter(() => loadData('heat_data'));
   return awaitState(
     'Reset seeding',
     () => state.setup.heats.find((h) => h.id === id)?.status === HEAT_STATUS.PLANNED
@@ -1003,7 +1036,7 @@ export function seatSlot(
   }
   if (seating.method === SLOT_METHOD.NONE) payload.pilot = 0;
   socket?.emit('alter_heat', payload);
-  window.setTimeout(() => loadData('heat_data'), 200);
+  reloadAfter(() => loadData('heat_data'));
   return awaitState('Seat', () => {
     const slot = state.setup.heats.find((h) => h.id === heatId)?.slots.find((s) => s.id === slotId);
     if (!slot) return false;
@@ -1180,19 +1213,19 @@ export function forgetDeletedRace(d: DeletedRace): Promise<WriteResult> {
 
 export function setMinLap(seconds: number): Promise<WriteResult> {
   socket?.emit('set_min_lap', { min_lap: seconds });
-  window.setTimeout(() => loadData('min_lap'), 200);
+  reloadAfter(() => loadData('min_lap'));
   return awaitState('Minimum lap time', () => state.timing.minLapMs === seconds * 1000);
 }
 
 export function setMinLapBehavior(behavior: number): Promise<WriteResult> {
   socket?.emit('set_min_lap_behavior', { min_lap_behavior: behavior });
-  window.setTimeout(() => loadData('min_lap'), 200);
+  reloadAfter(() => loadData('min_lap'));
   return awaitState('Minimum lap behaviour', () => state.timing.minLapBehavior === behavior);
 }
 
 export function setMinFirstCrossing(seconds: number): Promise<WriteResult> {
   socket?.emit('set_min_first_crossing', { min_first_crossing: seconds });
-  window.setTimeout(() => loadData('min_lap'), 200);
+  reloadAfter(() => loadData('min_lap'));
   return awaitState(
     'Ignore crossings before',
     () => state.timing.minFirstCrossingMs === seconds * 1000
@@ -1202,23 +1235,49 @@ export function setMinFirstCrossing(seconds: number): Promise<WriteResult> {
 /** RotorHazard clears every cached result when this changes; ask for them again too. */
 export function setConsecutivesBase(count: number): Promise<WriteResult> {
   socket?.emit('set_consecutives_count', { count });
-  window.setTimeout(() => {
-    socket?.emit('gridfpv_event_get');
-    loadData('result_data');
-  }, 200);
-  return awaitState('Consecutive laps base', () => state.timing.consecutivesBase === count);
+  reloadAfter(() => socket?.emit('gridfpv_event_get'));
+  const r = awaitState('Consecutive laps base', () => state.timing.consecutivesBase === count);
+  void r.then(() => loadData('result_data'));
+  return r;
+}
+
+/** The plugin's answer to gridfpv_archive, one per request. */
+let archived: { ok: boolean; file: string | null; message?: string } | null = null;
+
+/**
+ * Archive the database under the current event's name through the plugin, which makes the
+ * name a usable file name (#43: RotorHazard's own with_archive fails on a "/" and resets
+ * anyway). Resolves with the file once it is listed among the archives.
+ */
+export async function archiveEvent(name: string): Promise<WriteResult & { file?: string }> {
+  archived = null;
+  socket?.emit('gridfpv_archive', { name });
+  const answered = await awaitState('Archive', () => archived != null, 15000);
+  if (!answered.ok) return answered;
+  const a = archived!;
+  if (!a.ok || !a.file)
+    return { ok: false, message: a.message ?? 'RotorHazard could not archive the database' };
+  const file = a.file;
+  socket?.emit('list_backups');
+  const listed = await awaitState('Archive', () => state.archives.includes(file), 5000);
+  return listed.ok ? { ok: true, file } : { ok: false, message: `Archive ${file} is not listed` };
 }
 
 /**
- * Start a new event the way RotorHazard can't on its own: archive the current database,
- * clear races + heats + classes (and pilots only if asked), keep formats, profiles and
- * plugin options, then name the new event and blank its details.
+ * Start a new event the way RotorHazard can't on its own: archive the current database
+ * (and stop here if that fails), clear races + heats + classes (and pilots only if asked),
+ * keep formats, profiles and plugin options, then name the new event and blank its details.
  */
-export async function newEvent(name: string, keepPilots: boolean): Promise<WriteResult> {
+export async function newEvent(
+  name: string,
+  keepPilots: boolean
+): Promise<WriteResult & { archive?: string }> {
+  const arch = await archiveEvent(state.event.name);
+  if (!arch.ok) return { ok: false, message: `${arch.message}. Nothing was reset.` };
   const acks = resetAcks;
   socket?.emit('reset_database', {
     reset_type: keepPilots ? 'classes' : 'all',
-    with_archive: true
+    with_archive: false
   });
   const reset = await awaitState('New event', () => resetAcks > acks);
   if (!reset.ok) return reset;
@@ -1230,14 +1289,14 @@ export async function newEvent(name: string, keepPilots: boolean): Promise<Write
   if (!cleared.ok) return cleared;
   const named = await saveEvent({ name, description: '' });
   window.setTimeout(() => socket?.emit('list_backups'), 500);
-  return named;
+  return named.ok ? { ...named, archive: arch.file } : named;
 }
 
 /** Archive the current database now (RotorHazard's backup_database). */
 export function archiveNow(): Promise<WriteResult> {
   const before = state.archives.length;
   socket?.emit('backup_database');
-  window.setTimeout(() => socket?.emit('list_backups'), 1000);
+  reloadAfter(() => socket?.emit('list_backups'));
   return awaitState('Archive', () => state.archives.length > before);
 }
 
@@ -1256,7 +1315,7 @@ export async function restoreArchive(file: string): Promise<WriteResult> {
 
 export function deleteArchive(file: string): Promise<WriteResult> {
   socket?.emit('delete_database', { backup_file: file });
-  window.setTimeout(() => socket?.emit('list_backups'), 500);
+  reloadAfter(() => socket?.emit('list_backups'));
   return awaitState('Delete archive', () => !state.archives.includes(file));
 }
 
@@ -1266,7 +1325,7 @@ export function deleteArchive(file: string): Promise<WriteResult> {
 export async function addFormat(sourceId: number): Promise<WriteResult & { id?: number }> {
   const before = new Set(state.setup.formats.map((f) => f.id));
   socket?.emit('add_race_format', { source_format_id: sourceId });
-  window.setTimeout(() => loadData('format_data'), 200);
+  reloadAfter(() => loadData('format_data'));
   const r = await awaitState('New format', () =>
     state.setup.formats.some((f) => !before.has(f.id))
   );
@@ -1306,7 +1365,7 @@ export function alterFormat(id: number, fields: FormatFields): Promise<WriteResu
   if (fields.teamRacingMode !== undefined) p.team_racing_mode = fields.teamRacingMode;
   if (fields.pointsMethod !== undefined) p.points_method = fields.pointsMethod ?? '';
   socket?.emit('alter_race_format', p);
-  window.setTimeout(() => loadData('format_data'), 200);
+  reloadAfter(() => loadData('format_data'));
   return awaitState('Format', () => {
     const f = state.setup.formats.find((x) => x.id === id);
     if (!f) return false;
@@ -1340,7 +1399,7 @@ export function alterFormat(id: number, fields: FormatFields): Promise<WriteResu
 
 export function deleteFormat(id: number): Promise<WriteResult> {
   socket?.emit('delete_race_format', { format_id: id });
-  window.setTimeout(() => loadData('format_data', 'class_data'), 200);
+  reloadAfter(() => loadData('format_data', 'class_data'));
   return awaitState('Delete format', () => !state.setup.formats.some((f) => f.id === id)).then(
     (r) =>
       r.ok
@@ -1536,6 +1595,6 @@ export function replaceCurrentLaps(spec: {
     enter_at: spec.enter,
     exit_at: spec.exit
   });
-  window.setTimeout(() => loadData('current_laps', 'leaderboard'), 300);
+  reloadAfter(() => loadData('current_laps', 'leaderboard'));
   return awaitState('Replace laps', () => state.liveVersion > before);
 }
