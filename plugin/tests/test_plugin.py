@@ -138,6 +138,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(rhapi.panels[1][:3], (gridfpv.STREAMS_PANEL, "GridFPV overlays", "streams"))
         attr = rhapi.fields.register_raceclass_attribute.call_args.args[0]
         self.assertEqual(attr.name, gridfpv.CLASS_ATTR_STAGE)
+        self.assertEqual(rhapi.fields.register_pilot_attribute.call_args.args[0].name, "gridfpv_roster_id")
         (field, panel), = rhapi.registered_options
         self.assertEqual((field.name, panel), (gridfpv.OPT_REDIRECT_HOME, gridfpv.PANEL))
         self.assertEqual(len(rhapi.blueprints), 1)

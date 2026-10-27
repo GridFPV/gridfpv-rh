@@ -41,6 +41,8 @@ test.describe('Pilots', () => {
     rh
   }) => {
     test.setTimeout(90_000);
+    // The roster outlives the fixture's reset: forget this spec's pilots from earlier runs.
+    await rig.rosterForget(/^E2E Rosty/);
     // Added in Grid (captured into the roster by RotorHazard's pilotAlter event).
     await page.goto('/grid/pilots');
     await page.getByRole('button', { name: 'New pilot' }).click();
@@ -70,10 +72,34 @@ test.describe('Pilots', () => {
     await expect(page.getByText('E2E Rosty is in this event.')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('1 pilot', { exact: false }).first()).toBeVisible();
 
-    // RotorHazard agrees: the pilot is back with the name, in its API and on its Format page.
+    // RotorHazard agrees: the pilot is back with the name and no team (#60), in its API and on
+    // its Format page.
     const pilots = await rig.pilots();
-    expect(pilots.map((p) => [p.callsign, p.name])).toEqual([['E2E Rosty', 'Rosty Roster']]);
+    expect(pilots.map((p) => [p.callsign, p.name, p.team])).toEqual([
+      ['E2E Rosty', 'Rosty Roster', '']
+    ]);
     expect(await rh.formatPilotCallsigns()).toContain('E2E Rosty');
+
+    // Renamed in this event, the roster still has one entry for them, under the new name (#59).
+    await page.goto('/grid/pilots');
+    await page.getByRole('button', { name: 'Edit' }).first().click();
+    const edit = page.getByRole('dialog');
+    await edit.getByPlaceholder('What the announcer says').fill('E2E Rosty II');
+    await edit.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByText('RotorHazard confirmed the change.')).toBeVisible();
+    await page.getByRole('button', { name: 'Add from roster' }).click();
+    const rosterDialog = page.getByRole('dialog');
+    await expect(rosterDialog.getByText('E2E Rosty', { exact: true })).toHaveCount(0);
+    await rosterDialog.getByRole('button', { name: 'Cancel' }).click();
+    await rig.reset('pilots');
+    await page.goto('/grid/pilots');
+    await page.getByRole('button', { name: 'Add from roster' }).click();
+    const entries = page
+      .getByRole('dialog')
+      .getByLabel('Roster')
+      .locator('li', { hasText: 'E2E Rosty' });
+    await expect(entries).toHaveCount(1);
+    await expect(entries).toContainText('E2E Rosty II');
   });
 
   test('New pilot then Cancel, ×, or Esc writes nothing (#42)', async ({ page, rig, rh }) => {

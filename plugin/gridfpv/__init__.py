@@ -162,6 +162,15 @@ def register_options(rhapi) -> None:
     from RHUI import UIField, UIFieldType  # RotorHazard's own module; only importable in-process
 
     rhapi.ui.register_panel(PANEL, "GridFPV", "settings", order=0)
+    # The roster link rides on each pilot (#59): one roster entry per pilot across renames.
+    rhapi.fields.register_pilot_attribute(
+        UIField(
+            roster.ATTR_LINK,
+            "GridFPV roster id",
+            UIFieldType.TEXT,
+            desc="Set by GridFPV: which roster entry this pilot is.",
+        )
+    )
     # A stage's type rides on RotorHazard's class as an attribute, so it is archived, reset
     # and emitted (class_data) with the class, and visible on RotorHazard's Format page.
     rhapi.fields.register_raceclass_attribute(

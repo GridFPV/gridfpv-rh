@@ -27,17 +27,34 @@ class RosterCase(unittest.TestCase):
         self.env = mock.patch.dict(os.environ, {"GRIDFPV_ROSTER_PATH": os.path.join(self.tmp.name, "r", "roster.json")})
         self.env.start()
         self.rhapi = FakeRhapi()
-        self.rhapi.db.pilot_attributes = mock.Mock(return_value=[types.SimpleNamespace(name="mgp_pilot_id", value="42")])
+        # Attributes per pilot id: the MultiGP id on everyone, plus whatever the plugin links.
+        self.attrs = {}
+        self.rhapi.db.pilot_attributes = mock.Mock(
+            side_effect=lambda pilot: [types.SimpleNamespace(name="mgp_pilot_id", value="42")]
+            + [types.SimpleNamespace(name=k, value=v) for k, v in self.attrs.get(pilot.id, {}).items()])
         self.rhapi.db.pilot_by_id = mock.Mock(side_effect=lambda pid: next((p for p in self.rhapi.pilot_list if p.id == pid), None))
         self.rhapi.db.pilot_add = mock.Mock(side_effect=self._pilot_add)
+        self.rhapi.db.pilot_alter = mock.Mock(side_effect=self._pilot_alter)
 
     def tearDown(self):
         self.env.stop()
         self.tmp.cleanup()
 
     def _pilot_add(self, name=None, callsign=None, phonetic=None, team=None, color=None):
-        p = pilot(100 + len(self.rhapi.pilot_list), callsign, name or "", team or "", color or "", phonetic or "")
+        # RotorHazard's default team for a new pilot is "A" (#60).
+        p = pilot(100 + len(self.rhapi.pilot_list), callsign, name or "", team or "A", color or "", phonetic or "")
         self.rhapi.pilot_list.append(p)
+        return p
+
+    def _pilot_alter(self, pilot_id, name=None, callsign=None, phonetic=None, team=None, color=None, attributes=None):
+        if attributes:
+            self.attrs.setdefault(pilot_id, {}).update(attributes)
+        p = next((x for x in self.rhapi.pilot_list if x.id == pilot_id), None)
+        if p is None:
+            return None
+        for k, v in (("name", name), ("callsign", callsign), ("phonetic", phonetic), ("team", team), ("color", color)):
+            if v is not None:
+                setattr(p, k, v)
         return p
 
 
@@ -47,11 +64,31 @@ class CaptureTests(RosterCase):
         self.assertEqual(roster.load(self.rhapi), [])
         e = roster.capture(self.rhapi, pilot(1, "Ace", "Ace Pilot", "Red"))
         self.assertEqual((e["callsign"], e["name"], e["team"], e["attributes"]), ("Ace", "Ace Pilot", "Red", {"mgp_pilot_id": "42"}))
+        self.assertEqual(self.attrs[1][roster.ATTR_LINK], e["id"])  # the pilot is linked to its entry
+        self.assertNotIn(roster.ATTR_LINK, e["attributes"])
         again = roster.capture(self.rhapi, pilot(5, "ace", "A. Pilot", "Blue"))
         self.assertEqual(again["id"], e["id"])  # same pilot, callsign case aside
         self.assertEqual([(p["callsign"], p["name"], p["team"]) for p in roster.load(self.rhapi)], [("ace", "A. Pilot", "Blue")])
         self.assertTrue(os.path.isfile(roster.path()))
         self.assertEqual(json.load(open(roster.path()))["version"], 1)
+
+    def test_a_renamed_pilot_stays_one_entry(self):
+        # #59: the link on the pilot wins over the callsign.
+        p = pilot(1, "Ace")
+        self.rhapi.pilot_list = [p]
+        e = roster.capture(self.rhapi, p)
+        p.callsign = "Ace Reborn"
+        renamed = roster.capture(self.rhapi, p)
+        self.assertEqual(renamed["id"], e["id"])
+        self.assertEqual([x["callsign"] for x in roster.load(self.rhapi)], ["Ace Reborn"])
+
+    def test_add_to_event_keeps_a_team_less_pilot_team_less_and_links_them(self):
+        # #60: RotorHazard defaults a new pilot to team "A"; the roster pilot had none.
+        roster.capture(self.rhapi, pilot(1, "Solo", team=""))
+        self.rhapi.pilot_list = []
+        roster.add_to_event(self.rhapi, [p["id"] for p in roster.load(self.rhapi)])
+        self.assertEqual([(p.callsign, p.team) for p in self.rhapi.pilot_list], [("Solo", "")])
+        self.assertEqual(self.attrs[100][roster.ATTR_LINK], roster.load(self.rhapi)[0]["id"])
 
     def test_listing_flags_who_is_in_this_event(self):
         roster.capture(self.rhapi, pilot(1, "Ace"))
@@ -69,7 +106,7 @@ class CaptureTests(RosterCase):
         self.assertEqual(added, ["Ace", "Bee"])
         self.assertEqual([p.callsign for p in self.rhapi.pilot_list], ["Ace", "Bee"])
         self.rhapi.db.pilot_add.assert_any_call(name="Ace Pilot", callsign="Ace", phonetic=None, team="Red", color="#112233")
-        self.rhapi.db.pilot_alter.assert_any_call(100, attributes={"mgp_pilot_id": "42"})
+        self.assertEqual(self.attrs[100]["mgp_pilot_id"], "42")
         # Already there: skipped, not duplicated.
         self.assertEqual(roster.add_to_event(self.rhapi, ids), [])
         with self.assertRaises(roster.RosterError):

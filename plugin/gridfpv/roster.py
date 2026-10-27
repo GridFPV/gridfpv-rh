@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 DIR_NAME = "gridfpv-data"
 FILE_NAME = "roster.json"
 FIELDS = ("callsign", "name", "phonetic", "team", "color")
+#: Pilot attribute (registered by the plugin) linking an event's pilot to its roster entry, so
+#: a renamed pilot stays one entry (#59). It lives and dies with the pilot in the event database.
+ATTR_LINK = "gridfpv_roster_id"
 
 
 class RosterError(ValueError):
@@ -63,15 +66,33 @@ def save(pilots: list, rhapi=None) -> None:
 
 
 def _attributes(rhapi, pilot) -> dict:
+    """The pilot's plugin attributes (MultiGP id, …), the roster link itself left out."""
     out = {}
     try:
         for attr in rhapi.db.pilot_attributes(pilot) or []:
             name, value = getattr(attr, "name", None), getattr(attr, "value", None)
-            if name and value not in (None, ""):
+            if name and name != ATTR_LINK and value not in (None, ""):
                 out[str(name)] = str(value)
     except Exception:
         logger.debug("gridfpv roster: no attributes for pilot %s", getattr(pilot, "id", "?"), exc_info=True)
     return out
+
+
+def _link_of(rhapi, pilot) -> str:
+    try:
+        for attr in rhapi.db.pilot_attributes(pilot) or []:
+            if getattr(attr, "name", None) == ATTR_LINK and getattr(attr, "value", None):
+                return str(attr.value)
+    except Exception:
+        pass
+    return ""
+
+
+def _link(rhapi, pilot, roster_id: str) -> None:
+    try:
+        rhapi.db.pilot_alter(pilot.id, attributes={ATTR_LINK: roster_id})
+    except Exception:
+        logger.debug("gridfpv roster: could not link pilot %s", getattr(pilot, "id", "?"), exc_info=True)
 
 
 def capture(rhapi, pilot) -> dict | None:
@@ -80,7 +101,11 @@ def capture(rhapi, pilot) -> dict | None:
     if not callsign or callsign.startswith("~"):
         return None
     pilots = load(rhapi)
-    entry = next((p for p in pilots if _key(p["callsign"]) == _key(callsign)), None)
+    # The link on the pilot wins (a rename is still the same pilot, #59); else the callsign.
+    link = _link_of(rhapi, pilot)
+    entry = next((p for p in pilots if p["id"] == link), None) if link else None
+    if entry is None:
+        entry = next((p for p in pilots if _key(p["callsign"]) == _key(callsign)), None)
     if entry is None:
         entry = {"id": uuid.uuid4().hex, "first_seen": datetime.now().strftime("%Y-%m-%d")}
         pilots.append(entry)
@@ -90,6 +115,8 @@ def capture(rhapi, pilot) -> dict | None:
     entry["attributes"] = _attributes(rhapi, pilot)
     entry["last_seen"] = datetime.now().strftime("%Y-%m-%d")
     save(pilots, rhapi)
+    if link != entry["id"]:
+        _link(rhapi, pilot, entry["id"])
     return entry
 
 
@@ -130,9 +157,11 @@ def add_to_event(rhapi, ids) -> list:
         )
         if pilot is None:
             raise RosterError(f"RotorHazard did not create {entry['callsign']}")
-        attrs = entry.get("attributes") or {}
-        if attrs:
-            rhapi.db.pilot_alter(pilot.id, attributes=dict(attrs))
+        # RotorHazard gives a new pilot team "A"; a roster pilot with no team stays without (#60).
+        if not entry.get("team"):
+            rhapi.db.pilot_alter(pilot.id, team="")
+        attrs = {**(entry.get("attributes") or {}), ATTR_LINK: entry["id"]}
+        rhapi.db.pilot_alter(pilot.id, attributes=attrs)
         added.append(entry["callsign"])
     return added
 

@@ -583,6 +583,25 @@ export class Rig {
     return p.backup_files ?? [];
   }
 
+  /** The plugin's roster (#14), as it lists it. */
+  async roster(): Promise<Array<{ id: string; callsign: string; in_event: boolean }>> {
+    const done = this.next<{ pilots: Array<{ id: string; callsign: string; in_event: boolean }> }>(
+      'gridfpv_roster'
+    );
+    this.emit('gridfpv_roster_get');
+    return (await done).pilots;
+  }
+
+  /** Forget every roster entry whose callsign matches, so a spec leaves the roster as it found it. */
+  async rosterForget(callsign: RegExp): Promise<void> {
+    for (const p of await this.roster()) {
+      if (!callsign.test(p.callsign)) continue;
+      const done = this.next('gridfpv_roster');
+      this.emit('gridfpv_roster_remove', { id: p.id });
+      await done;
+    }
+  }
+
   /** Delete an archive (RotorHazard's delete_database), so a spec leaves db_bkp as it found it. */
   async deleteBackup(file: string): Promise<void> {
     this.emit('delete_database', { backup_file: file });

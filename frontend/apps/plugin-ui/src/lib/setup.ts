@@ -172,6 +172,11 @@ function readAttributeTypes(v: unknown): AttributeType[] {
   return Array.isArray(v) ? (v as AttributeType[]) : [];
 }
 
+/** Attribute types to offer for editing: the plugin's own bookkeeping ones are left out. */
+function editableTypes(types: AttributeType[]): AttributeType[] {
+  return types.filter((t) => !t.name.startsWith('gridfpv_'));
+}
+
 export function applyPilotData(
   setup: Setup,
   payload: { pilots: Raw[]; attributes?: AttributeType[] }
@@ -188,7 +193,7 @@ export function applyPilotData(
     locked: Boolean(p.locked),
     attributes: pickAttributes(p, types)
   }));
-  return { ...setup, pilots, pilotAttributes: types };
+  return { ...setup, pilots, pilotAttributes: editableTypes(types) };
 }
 
 export function applyHeatData(

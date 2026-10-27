@@ -102,7 +102,7 @@ test.describe('Event', () => {
       const dialog = page.getByRole('dialog');
       await dialog.getByLabel('Name').fill('Should Not Happen');
       await dialog.getByRole('button', { name: 'Archive and start' }).click();
-      await expect(page.getByText(/could not copy the database.*Nothing was reset/)).toBeVisible({
+      await expect(page.getByText(/could not copy the database.*nothing was reset/i)).toBeVisible({
         timeout: 20_000
       });
     } finally {
