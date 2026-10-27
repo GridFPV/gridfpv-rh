@@ -414,8 +414,10 @@
     confirmLabel="Delete lap"
     danger
     onconfirm={() => {
+      // Take the seat and lap first: `d` reads lapToDelete, which is nulled to close (#49).
+      const { seat, lap } = d;
       lapToDelete = null;
-      void run(() => deleteLap(d.seat, d.lap.index));
+      void run(() => deleteLap(seat, lap.index));
     }}
     oncancel={() => (lapToDelete = null)}
   >
