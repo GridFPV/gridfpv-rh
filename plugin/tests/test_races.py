@@ -233,7 +233,7 @@ class FallbackTests(unittest.TestCase):
         self.assertEqual(len(self.db.metas), 1)
         self.assertEqual(self.rhdata.backups, 0)
 
-    def test_a_failing_delete_rolls_back_and_keeps_the_copy(self):
+    def test_a_failing_delete_rolls_back_and_drops_the_copy(self):
         db = FakeDatabase(fail_on_delete=True)
         seed_race(db)
         rhdata = FakeRhData(db)
@@ -243,7 +243,8 @@ class FallbackTests(unittest.TestCase):
                 races.delete(rhapi, 7, 2)
         self.assertEqual(rhdata.rollbacks, 1)
         self.assertEqual(len(db.metas), 1)
-        self.assertEqual(len(json.loads(rhapi.options[races.OPT_DELETED])), 1)
+        # The race still exists, so no copy is listed (the board would offer a restore that must fail).
+        self.assertEqual(json.loads(rhapi.options[races.OPT_DELETED]), [])
 
     def test_a_copy_that_did_not_store_stops_the_delete(self):
         self.rhapi.db.option_set = mock.Mock()  # writes vanish

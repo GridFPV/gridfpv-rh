@@ -7,6 +7,7 @@
   import { Button, Dialog, Input, Select } from '@gridfpv/components';
   import { createStage, type WriteResult } from '../lib/rh.svelte.js';
   import { heatsForPilots, STAGE_TEMPLATES, type StageTemplate } from '../lib/stages.js';
+  import { STAGE_ACE, STAGE_ACE_ROW, STAGE_ATTR } from '../lib/ace.js';
   import { ROUND_TYPE, type Setup } from '../lib/setup.js';
 
   let {
@@ -33,6 +34,8 @@
   let rank = $state('');
   let heats = $state('1');
   let grouped = $state(false);
+  /** Chase the Ace: the ace has won twice, or twice in a row. */
+  let aceRow = $state(false);
 
   const activePilots = $derived(setup.pilots.filter((p) => p.active).length);
 
@@ -64,7 +67,11 @@
         rounds: unlimited ? 0 : Math.max(1, Math.floor(Number(rounds) || 1)),
         winCondition: rank,
         heats: Math.max(0, Math.floor(Number(heats) || 0)),
-        roundType: grouped ? ROUND_TYPE.GROUPED : ROUND_TYPE.RACES_PER_HEAT
+        roundType: grouped ? ROUND_TYPE.GROUPED : ROUND_TYPE.RACES_PER_HEAT,
+        attributes:
+          template.id === 'ace'
+            ? { [STAGE_ATTR]: aceRow ? STAGE_ACE_ROW : STAGE_ACE }
+            : template.attributes
       });
       onresult(r);
       if (r.ok) open = false;
@@ -89,6 +96,19 @@
         </button>
       {/each}
     </div>
+
+    {#if template.id === 'ace'}
+      <div class="field" role="radiogroup" aria-label="The ace is">
+        <span>The ace is</span>
+        <label class="radio"
+          ><input type="radio" bind:group={aceRow} value={false} /> the first pilot to win two rounds</label
+        >
+        <label class="radio"
+          ><input type="radio" bind:group={aceRow} value={true} /> the first pilot to win two rounds in
+          a row</label
+        >
+      </div>
+    {/if}
 
     <div class="row">
       <label class="field grow"

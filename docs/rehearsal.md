@@ -43,8 +43,10 @@ Grid), pilots added in Grid.
        *Deleted races*. RotorHazard's Results page no longer shows that round. *Restore*: the
        cell and RotorHazard's Results page show the round again with the same laps. Click a
        heat's next-round cell: RotorHazard's Run page shows that heat loaded.
-10. [ ] **Chase the Ace**: add the stage, fly it (simulated), the ace is declared when a
-        pilot wins twice; RotorHazard's Results page ranks the class by last heat position.
+10. [ ] **Chase the Ace**: Add stage → Chase the Ace, seat the heat, fly it (simulated) until a
+        pilot has won twice: the stage card says who the ace is and turns Done; the heat's
+        next-round cell disappears. RotorHazard's Format page shows the class with "GridFPV
+        stage: ace"; its Results page ranks the class by last heat position with the ace first.
 11. [ ] **New event**: archive and start a new event from Grid; pilots survive (roster);
         RotorHazard's Data management shows the archive.
 

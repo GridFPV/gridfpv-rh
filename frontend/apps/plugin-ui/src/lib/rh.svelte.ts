@@ -770,9 +770,14 @@ export type ClassFields = {
   rounds?: number;
   heatAdvanceType?: number;
   roundType?: number;
+  /** Plugin attributes (one alter_race_class per attribute: RotorHazard takes class_attr + value). */
+  attributes?: Record<string, string>;
 };
 
 export function alterClass(id: number, fields: ClassFields): Promise<WriteResult> {
+  for (const [name, value] of Object.entries(fields.attributes ?? {})) {
+    socket?.emit('alter_race_class', { class_id: id, class_attr: name, value });
+  }
   const payload: Record<string, unknown> = { class_id: id };
   if (fields.name !== undefined) payload.class_name = fields.name;
   if (fields.description !== undefined) payload.class_description = fields.description;
@@ -781,12 +786,15 @@ export function alterClass(id: number, fields: ClassFields): Promise<WriteResult
   if (fields.rounds !== undefined) payload.rounds = fields.rounds;
   if (fields.heatAdvanceType !== undefined) payload.heat_advance_type = fields.heatAdvanceType;
   if (fields.roundType !== undefined) payload.round_type = fields.roundType;
-  socket?.emit('alter_race_class', payload);
+  if (Object.keys(payload).length > 1) socket?.emit('alter_race_class', payload);
   window.setTimeout(() => loadData('class_data'), 200);
   return awaitState('Class', () => {
     const c = state.setup.classes.find((x) => x.id === id);
     if (!c) return false;
     return (
+      Object.entries(fields.attributes ?? {}).every(
+        ([k, v]) => String(c.attributes[k] ?? '') === v
+      ) &&
       (fields.name === undefined || c.name === fields.name) &&
       (fields.description === undefined || c.description === fields.description) &&
       (fields.formatId === undefined || c.formatId === fields.formatId) &&
@@ -806,6 +814,7 @@ export async function createStage(spec: {
   winCondition: string;
   heats: number;
   roundType: number;
+  attributes?: Record<string, string>;
 }): Promise<WriteResult & { id?: number }> {
   const made = await addClass();
   if (!made.ok || made.id == null) return made;
@@ -813,7 +822,8 @@ export async function createStage(spec: {
     name: spec.name,
     formatId: spec.formatId,
     rounds: spec.rounds,
-    winCondition: spec.winCondition
+    winCondition: spec.winCondition,
+    attributes: spec.attributes
   });
   if (!set.ok) return { ...set, id: made.id };
   // RotorHazard 4.4.0 crashes (and rolls the update back) when a class with no heats is

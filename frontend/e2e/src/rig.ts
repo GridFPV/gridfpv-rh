@@ -367,25 +367,52 @@ export class Rig {
         )
       );
     }
-    const data = (await this.heatData()).find((h) => h.id === heat.heat_id);
-    if (!data) throw new Error(`rig: heat ${heat.heat_id} missing from heat_data`);
-    for (const [seat, pilotId] of fields.pilots.entries()) {
+    await this.seatHeat(heat.heat_id, fields.pilots);
+    return heat.heat_id;
+  }
+
+  /** Put `pilots[i]` on seat i of an existing heat (`null` leaves the seat as it is). */
+  async seatHeat(heatId: number, pilots: Array<number | null>): Promise<void> {
+    const data = (await this.heatData()).find((h) => h.id === heatId);
+    if (!data) throw new Error(`rig: heat ${heatId} missing from heat_data`);
+    for (const [seat, pilotId] of pilots.entries()) {
       if (pilotId == null) continue;
       const slot = data.slots.find((s) => s.node_index === seat);
-      if (!slot) throw new Error(`rig: heat ${heat.heat_id} has no slot for seat ${seat}`);
+      if (!slot) throw new Error(`rig: heat ${heatId} has no slot for seat ${seat}`);
       this.emit('alter_heat', {
-        heat: heat.heat_id,
+        heat: heatId,
         slot_id: slot.id,
         pilot: pilotId,
         method: SLOT_ASSIGN
       });
       await this.until(`seat ${seat + 1} = pilot ${pilotId}`, async () =>
         (await this.heats()).some(
-          (h) => h.heat_id === heat.heat_id && h.nodes_pilots[String(seat)] === pilotId
+          (h) => h.heat_id === heatId && h.nodes_pilots[String(seat)] === pilotId
         )
       );
     }
-    return heat.heat_id;
+  }
+
+  /** RotorHazard's class_data message: classes with their plugin attributes. */
+  async classData(): Promise<Array<Record<string, unknown> & { id: number }>> {
+    return (
+      await this.loadData<{ classes: Array<Record<string, unknown> & { id: number }> }>(
+        'class_data'
+      )
+    ).classes;
+  }
+
+  /** RotorHazard's result_data message: each class's ranking as its rank method built it. */
+  async classRanking(
+    classId: number
+  ): Promise<Array<{ callsign: string; position: number | null }>> {
+    const data = await this.loadData<{
+      classes?: Record<
+        string,
+        { ranking?: { ranking?: Array<{ callsign: string; position: number | null }> } }
+      >;
+    }>('result_data');
+    return data.classes?.[String(classId)]?.ranking?.ranking ?? [];
   }
 
   /** Minimum lap time in seconds, and whether short laps are kept (highlight) or discarded. */

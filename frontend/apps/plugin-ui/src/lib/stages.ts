@@ -4,6 +4,7 @@
  * in and how many columns it needs; the screen draws them. Pure, so tests cover the
  * states without a timer.
  */
+import { aceRule, aceTally, isAceStage, STAGE_ACE, STAGE_ATTR } from './ace.js';
 import { racesFor, type RankRow, type Results } from './results.js';
 import {
   ordinal,
@@ -87,6 +88,9 @@ export function stageState(cls: RaceClass, heats: Heat[], results: Results): Sta
   if (heats.length === 0) return 'empty';
   const raced = heats.map((h) => racesFor(results, h.id).length);
   const anyRaced = raced.some((n) => n > 0);
+  // Chase the Ace ends when the ace is decided, however many rounds that took.
+  if (isAceStage(cls) && heats.some((h) => aceTally(racesFor(results, h.id), aceRule(cls)).ace))
+    return 'done';
   // Grouped rounds: every heat flies once. Races per heat: every heat flies `rounds` times.
   const needed = cls.roundType === ROUND_TYPE.GROUPED ? 1 : cls.rounds;
   if (needed > 0 && raced.every((n) => n >= needed)) return 'done';
@@ -129,7 +133,9 @@ export function standingsLine(ranking: RankRow[] | undefined, max = 8): string {
 
 /** The next unraced round of a heat, 1-based; null when the stage's rounds are all flown. */
 export function nextRound(cls: RaceClass, heat: Heat, results: Results): number | null {
-  const n = racesFor(results, heat.id).length + 1;
+  const races = racesFor(results, heat.id);
+  if (isAceStage(cls) && aceTally(races, aceRule(cls)).ace) return null;
+  const n = races.length + 1;
   if (cls.rounds > 0 && n > cls.rounds) return null;
   return n;
 }
@@ -256,6 +262,8 @@ export type StageTemplate = {
   heats: number | 'pilots';
   /** Set once at creation (RotorHazard converts heats on a switch). Grouped = fly everyone again each round. */
   grouped: boolean;
+  /** Class attributes to set, e.g. the Grid stage type (#37). */
+  attributes?: Record<string, string>;
 };
 
 export const STAGE_TEMPLATES: StageTemplate[] = [
@@ -293,12 +301,13 @@ export const STAGE_TEMPLATES: StageTemplate[] = [
   {
     id: 'ace',
     label: 'Chase the Ace',
-    description: 'One heat raced again and again until someone wins twice in a row.',
+    description: 'One heat raced again and again until someone has won twice: the ace.',
     formatMatch: /standard/i,
     rounds: 0,
     rank: 'Last_Heat_Position',
     heats: 1,
-    grouped: false
+    grouped: false,
+    attributes: { [STAGE_ATTR]: STAGE_ACE }
   },
   {
     id: 'blank',

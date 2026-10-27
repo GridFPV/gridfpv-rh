@@ -225,7 +225,9 @@ def _fallback_delete(rhapi, race) -> None:
     except Exception as e:
         rhdata.rollback()
         logger.exception("gridfpv races: delete of race %s rolled back", race_id)
-        raise RaceError(f"RotorHazard could not delete the race ({e}); the copy is kept") from e
+        # The rows are intact, so the copy would only mislead (a "deleted" race that still exists).
+        _write_option(rhapi, [s for s in _read_option(rhapi) if s["id"] != snap["id"]])
+        raise RaceError(f"RotorHazard could not delete the race ({e}); nothing was changed") from e
 
 
 # ---- restore ----------------------------------------------------------------------------

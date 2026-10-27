@@ -127,4 +127,52 @@ test.describe('Stages', () => {
     expect((await rig.status()).current_heat).toBe(heatA);
     await expect(rowA.getByTitle('Loaded on the timer')).toBeVisible();
   });
+
+  test('Chase the Ace: the first pilot to win twice is the ace, and RotorHazard ranks them first (#37)', async ({
+    page,
+    rig,
+    rh
+  }) => {
+    test.setTimeout(120_000);
+    const ace = await rig.addPilot({ callsign: 'Ace' });
+    const bee = await rig.addPilot({ callsign: 'Bee' });
+    await rig.setMinLap(1);
+
+    // The stage from the Add stage dialog's template: one heat, no round limit, last heat position.
+    await page.goto('/grid/stages');
+    await page.getByRole('button', { name: 'Add stage' }).click();
+    await page.getByRole('button', { name: /Chase the Ace/ }).click();
+    await expect(page.getByLabel('Name')).toHaveValue('Chase the Ace');
+    await page.getByLabel('Name').fill('E2E Ace');
+    await page.getByRole('button', { name: 'Create' }).click();
+    await expect(page.getByRole('heading', { name: 'E2E Ace' })).toBeVisible();
+    await expect(page.getByLabel('Chase the Ace')).toContainText('First to win two rounds');
+
+    // RotorHazard agrees on the stage: a class with the plugin's attribute, one heat, no round limit.
+    const cls = (await rig.classes()).find((c) => c.name === 'E2E Ace')!;
+    expect(cls).toBeTruthy();
+    expect((await rig.classData()).find((c) => c.id === cls.id)?.gridfpv_stage).toBe('ace');
+    const heat = (await rig.heats()).find((h) => h.class_id === cls.id)!;
+    expect(heat).toBeTruthy();
+    await rig.seatHeat(heat.heat_id, [null, ace, bee]);
+
+    // Round 1 Ace, round 2 Bee, round 3 Ace: Ace has won twice.
+    await rig.raceHeat(heat.heat_id, { 1: [500, 2000, 3500], 2: [600, 2400] });
+    await expect(page.getByLabel('Chase the Ace')).toContainText('Wins: Ace 1');
+    await rig.raceHeat(heat.heat_id, { 1: [500, 2000], 2: [600, 1800, 3000] });
+    await expect(page.getByLabel('Chase the Ace')).toContainText('Wins: Ace 1 · Bee 1');
+    await rig.raceHeat(heat.heat_id, { 1: [500, 1800, 3000, 4200], 2: [600, 2400] });
+    await expect(page.getByLabel('Chase the Ace')).toContainText(
+      'Ace is the ace — decided in round 3'
+    );
+    await expect(
+      page.locator('.classhead', { hasText: 'E2E Ace' }).getByText('Done')
+    ).toBeVisible();
+
+    // RotorHazard agrees: its class ranking (last heat position) has Ace first, on its Results page too.
+    const ranking = await rig.classRanking(cls.id);
+    expect(ranking[0]?.callsign).toBe('Ace');
+    await rh.expectResultsToMention('E2E Ace');
+    expect((await rig.rounds()).find((h) => h.id === heat.heat_id)?.rounds).toBe(3);
+  });
 });

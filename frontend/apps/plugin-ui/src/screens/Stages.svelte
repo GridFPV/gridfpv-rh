@@ -28,6 +28,7 @@
     type WriteResult
   } from '../lib/rh.svelte.js';
   import { raceFor, racesFor, winnerOf } from '../lib/results.js';
+  import { aceLine, aceRule, aceTally, isAceStage } from '../lib/ace.js';
   import {
     deletedLabel,
     deletedNotice,
@@ -569,6 +570,13 @@
         </div>
       </div>
 
+      {#if isAceStage(c) && heats.length}
+        {@const tally = aceTally(racesFor(results, heats[0].id), aceRule(c))}
+        <p class="standings ace" class:decided={!!tally.ace} aria-label="Chase the Ace">
+          <span class="label">Chase the Ace</span>
+          {aceLine(tally, aceRule(c))}
+        </p>
+      {/if}
       {#if standingsLine(results.ranking[c.id])}
         <p class="standings">
           <span class="label">Standings</span>
@@ -986,6 +994,10 @@
     color: var(--gf-text-muted);
     border: 1px dashed var(--gf-border);
     padding: 2px 8px;
+  }
+  .standings.ace.decided {
+    color: var(--gf-brand-500);
+    font-weight: 600;
   }
   .standings {
     margin: 0 0 var(--gf-space-2);

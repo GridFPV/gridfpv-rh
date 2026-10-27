@@ -72,6 +72,9 @@ EVT_RACE_FORGET = "gridfpv_race_forget"
 #: carries ``backup`` (the database backup file a delete made) and ``changed`` (heat/round).
 EVT_RACES_DELETED = "gridfpv_races_deleted"
 
+#: Class attribute carrying the Grid stage type ("ace", "ace-row"); see lib/ace.ts (#37).
+CLASS_ATTR_STAGE = "gridfpv_stage"
+
 #: Paths RotorHazard owns that the redirect must never touch.
 _NEVER_REDIRECT = ("/first-run",)
 
@@ -148,6 +151,16 @@ def register_options(rhapi) -> None:
     from RHUI import UIField, UIFieldType  # RotorHazard's own module; only importable in-process
 
     rhapi.ui.register_panel(PANEL, "GridFPV", "settings", order=0)
+    # A stage's type rides on RotorHazard's class as an attribute, so it is archived, reset
+    # and emitted (class_data) with the class, and visible on RotorHazard's Format page.
+    rhapi.fields.register_raceclass_attribute(
+        UIField(
+            CLASS_ATTR_STAGE,
+            "GridFPV stage",
+            UIFieldType.TEXT,
+            desc="Set by GridFPV's Stages page: 'ace' or 'ace-row' for Chase the Ace.",
+        )
+    )
     rhapi.fields.register_option(
         UIField(
             OPT_REDIRECT_HOME,
