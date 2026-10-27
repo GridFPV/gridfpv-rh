@@ -70,6 +70,7 @@ $(RH_SRC)/.ok: ## RotorHazard's source at the pinned tag (gitignored; for the co
 	touch $@
 
 coverage: $(RH_SRC)/.ok ## Check rh-coverage.tsv classifies every control on RotorHazard's admin pages (#28)
+	python3 -I dev/tests/test_rh_controls.py
 	python3 -I dev/rh_controls.py check $(RH_SRC) rh-coverage.tsv
 
 coverage-scrape: $(RH_SRC)/.ok ## Print RotorHazard's admin-page controls (page, id, kind, label)
@@ -96,7 +97,7 @@ zip-overlay: build ## Package the overlay-only RaceGOW plugin (same UI, branding
 	rm -rf $(DIST_DIR)/stage
 	@echo "packaged $(OVERLAY_ZIP):" && python3 -m zipfile -l $(OVERLAY_ZIP)
 
-ci: setup lint check test build zip zip-overlay ## Everything CI runs
+ci: setup lint check test build zip zip-overlay coverage ## Everything CI runs without a rig (the rig jobs: `make rig-up e2e`, `make rig-main-up e2e-main`)
 
 clean: ## Remove build output, the venv and node_modules
 	rm -rf $(STATIC_DIR) $(DIST_DIR) $(VENV) frontend/node_modules frontend/*/*/node_modules frontend/*/*/dist
