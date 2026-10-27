@@ -13,7 +13,8 @@ import {
   recalcLaps,
   syncDifferential,
   toggleLap,
-  withLapTimes
+  withLapTimes,
+  emptyRaceStatus
 } from '../src/lib/race.js';
 
 const rules = {
@@ -254,5 +255,24 @@ describe('race list', () => {
     });
     expect(list[0].rounds.map((r) => r.round)).toEqual([1, 2]);
     expect(list[0].rounds[1].pilots[0]).toMatchObject({ pilotraceId: 5, callsign: 'Nova' });
+  });
+});
+
+describe("applyRaceStatus keeps stage_ready's hide flag during a race (#72)", () => {
+  it('ignores the format-derived flag once staging has begun', () => {
+    const staged = applyStageReady(emptyRaceStatus(), {
+      pi_starts_at_s: 100,
+      pi_staging_at_s: 96,
+      hide_stage_timer: false,
+      unlimited_time: 0,
+      race_time_sec: 120
+    });
+    const racing = applyRaceStatus(
+      { race_status: 1, hide_stage_timer: true, pi_starts_at_s: 100 },
+      staged
+    );
+    expect(racing.hideStageTimer).toBe(false);
+    const ready = applyRaceStatus({ race_status: 0, hide_stage_timer: true }, racing);
+    expect(ready.hideStageTimer).toBe(true);
   });
 });

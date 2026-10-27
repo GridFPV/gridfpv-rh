@@ -48,15 +48,23 @@ export function emptyRaceStatus(): RaceStatus {
 }
 
 /** `race_status` (RHUI.emit_race_status). */
-export function applyRaceStatus(p: Raw): RaceStatus {
+/**
+ * `race_status` (RHUI.emit_race_status). Its hide_stage_timer is computed from the format
+ * (min != max delay), which is true for a fixed delay; the real flag for this staging came
+ * with `stage_ready`, so once staging has begun the previous value is kept (#72), as
+ * RotorHazard's own page only reads the flag from stage_ready.
+ */
+export function applyRaceStatus(p: Raw, prev?: RaceStatus): RaceStatus {
+  const status = num(p.race_status);
+  const staged = prev != null && prev.startsAt != null && status !== RACE_STATUS.READY;
   return {
-    status: num(p.race_status),
+    status,
     formatId: p.race_format_id == null ? null : Number(p.race_format_id),
     heatId: num(p.race_heat_id),
     classId: p.race_class_id == null ? null : Number(p.race_class_id),
     unlimitedTime: Boolean(p.unlimited_time),
     raceTimeSec: num(p.race_time_sec),
-    hideStageTimer: Boolean(p.hide_stage_timer),
+    hideStageTimer: staged ? prev!.hideStageTimer : Boolean(p.hide_stage_timer),
     startsAt: p.pi_starts_at_s == null ? null : Number(p.pi_starts_at_s),
     stagingAt: p.pi_staging_at_s == null ? null : Number(p.pi_staging_at_s),
     nextRound: num(p.next_round)
