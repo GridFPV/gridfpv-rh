@@ -13,8 +13,11 @@
     heat,
     slot,
     setup,
-    onresult
+    onresult,
+    locked = heat.locked
   }: {
+    /** Seats of a raced heat are locked until the director unlocks them in the dialog. */
+    locked?: boolean;
     heat: Heat;
     slot: Slot;
     setup: Setup;
@@ -136,7 +139,7 @@
     <span>Seat {(slot.nodeIndex ?? 0) + 1}</span>
     {#if channel}<span class="chan" data-band={band}>{channel}</span>{/if}
   </span>
-  <Select value={String(slot.method)} size="sm" disabled={busy || heat.locked} onchange={onMethod}>
+  <Select value={String(slot.method)} size="sm" disabled={busy || locked} onchange={onMethod}>
     <option value={String(SLOT_METHOD.NONE)}>Empty</option>
     <option value={String(SLOT_METHOD.ASSIGN)}>Pilot</option>
     <option value={String(SLOT_METHOD.HEAT_RESULT)} disabled={!seedHeats.length}
@@ -147,12 +150,7 @@
     >
   </Select>
   {#if slot.method === SLOT_METHOD.ASSIGN}
-    <Select
-      value={String(slot.pilotId)}
-      size="sm"
-      disabled={busy || heat.locked}
-      onchange={onPilot}
-    >
+    <Select value={String(slot.pilotId)} size="sm" disabled={busy || locked} onchange={onPilot}>
       <option value="0">— pick a pilot —</option>
       {#each activePilots as p (p.id)}
         <option value={String(p.id)}>{p.callsign || p.name}{p.team ? ` · ${p.team}` : ''}</option>
@@ -166,14 +164,14 @@
         bind:value={rank}
         min="1"
         max="16"
-        disabled={busy || heat.locked}
+        disabled={busy || locked}
         onblur={onRank}
       />
       <span class="muted">place in</span>
       <Select
         value={String(slot.seedId ?? '')}
         size="sm"
-        disabled={busy || heat.locked}
+        disabled={busy || locked}
         onchange={onSeedHeat}
       >
         {#each seedGroups as g (g.id)}
@@ -193,14 +191,14 @@
         bind:value={rank}
         min="1"
         max="64"
-        disabled={busy || heat.locked}
+        disabled={busy || locked}
         onblur={onRank}
       />
       <span class="muted">in the ranking of</span>
       <Select
         value={String(seedClassId)}
         size="sm"
-        disabled={busy || heat.locked}
+        disabled={busy || locked}
         onchange={onSeedClass}
       >
         {#each stages as c (c.id)}

@@ -143,6 +143,12 @@
       <span>Callsign</span>
       <Input bind:value={callsign} placeholder="What the announcer says" maxlength="80" />
     </label>
+    {#if callsign.includes('"') || name.includes('"')}
+      <small class="muted" role="note"
+        >A double quote is kept here and in the results, but RotorHazard's own Format page cuts the
+        name at it (a RotorHazard page bug), and saving there would keep the cut version.</small
+      >
+    {/if}
     <label class="field">
       <span>Name</span>
       <Input bind:value={name} placeholder="Optional" maxlength="80" />

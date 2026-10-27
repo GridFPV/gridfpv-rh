@@ -124,6 +124,8 @@ export type RaceFormat = {
   numberLapsWin: number;
   teamRacingMode: number;
   pointsMethod: string | null;
+  /** The points method's settings (its own fields), as RotorHazard stores them. */
+  pointsSettings: Record<string, unknown> | null;
   locked: boolean;
 };
 
@@ -260,6 +262,10 @@ export function applyFormatData(setup: Setup, payload: { formats: Raw[] }): Setu
     numberLapsWin: num(f.number_laps_win),
     teamRacingMode: num(f.team_racing_mode),
     pointsMethod: f.points_method == null ? null : str(f.points_method),
+    pointsSettings:
+      f.points_settings && typeof f.points_settings === 'object'
+        ? (f.points_settings as Record<string, unknown>)
+        : null,
     locked: Boolean(f.locked)
   }));
   return { ...setup, formats };

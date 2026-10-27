@@ -95,6 +95,11 @@
     }
   }
 
+  /** Raced classes whose settings the director unlocked (RotorHazard's own page does the same). */
+  let unlockedClasses: number[] = $state([]);
+  let unlockingClass: RaceClass | null = $state(null);
+  const classLocked = (c: RaceClass) => c.locked && !unlockedClasses.includes(c.id);
+
   // ---- rounds (#36): re-run, delete with a kept copy, restore ----
   async function rerun(heatId: number) {
     raceOpen = null;
@@ -277,6 +282,24 @@
       >
     {/snippet}
   </Dialog>
+{/if}
+
+{#if unlockingClass}
+  <ConfirmDialog
+    open={true}
+    title="Unlock stage"
+    confirmLabel="Unlock"
+    danger
+    onconfirm={() => {
+      const c = unlockingClass;
+      unlockingClass = null;
+      if (c) unlockedClasses = [...unlockedClasses, c.id];
+    }}
+    oncancel={() => (unlockingClass = null)}
+  >
+    <strong>{unlockingClass.displayName}</strong> has saved races. Changing its format changes how those
+    results are ranked, as RotorHazard warns on its own page. Unlock anyway?
+  </ConfirmDialog>
 {/if}
 
 {#if classRemove}
@@ -478,6 +501,15 @@
             disabled={busy || c.locked}
             onclick={() => (classRemove = c)}>Delete</Button
           >
+          {#if classLocked(c)}
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              title="This stage has saved races; its format is locked"
+              onclick={() => (unlockingClass = c)}>Unlock…</Button
+            >
+          {/if}
         </div>
       </div>
       <div class="settings">
@@ -486,7 +518,7 @@
           <Select
             value={String(c.formatId)}
             size="sm"
-            disabled={busy || c.locked}
+            disabled={busy || classLocked(c)}
             onchange={(e: Event) =>
               run(() =>
                 alterClass(c.id, { formatId: Number((e.currentTarget as HTMLSelectElement).value) })

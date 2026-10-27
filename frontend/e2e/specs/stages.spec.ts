@@ -128,6 +128,73 @@ test.describe('Stages', () => {
     await expect(rowA.getByTitle('Loaded on the timer')).toBeVisible();
   });
 
+  test('a raced heat and stage stay locked until unlocked with a warning (unlock_heat, unlock_class)', async ({
+    page,
+    rig,
+    rh
+  }) => {
+    test.setTimeout(90_000);
+    const ace = await rig.addPilot({ callsign: 'Ace' });
+    const bee = await rig.addPilot({ callsign: 'Bee' });
+    const cee = await rig.addPilot({ callsign: 'Cee' });
+    const cls = await rig.addClass({ name: 'E2E Locked' });
+    const heat = await rig.addHeat({ name: 'Heat L', classId: cls, pilots: [null, ace, bee] });
+    await rig.setMinLap(1);
+    await rig.raceHeat(heat, { 1: [500, 2000], 2: [600, 2400] });
+
+    await page.goto('/grid/stages');
+    const row = page.locator('tr.heat', { hasText: 'Heat L' });
+    await expect(row.getByText('raced')).toBeVisible();
+    await row.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByText('raced · seats locked')).toBeVisible();
+    // Seat 3 (Bee) is locked: its pilot select is disabled until unlocked.
+    const seatSelects = dialog.locator('select');
+    await expect(seatSelects.nth(1)).toBeDisabled();
+    await dialog.getByRole('button', { name: 'Unlock seats…' }).click();
+    await expect(dialog.getByRole('alert')).toContainText('changes its saved results');
+    await dialog.getByRole('button', { name: 'Unlock', exact: true }).click();
+    await expect(dialog.getByText('raced · unlocked')).toBeVisible();
+    // Put Cee on seat 3 in Bee's place; the slot's pilot select is the one holding Bee.
+    const beeSelect = dialog.locator('select').filter({ has: page.locator('option[selected]') });
+    expect(beeSelect).toBeDefined();
+    const pilotSelects = dialog.locator('select');
+    const count = await pilotSelects.count();
+    let changed = false;
+    for (let i = 0; i < count; i++) {
+      const sel = pilotSelects.nth(i);
+      if ((await sel.inputValue()) === String(bee) && (await sel.isEnabled())) {
+        await sel.selectOption(String(cee));
+        changed = true;
+        break;
+      }
+    }
+    expect(changed).toBe(true);
+    await expect(page.getByText('RotorHazard confirmed the change.').first()).toBeVisible();
+    await dialog.getByRole('button', { name: 'Done' }).click();
+
+    // The stage's format is locked too, until unlocked.
+    const stage = page.locator('.classhead', { hasText: 'E2E Locked' }).locator('..');
+    await expect(stage.getByLabel('Format')).toBeDisabled();
+    await stage.getByRole('button', { name: 'Unlock…' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Unlock', exact: true }).click();
+    await expect(stage.getByLabel('Format')).toBeEnabled();
+    const formatSelect = stage.getByLabel('Format');
+    const practice = await formatSelect
+      .locator('option', { hasText: /Practice/i })
+      .first()
+      .getAttribute('value');
+    await formatSelect.selectOption(practice ?? '');
+    await expect(page.getByText('RotorHazard confirmed the change.').first()).toBeVisible();
+
+    // RotorHazard agrees: Cee is on seat 3 of the raced heat, and the class has the new format.
+    const h = (await rig.heats()).find((x) => x.heat_id === heat)!;
+    expect(h.nodes_pilots['2']).toBe(cee);
+    const c = (await rig.classes()).find((x) => x.id === cls) as { format_id?: number };
+    expect(String(c.format_id)).toBe(practice);
+    expect(await rh.formatClassNames()).toContain('E2E Locked');
+  });
+
   test('Chase the Ace: the first pilot to win twice is the ace, and RotorHazard ranks them first (#37)', async ({
     page,
     rig,

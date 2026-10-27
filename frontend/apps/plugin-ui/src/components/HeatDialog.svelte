@@ -22,6 +22,9 @@
   } = $props();
 
   let open = $state(true);
+  /** RotorHazard's own page locks a raced heat's seats behind a confirmation; so do we. */
+  let unlocked = $state(false);
+  let unlocking = $state(false);
   let busy = $state(false);
   let name = $state('');
   let removing = $state(false);
@@ -84,10 +87,32 @@
     <div class="seats">
       <div class="seatshead">
         <span class="label">Seats</span>
-        {#if heat.locked}<Badge tone="neutral" variant="outline">raced · seats locked</Badge>{/if}
+        {#if heat.locked && !unlocked}
+          <Badge tone="neutral" variant="outline">raced · seats locked</Badge>
+          <Button size="sm" variant="ghost" disabled={busy} onclick={() => (unlocking = true)}
+            >Unlock seats…</Button
+          >
+        {:else if heat.locked}
+          <Badge tone="warn" variant="outline">raced · unlocked</Badge>
+        {/if}
       </div>
+      {#if unlocking}
+        <p class="warn" role="alert">
+          Changing a raced heat's seats changes its saved results, as RotorHazard warns on its own
+          page. Unlock anyway?
+          <Button size="sm" variant="ghost" onclick={() => (unlocking = false)}>Keep locked</Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onclick={() => {
+              unlocking = false;
+              unlocked = true;
+            }}>Unlock</Button
+          >
+        </p>
+      {/if}
       {#each heat.slots as s (s.id)}
-        <SlotRow {heat} slot={s} {setup} {onresult} />
+        <SlotRow {heat} slot={s} {setup} {onresult} locked={heat.locked && !unlocked} />
       {/each}
     </div>
   </div>
@@ -120,6 +145,17 @@
   }
   .field.grow {
     flex: 1;
+  }
+  .warn {
+    margin: 0;
+    padding: var(--gf-space-2) var(--gf-space-3);
+    border: 1px solid var(--gf-warning-500, #d29922);
+    border-radius: var(--gf-radius-md);
+    font-size: var(--gf-font-size-sm);
+    display: flex;
+    gap: var(--gf-space-2);
+    align-items: center;
+    flex-wrap: wrap;
   }
   .field > span,
   .label {

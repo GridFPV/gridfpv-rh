@@ -129,17 +129,17 @@ format	set_pilotSort	select	Pilot Sort	planned:T6	customizations: pilot sort, se
 format	set_ledColorMode	select	Color Mode	planned:T6	customizations: pilot sort, seat colours; ours in T6, lowest priority (off the race-day critical path)
 format	stop_save	button		ours	Run page Save
 format	stop_discard	button		ours	Run page Discard
-format	unlock_class	button		planned:T2	unlock raced entities; points settings dialog
-format	unlock_heat	button		planned:T2	unlock raced entities; points settings dialog
+format	unlock_class	button		ours	Stages: Unlock… on a raced stage, with the same warning
+format	unlock_heat	button		ours	Heat dialog: Unlock seats… on a raced heat, with the same warning
 format	generator_list	select	Generator	ours	Stages, Generate bracket
 format	generator_input_class	select	Input	ours	Stages, Generate bracket
 format	generator_output_class	select	Output	ours	Stages, Generate bracket
 format	generate_parameters	button		ours	Stages, Generate bracket
 format	set_race_format	select	Format:	ours	Formats page
 format	add_race_format	button		ours	Formats page, New format
-format	unlock_race_format_button	button		planned:T2	unlock raced entities; points settings dialog
+format	unlock_race_format_button	button		ours	Format dialog edits a raced format with a warning (RotorHazard's lock is page-only)
 format	delete_race_format_button	button		ours	Formats page, Delete
-format	unlock_race_format	button		planned:T2	unlock raced entities; points settings dialog
+format	unlock_race_format	button		ours	Format dialog edits a raced format with a warning (RotorHazard's lock is page-only)
 format	delete_race_format	button		ours	Formats page, Delete
 format	set_format_name	input:text	Name	ours	Formats dialog
 format	set_unlimited_time	select	Race Clock Mode	ours	Formats dialog
@@ -153,7 +153,7 @@ format	set_start_behavior	select	First Crossing	ours	Formats dialog
 format	set_win_condition	select	Win Condition	ours	Formats dialog
 format	set_number_laps_win	input:number	Number of Laps to Win	ours	Formats dialog
 format	set_points_method	select	Points Assignment	ours	Formats dialog
-format	set_points_params	button		planned:T2	unlock raced entities; points settings dialog
+format	set_points_params	button		ours	Format dialog: the points method's own fields under Points
 format	set_team_racing_mode	select	Team/Co-op Racing Mode	ours	Formats dialog
 format	backup_database	button		ours	Event page, Archive now
 format	importer_list	select	Importer	planned:T6	data import/export; ours in T6, lowest priority (off the race-day critical path)

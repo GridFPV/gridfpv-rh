@@ -17,6 +17,7 @@
     type FormatFields,
     type WriteResult
   } from '../lib/rh.svelte.js';
+  import { pointsChanged, pointsForm, pointsSettings, type PointsMethod } from '../lib/points.js';
   import {
     RACING_MODE,
     RACING_MODE_LABELS,
@@ -38,7 +39,7 @@
   }: {
     open?: boolean;
     format: RaceFormat;
-    pointsMethods: Array<{ name: string; label: string }>;
+    pointsMethods: PointsMethod[];
     title?: string;
     /** Create mode: the id of the format to copy on Save. */
     createFrom?: number | null;
@@ -64,8 +65,27 @@
       stagingTones: String(x.stagingDelayTones),
       startBehavior: String(x.startBehavior),
       team: String(x.teamRacingMode),
-      points: x.pointsMethod ?? ''
+      points: x.pointsMethod ?? '',
+      pointsForm: pointsForm(
+        pointsMethods.find((m) => m.name === (x.pointsMethod ?? '')),
+        x.pointsSettings
+      )
     };
+  }
+  const pointsMethod = $derived(pointsMethods.find((m) => m.name === f.points));
+  /**
+   * Picking another points method starts its settings from the stored values or defaults —
+   * seeded *before* `f.points` changes, because the settings inputs bind to those keys and
+   * Svelte refuses to bind an undefined value to an input with a fallback (it would throw
+   * mid-update and the pick would be lost).
+   */
+  function pickPoints(e: Event) {
+    const name = (e.currentTarget as HTMLSelectElement).value;
+    f.pointsForm = pointsForm(
+      pointsMethods.find((m) => m.name === name),
+      name === format.pointsMethod ? format.pointsSettings : null
+    );
+    f.points = name;
   }
   // Reset the form when the dialog opens or is pointed at another format — not on every
   // readback of the same format, or a late `format_data` would wipe what is being typed.
@@ -115,6 +135,12 @@
     const team = Number(f.team);
     if (team !== format.teamRacingMode) out.teamRacingMode = team;
     if ((f.points || null) !== (format.pointsMethod || null)) out.pointsMethod = f.points || null;
+    const settings = pointsSettings(pointsMethod, f.pointsForm);
+    if (
+      settings &&
+      (out.pointsMethod !== undefined || pointsChanged(settings, format.pointsSettings))
+    )
+      out.pointsSettings = settings;
     return out;
   });
   const dirty = $derived(Object.keys(fields).length > 0 || createFrom != null);
@@ -148,6 +174,12 @@
 
 <Dialog bind:open {title} {onclose} size="wide">
   <div class="form">
+    {#if format.locked && createFrom == null}
+      <p class="raced" role="note">
+        This format has saved races. RotorHazard recalculates their results when it changes;
+        RotorHazard's own page locks a raced format for the same reason.
+      </p>
+    {/if}
     <label class="field">
       <span>Name</span>
       <Input bind:value={f.name} maxlength="80" />
@@ -234,12 +266,42 @@
         </label>
         <label class="field grow">
           <span>Points</span>
-          <Select bind:value={f.points}>
+          <Select value={f.points} onchange={pickPoints}>
             <option value="">None</option>
             {#each pointsMethods as m (m.name)}<option value={m.name}>{m.label}</option>{/each}
           </Select>
         </label>
       </div>
+      {#if pointsMethod?.settings.length}
+        <div class="row points" aria-label="Points settings">
+          {#each pointsMethod.settings as pf (pf.name)}
+            <label class="field grow">
+              <span>{pf.label}</span>
+              {#if pf.field_type === 'checkbox'}
+                <input
+                  type="checkbox"
+                  checked={f.pointsForm[pf.name] === 'true' || f.pointsForm[pf.name] === '1'}
+                  onchange={(e) =>
+                    (f.pointsForm[pf.name] = String((e.currentTarget as HTMLInputElement).checked))}
+                />
+              {:else if pf.field_type === 'select' && pf.options}
+                <Select bind:value={f.pointsForm[pf.name]}>
+                  {#each pf.options as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+                </Select>
+              {:else}
+                <Input
+                  type={pf.field_type === 'basic_int' || pf.field_type === 'number'
+                    ? 'number'
+                    : 'text'}
+                  bind:value={f.pointsForm[pf.name]}
+                  placeholder={pf.placeholder ?? ''}
+                />
+              {/if}
+              {#if pf.desc}<small class="muted">{pf.desc}</small>{/if}
+            </label>
+          {/each}
+        </div>
+      {/if}
       {#if Number(f.team) === RACING_MODE.TEAM}
         <small class="muted"
           >Team racing scores by the pilots' teams (set on the Pilots page).</small
@@ -304,6 +366,14 @@
 </Dialog>
 
 <style>
+  .raced {
+    margin: 0;
+    padding: var(--gf-space-2) var(--gf-space-3);
+    border: 1px solid var(--gf-border);
+    border-radius: var(--gf-radius-md);
+    color: var(--gf-text-muted);
+    font-size: var(--gf-font-size-sm);
+  }
   .form {
     display: grid;
     gap: var(--gf-space-3);

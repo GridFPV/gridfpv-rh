@@ -28,7 +28,9 @@ Grid), pilots added in Grid.
 3. [ ] **Pilots**: add every pilot with callsign and name; set two teams on the Teams page.
        RotorHazard's Format page, Pilots panel, lists them with the team.
 4. [ ] **Formats**: create a "Qualifying — best 3 laps, 2:00" format and a "Final, first to
-       3 laps" format. RotorHazard's Format page, Race Formats selector, offers both.
+       3 laps" format; on the Final set Points to *Position* with "10,8,6,4". RotorHazard's
+       Format page, Race Formats selector, offers both, and the Final's points gear shows
+       10,8,6,4.
 5. [ ] **Stages**: add stages Open Practice (open practice format, no limit), Qualifying
        (the qualifying format, 2 rounds, ranked by fastest consecutive), Final (the final
        format). RotorHazard's Classes and Heats panel shows three classes with those formats.
@@ -38,6 +40,10 @@ Grid), pilots added in Grid.
        preview matches what lands in RotorHazard.
 8. [ ] **Seed now**: after a Qualifying round is flown, Seed now on Final fills the seats;
        RotorHazard shows the seeded pilots.
+8b. [ ] **Raced entities**: open a raced heat: seats are locked; *Unlock seats…* warns, then
+        a seat can be changed and RotorHazard's Classes and Heats panel shows it. On a raced
+        stage, *Unlock…* then change its format; RotorHazard's panel shows the new format.
+        Edit a raced format: the dialog warns that results recalculate.
 9. [ ] **Rounds**: on the board, click a raced cell, *Delete race…*, *Confirm delete*: the
        notice names RotorHazard's backup file, the cell empties, the race appears under
        *Deleted races*. RotorHazard's Results page no longer shows that round. *Restore*: the

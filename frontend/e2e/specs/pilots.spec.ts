@@ -20,6 +20,21 @@ test.describe('Pilots', () => {
     expect(await rh.formatPilotCallsigns()).toContain('E2E Ace');
   });
 
+  test("a double quote in a callsign is kept, with a note about RotorHazard's page (#44)", async ({
+    page,
+    rig
+  }) => {
+    await page.goto('/grid/pilots');
+    await page.getByRole('button', { name: 'New pilot' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByPlaceholder('What the announcer says').fill('O\'Brien "Oby"');
+    await expect(dialog.getByRole('note')).toContainText('cuts the name at it');
+    await dialog.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByText('RotorHazard confirmed the change.')).toBeVisible();
+    // RotorHazard agrees on the data (its Format page is the known exception, #44).
+    expect((await rig.pilots()).map((p) => p.callsign)).toEqual(['O\'Brien "Oby"']);
+  });
+
   test('New pilot then Cancel, ×, or Esc writes nothing (#42)', async ({ page, rig, rh }) => {
     await rig.addPilot({ callsign: 'Bee' });
     await page.goto('/grid/pilots');

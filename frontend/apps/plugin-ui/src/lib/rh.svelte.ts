@@ -60,6 +60,7 @@ import {
 import { needsSeeding } from './stages.js';
 import type { Timing } from './timing.js';
 import { applyDeletedRaces, type DeletedRace, type DeletedRacesPayload } from './rounds.js';
+import type { PointsMethod } from './points.js';
 import { raceFor } from './results.js';
 
 export type HelloAck = {
@@ -123,7 +124,7 @@ const state = $state({
   /** Class ranking methods RotorHazard offers (its own plus plugins'), by name. */
   rankMethods: [] as Array<{ name: string; label: string }>,
   /** Race points methods (for a format), by name. */
-  pointsMethods: [] as Array<{ name: string; label: string }>,
+  pointsMethods: [] as PointsMethod[],
   /** Teams the plugin keeps; the names are what RotorHazard stores on a pilot. */
   teams: [] as Team[],
   /** The event: RotorHazard's name/description options plus the plugin's details. */
@@ -405,8 +406,12 @@ export function connect(): Socket {
     }
   );
 
-  socket.on('race_points_method_list', (p: { methods: Array<{ name: string; label: string }> }) => {
-    state.pointsMethods = (p.methods ?? []).map((m) => ({ name: m.name, label: m.label }));
+  socket.on('race_points_method_list', (p: { methods: PointsMethod[] }) => {
+    state.pointsMethods = (p.methods ?? []).map((m) => ({
+      name: m.name,
+      label: m.label,
+      settings: Array.isArray(m.settings) ? m.settings : []
+    }));
   });
 
   // ---- the race side ----
@@ -1346,6 +1351,8 @@ export type FormatFields = {
   numberLapsWin?: number;
   teamRacingMode?: number;
   pointsMethod?: string | null;
+  /** The points method's own settings (RotorHazard: points_settings, needs a method set). */
+  pointsSettings?: Record<string, unknown>;
 };
 
 /** Change a format (RHData.alter_raceFormat keys). RotorHazard refuses this during a race. */
@@ -1364,6 +1371,7 @@ export function alterFormat(id: number, fields: FormatFields): Promise<WriteResu
   if (fields.numberLapsWin !== undefined) p.number_laps_win = fields.numberLapsWin;
   if (fields.teamRacingMode !== undefined) p.team_racing_mode = fields.teamRacingMode;
   if (fields.pointsMethod !== undefined) p.points_method = fields.pointsMethod ?? '';
+  if (fields.pointsSettings !== undefined) p.points_settings = fields.pointsSettings;
   socket?.emit('alter_race_format', p);
   reloadAfter(() => loadData('format_data'));
   return awaitState('Format', () => {
@@ -1385,7 +1393,11 @@ export function alterFormat(id: number, fields: FormatFields): Promise<WriteResu
       same('numberLapsWin', f.numberLapsWin) &&
       same('teamRacingMode', f.teamRacingMode) &&
       (fields.pointsMethod === undefined ||
-        (f.pointsMethod ?? null) === (fields.pointsMethod || null))
+        (f.pointsMethod ?? null) === (fields.pointsMethod || null)) &&
+      (fields.pointsSettings === undefined ||
+        Object.entries(fields.pointsSettings).every(
+          ([k, v]) => String(f.pointsSettings?.[k] ?? '') === String(v ?? '')
+        ))
     );
   }).then((r) =>
     r.ok
