@@ -10,6 +10,10 @@ and the picker follows RotorHazard: after a save it moves to the heat RotorHazar
 "Practice — no heat" times whoever is on a seat; RotorHazard never saves practice laps, so
 Save is greyed and Stop then Discard clears them.
 
+Under the picker, one line says what RotorHazard will race with: the seat profile, the
+minimum lap time and what happens to short laps, and the format on the timer. Each is a
+link to the page that sets it (Seats, Event, Formats); **edit** on the format opens it here.
+
 If the heat is seeded from results, RotorHazard shows its **heat plan** first: who lands on
 which seat and where they came from. **Confirm** loads it, **Reseed** asks RotorHazard to
 work it out again, **Cancel** leaves the timer as it was.

@@ -129,6 +129,9 @@ test.describe('Run', () => {
     await rig.setMinLap(1);
 
     await page.goto('/grid/run');
+    // The race settings strip says what RotorHazard will race with (min lap 1 s was set above).
+    await expect(page.getByLabel('Race settings')).toContainText('Min lap 1 s');
+    expect((await rig.minLap()).min_lap).toBe(1);
     await page.getByRole('combobox').first().selectOption(String(heat));
     await expect(page.getByText('Ace').first()).toBeVisible();
 

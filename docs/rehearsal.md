@@ -106,6 +106,9 @@ save, next heat as the board says) is written at the end of the tier.
 - [ ] **Manual lap.** While racing, press **+ Lap** on a seat card: a lap chip lands for that
       seat, with the node tone if "beep on manual lap" is set in the audio settings;
       RotorHazard's Marshal page shows the pass. **tune** on a card opens that seat's tuning.
+- [ ] **Race settings strip.** Under the heat picker: profile, minimum lap and short-lap rule,
+      and the format on the timer, as RotorHazard's Race Management panel shows them; the
+      links land on Seats, Event and Formats; **edit** opens the format dialog.
 
 ## T4 — Marshal and Results parity
 

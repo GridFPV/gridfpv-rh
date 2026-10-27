@@ -12,6 +12,9 @@
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import RaceClock from '../components/RaceClock.svelte';
   import HeatPlanDialog from '../components/HeatPlanDialog.svelte';
+  import FormatDialog from '../components/FormatDialog.svelte';
+  import RaceSettingsStrip from '../components/RaceSettingsStrip.svelte';
+  import { MIN_LAP_BEHAVIOR_LABELS } from '../lib/timing.js';
   import { planRows } from '../lib/heatplan.js';
   import { audioState, cueManualLap, startCues } from '../lib/audio.svelte.js';
   import { seatTag } from '../lib/channels.js';
@@ -42,7 +45,14 @@
     type LiveLap
   } from '../lib/race.js';
   import { href, link } from '../lib/router.svelte.js';
-  import { classById, formatSummary, heatById, heatsInClass, pilotById } from '../lib/setup.js';
+  import {
+    classById,
+    formatSummary,
+    heatById,
+    heatsInClass,
+    pilotById,
+    type RaceFormat
+  } from '../lib/setup.js';
   import { needsSeeding, stageState, STAGE_STATE_LABELS, nextUpText } from '../lib/stages.js';
   import { aceLine, aceRule, isAceStage, stageTally } from '../lib/ace.js';
 
@@ -259,6 +269,17 @@
   const pending = $derived(setup.heats.filter(needsSeeding).length);
   const report = $derived(timer.autoSeedReport);
 
+  // ---- race settings strip (RotorHazard's Race Management panel, read here, set elsewhere) ----
+  const profileName = $derived(
+    timer.profiles.list.find((p) => p.id === timer.profiles.currentId)?.name ??
+      timer.profiles.name ??
+      ''
+  );
+  const behaviorLabel = $derived(
+    MIN_LAP_BEHAVIOR_LABELS[timer.timing.minLapBehavior as 0 | 1] ?? ''
+  );
+  let editFormat: RaceFormat | null = $state(null);
+
   // ---- RotorHazard's own messages ----
   const message = $derived(timer.message && now - 0 ? timer.message : null);
   let dismissedAt = $state(0);
@@ -344,6 +365,13 @@
           {/if}
           {#if format}· {format.name}, {formatSummary(format)}{/if}
         </div>
+        <RaceSettingsStrip
+          {profileName}
+          minLapS={timer.timing.minLapMs / 1000}
+          {behaviorLabel}
+          {format}
+          onEditFormat={() => (editFormat = format ?? null)}
+        />
       </div>
 
       <div class="clock">
@@ -462,6 +490,16 @@
       <p class="muted">No seat has a frequency. Set channels on the Seats page.</p>
     {/if}
   </div>
+
+  {#if editFormat}
+    <FormatDialog
+      open={true}
+      format={editFormat}
+      pointsMethods={timer.pointsMethods}
+      onresult={(r) => onresult(r, 'Format saved.')}
+      onclose={() => (editFormat = null)}
+    />
+  {/if}
 
   {#if timer.leaderboard && boardRows.length}
     <Card title="Leaderboard" subtitle={timer.leaderboard.statusMsg || undefined}>
