@@ -28,7 +28,8 @@
     type WriteResult
   } from '../lib/rh.svelte.js';
   import { raceFor, racesFor, winnerOf } from '../lib/results.js';
-  import { aceLine, aceRule, aceTally, isAceStage } from '../lib/ace.js';
+  import { aceLine, aceRule, isAceStage, stageTally } from '../lib/ace.js';
+  import { defaultRankLabel } from '../lib/stages.js';
   import {
     deletedLabel,
     deletedNotice,
@@ -417,7 +418,7 @@
       </thead>
       <tbody>
         {#each heats as h (h.id)}
-          {@const next = c ? nextRound(c, h, results) : null}
+          {@const next = c ? nextRound(c, h, results, heats) : null}
           {@const raced = racesFor(results, h.id).length}
           <tr class="heat" onclick={() => (heatOpen = h.id)}>
             <td class="heatcol">
@@ -574,7 +575,9 @@
                 alterClass(c.id, { winCondition: (e.currentTarget as HTMLSelectElement).value })
               )}
           >
-            <option value="">Not ranked</option>
+            <option value=""
+              >{defaultRankLabel(setup.formats.find((f) => f.id === c.formatId))}</option
+            >
             {#each timer.rankMethods as m (m.name)}<option value={m.name}>{m.label}</option>{/each}
           </Select>
         </label>
@@ -603,7 +606,7 @@
       </div>
 
       {#if isAceStage(c) && heats.length}
-        {@const tally = aceTally(racesFor(results, heats[0].id), aceRule(c))}
+        {@const tally = stageTally(c, heats, results)}
         <p class="standings ace" class:decided={!!tally.ace} aria-label="Chase the Ace">
           <span class="label">Chase the Ace</span>
           {aceLine(tally, aceRule(c))}

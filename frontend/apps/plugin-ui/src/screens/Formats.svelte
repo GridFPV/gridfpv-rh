@@ -92,12 +92,7 @@
     }}
     oncancel={() => (removing = null)}
   >
-    Delete <strong>{removing.name}</strong>? {#if usedBy(removing.id).length}It is used by {usedBy(
-        removing.id
-      )
-        .map((c) => c.displayName)
-        .join(', ')}, which will need a new format.{/if}
-    A format with saved races cannot be deleted.
+    Delete <strong>{removing.name}</strong>? A format with saved races cannot be deleted.
   </ConfirmDialog>
 {/if}
 
@@ -163,7 +158,12 @@
           <Button
             size="sm"
             variant="ghost"
-            disabled={busy || f.locked}
+            disabled={busy || f.locked || classes.length > 0}
+            title={classes.length
+              ? `Used by ${classes.map((c) => c.displayName).join(', ')}: change that stage's format first`
+              : f.locked
+                ? 'A format with saved races cannot be deleted'
+                : 'Delete this format'}
             onclick={() => (removing = f)}>Delete</Button
           >
         </div>

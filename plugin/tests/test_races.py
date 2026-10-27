@@ -398,6 +398,10 @@ class SocketTests(unittest.TestCase):
             self.assertEqual(len(payload["races"]), 1)
             rhapi.listeners[gridfpv.EVT_RACE_DELETE]({"heat_id": 7, "round_id": 2})  # gone already
             rhapi.ui.message_alert.assert_called_once()
+            # The asking client gets the reason too, on the plugin's own channel (#53).
+            event, answer = rhapi.sent[-1]
+            self.assertEqual((event, answer["action"], answer["ok"]), (gridfpv.EVT_RACE_REFUSED, "delete", False))
+            self.assertIn("no saved round 2", answer["message"])
             rhapi.listeners[gridfpv.EVT_RACE_RESTORE]({"id": payload["races"][0]["id"]})
             _, payload = rhapi.ui.socket_broadcast.call_args_list[-1][0]
             self.assertEqual((payload["races"], payload["changed"]["action"]), ([], "restored"))

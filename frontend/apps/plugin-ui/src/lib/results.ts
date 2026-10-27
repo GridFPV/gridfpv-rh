@@ -130,7 +130,11 @@ export function raceFor(results: Results, heatId: number, round: number): RaceRe
   return racesFor(results, heatId).find((r) => r.round === round);
 }
 
-/** The round's winner: position 1 on its primary leaderboard. */
+/**
+ * The round's winner: position 1 on its primary leaderboard, provided they completed a lap.
+ * RotorHazard still ranks a race nobody finished (0 laps all round); that is no win (#52).
+ */
 export function winnerOf(race: RaceResult): ResultRow | undefined {
-  return race.rows.find((r) => r.position === 1) ?? race.rows[0];
+  const w = race.rows.find((r) => r.position === 1) ?? race.rows[0];
+  return w && w.laps > 0 ? w : undefined;
 }

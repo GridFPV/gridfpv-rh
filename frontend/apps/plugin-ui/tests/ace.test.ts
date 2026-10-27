@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { aceLine, aceRule, aceTally, isAceStage, stageType } from '../src/lib/ace.js';
-import type { RaceResult } from '../src/lib/results.js';
+import {
+  aceLine,
+  aceRule,
+  aceTally,
+  isAceStage,
+  roundsAfterAce,
+  stageTally,
+  stageType
+} from '../src/lib/ace.js';
+import { emptyResults, type RaceResult } from '../src/lib/results.js';
+import type { Heat, RaceClass } from '../src/lib/setup.js';
 
 const race = (round: number, winner: string, pilotId: number): RaceResult => ({
   heatId: 1,
@@ -44,6 +53,71 @@ describe('aceTally', () => {
   });
   it('is empty with no races', () => {
     expect(aceTally([])).toEqual({ wins: [], ace: null, rounds: 0 });
+  });
+  it('a round nobody finished is no win: it breaks a streak and never declares the ace (#52)', () => {
+    const empty = (round: number): RaceResult => ({
+      heatId: 1,
+      round,
+      startTime: '',
+      rows: [
+        {
+          pilotId: 1,
+          callsign: 'Ace',
+          position: 1,
+          laps: 0,
+          totalTime: '',
+          fastestLap: '',
+          node: 1
+        },
+        {
+          pilotId: 2,
+          callsign: 'Bee',
+          position: 2,
+          laps: 0,
+          totalTime: '',
+          fastestLap: '',
+          node: 2
+        }
+      ]
+    });
+    // Under "any two": the empty round credits nobody.
+    const t = aceTally([race(1, 'Ace', 1), race(2, 'Bee', 2), race(3, 'Ace', 1)], 'in-a-row');
+    expect(t.ace).toBeNull();
+    const t2 = aceTally(
+      [race(1, 'Ace', 1), race(2, 'Bee', 2), race(3, 'Ace', 1), empty(4)],
+      'in-a-row'
+    );
+    expect(t2.ace).toBeNull();
+    expect(t2.wins.map((w) => [w.callsign, w.wins])).toEqual([
+      ['Ace', 2],
+      ['Bee', 1]
+    ]);
+    // Mid-streak: Ace, empty, Ace is not two in a row.
+    expect(aceTally([race(1, 'Ace', 1), empty(2), race(3, 'Ace', 1)], 'in-a-row').ace).toBeNull();
+    expect(aceTally([race(1, 'Ace', 1), empty(2), race(3, 'Ace', 1)], 'twice').ace?.round).toBe(3);
+    expect(aceTally([empty(1), empty(2)]).ace).toBeNull();
+  });
+  it('rounds flown after the ace keep the ace and are counted (#52)', () => {
+    const t = aceTally([
+      race(1, 'Ace', 1),
+      race(2, 'Ace', 1),
+      race(3, 'Bee', 2),
+      race(4, 'Bee', 2)
+    ]);
+    expect(t.ace).toEqual({ pilotId: 1, callsign: 'Ace', round: 2 });
+    expect(roundsAfterAce(t)).toBe(2);
+    expect(aceLine(t)).toBe(
+      'Ace is the ace — decided in round 2 · 2 rounds flown since: RotorHazard ranks by the last heat, not the ace'
+    );
+  });
+  it('stageTally reads every heat of the stage, not only the first (#52)', () => {
+    const cls = { id: 1, attributes: { gridfpv_stage: 'ace' } } as unknown as RaceClass;
+    const heats = [{ id: 1 }, { id: 2 }] as Heat[];
+    const results = {
+      ...emptyResults(),
+      races: { 1: [race(1, 'Ace', 1)], 2: [{ ...race(2, 'Ace', 1), heatId: 2 }] }
+    };
+    expect(stageTally(cls, heats, results).ace?.round).toBe(2);
   });
 });
 

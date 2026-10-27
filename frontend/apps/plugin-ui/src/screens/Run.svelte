@@ -29,6 +29,7 @@
   import { href, link } from '../lib/router.svelte.js';
   import { classById, formatSummary, heatById, heatsInClass, pilotById } from '../lib/setup.js';
   import { needsSeeding, stageState, STAGE_STATE_LABELS } from '../lib/stages.js';
+  import { aceLine, aceRule, isAceStage, stageTally } from '../lib/ace.js';
 
   const timer = rh();
   const setup = $derived(timer.setup);
@@ -49,8 +50,22 @@
     [...setup.classes].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.id - b.id)
   );
   const unclassified = $derived(heatsInClass(setup, 0));
+  /** A decided Chase the Ace is over: its heat is not offered (it stays pickable if loaded). */
+  const aceDecided = (c: { id: number } & Parameters<typeof isAceStage>[0]) =>
+    isAceStage(c) && !!stageTally(c as never, heatsInClass(setup, c.id), timer.results).ace;
   const stageHeats = (classId: number) =>
-    heatsInClass(setup, classId).filter((h) => h.active || h.id === race.heatId);
+    heatsInClass(setup, classId).filter(
+      (h) =>
+        (h.active || h.id === race.heatId) &&
+        (h.id === race.heatId || !aceDecided(classById(setup, classId)!))
+    );
+  const aceNote = $derived.by(() => {
+    if (!cls || !isAceStage(cls)) return '';
+    const t = stageTally(cls, heatsInClass(setup, cls.id), timer.results);
+    return t.ace
+      ? `${aceLine(t, aceRule(cls))}. Another round here changes RotorHazard's ranking of the stage.`
+      : '';
+  });
   const roundsText = $derived.by(() => {
     if (!heat) return '';
     const r = race.nextRound || 1;
@@ -218,6 +233,7 @@
             {roundsText}
             {#if cls}· {cls.displayName}{/if}
             {#if stageBadge}<Badge tone="neutral">{STAGE_STATE_LABELS[stageBadge]}</Badge>{/if}
+            {#if aceNote}<span class="acenote" role="note">{aceNote}</span>{/if}
           {:else}
             Practice: whoever is on a seat, no results saved to a heat.
           {/if}
@@ -424,6 +440,10 @@
 </ConfirmDialog>
 
 <style>
+  .acenote {
+    display: block;
+    color: var(--gf-warning-500, #d29922);
+  }
   .page {
     display: grid;
     gap: var(--gf-space-3);

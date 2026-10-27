@@ -4,18 +4,20 @@
  * in and how many columns it needs; the screen draws them. Pure, so tests cover the
  * states without a timer.
  */
-import { aceRule, aceTally, isAceStage, STAGE_ACE, STAGE_ATTR } from './ace.js';
+import { isAceStage, STAGE_ACE, STAGE_ATTR, stageTally } from './ace.js';
 import { racesFor, type RankRow, type Results } from './results.js';
 import {
-  ordinal,
-  pilotById,
-  SLOT_METHOD,
   HEAT_STATUS,
   ROUND_TYPE,
-  heatById,
+  SLOT_METHOD,
+  WIN_CONDITION_LABELS,
   classById,
+  heatById,
+  ordinal,
+  pilotById,
   type Heat,
   type RaceClass,
+  type RaceFormat,
   type Setup,
   type Slot
 } from './setup.js';
@@ -89,8 +91,7 @@ export function stageState(cls: RaceClass, heats: Heat[], results: Results): Sta
   const raced = heats.map((h) => racesFor(results, h.id).length);
   const anyRaced = raced.some((n) => n > 0);
   // Chase the Ace ends when the ace is decided, however many rounds that took.
-  if (isAceStage(cls) && heats.some((h) => aceTally(racesFor(results, h.id), aceRule(cls)).ace))
-    return 'done';
+  if (isAceStage(cls) && stageTally(cls, heats, results).ace) return 'done';
   // Grouped rounds: every heat flies once. Races per heat: every heat flies `rounds` times.
   const needed = cls.roundType === ROUND_TYPE.GROUPED ? 1 : cls.rounds;
   if (needed > 0 && raced.every((n) => n >= needed)) return 'done';
@@ -132,9 +133,15 @@ export function standingsLine(ranking: RankRow[] | undefined, max = 8): string {
 }
 
 /** The next unraced round of a heat, 1-based; null when the stage's rounds are all flown. */
-export function nextRound(cls: RaceClass, heat: Heat, results: Results): number | null {
+export function nextRound(
+  cls: RaceClass,
+  heat: Heat,
+  results: Results,
+  stageHeats: Heat[] = [heat]
+): number | null {
   const races = racesFor(results, heat.id);
-  if (isAceStage(cls) && aceTally(races, aceRule(cls)).ace) return null;
+  // A decided Chase the Ace has no next round for any of its heats (#52).
+  if (isAceStage(cls) && stageTally(cls, stageHeats, results).ace) return null;
   const n = races.length + 1;
   if (cls.rounds > 0 && n > cls.rounds) return null;
   return n;
@@ -320,6 +327,17 @@ export const STAGE_TEMPLATES: StageTemplate[] = [
     grouped: false
   }
 ];
+
+/**
+ * What RotorHazard does with no rank method: it ranks the class by its format's win
+ * condition. The empty choice is labelled with that, so "fastest consecutive" is findable (#46).
+ */
+export function defaultRankLabel(format: RaceFormat | undefined): string {
+  const win = format ? WIN_CONDITION_LABELS[format.winCondition] : undefined;
+  return win
+    ? `By the format's win condition (${win.toLowerCase()})`
+    : "By the format's win condition (RotorHazard default)";
+}
 
 /** How many heats seat every active pilot, `seats` at a time. */
 export function heatsForPilots(activePilots: number, seats: number): number {

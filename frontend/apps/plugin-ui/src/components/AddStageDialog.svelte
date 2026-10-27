@@ -6,7 +6,13 @@
    */
   import { Button, Dialog, Input, Select } from '@gridfpv/components';
   import { createStage, type WriteResult } from '../lib/rh.svelte.js';
-  import { heatsForPilots, STAGE_TEMPLATES, type StageTemplate } from '../lib/stages.js';
+  import {
+    defaultRankLabel,
+    heatsForPilots,
+    STAGE_TEMPLATES,
+    type StageTemplate
+  } from '../lib/stages.js';
+  import { WIN_CONDITION } from '../lib/setup.js';
   import { STAGE_ACE, STAGE_ACE_ROW, STAGE_ATTR } from '../lib/ace.js';
   import { ROUND_TYPE, type Setup } from '../lib/setup.js';
 
@@ -46,7 +52,14 @@
     formatId = f ? String(f.id) : '';
     unlimited = t.rounds === 0;
     rounds = String(t.rounds || 3);
-    rank = rankMethods.some((m) => m.name === t.rank) ? t.rank : '';
+    // A format that already ranks by consecutive laps needs no rank method: RotorHazard's
+    // default (the format's win condition) is the "fastest consecutive" ranking (#46).
+    rank =
+      t.id === 'qualifying' && f?.winCondition === WIN_CONDITION.FASTEST_CONSECUTIVE
+        ? ''
+        : rankMethods.some((m) => m.name === t.rank)
+          ? t.rank
+          : '';
     heats = String(t.heats === 'pilots' ? heatsForPilots(activePilots, seatCount) : t.heats);
     grouped = t.grouped;
   }
@@ -144,7 +157,9 @@
       <label class="field grow">
         <span>Ranked by</span>
         <Select bind:value={rank}>
-          <option value="">Not ranked</option>
+          <option value=""
+            >{defaultRankLabel(setup.formats.find((x) => String(x.id) === formatId))}</option
+          >
           {#each rankMethods as m (m.name)}<option value={m.name}>{m.label}</option>{/each}
         </Select>
       </label>

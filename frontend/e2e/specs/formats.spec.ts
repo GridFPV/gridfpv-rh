@@ -42,6 +42,24 @@ test.describe('Formats', () => {
     expect(await rh.formatNames()).toContain('E2E 90s Sprint');
   });
 
+  test('a format a stage uses cannot be deleted, and the card says which stage (#51)', async ({
+    page,
+    rig,
+    rh
+  }) => {
+    const before = (await rig.formats()).map((f) => f.name);
+    const fmt = (await rig.formats()).find((f) => f.name === '2:00 Standard Race')!;
+    await rig.addClass({ name: 'E2E Uses It', formatId: fmt.id });
+    await page.goto('/grid/formats');
+    const card = page.locator('.gf-card', { hasText: '2:00 Standard Race' }).first();
+    const del = card.getByRole('button', { name: 'Delete' });
+    await expect(del).toBeDisabled();
+    await expect(del).toHaveAttribute('title', /Used by E2E Uses It/);
+    // RotorHazard agrees: nothing changed.
+    expect((await rig.formats()).map((f) => f.name)).toEqual(before);
+    expect(await rh.formatNames()).toContain('2:00 Standard Race');
+  });
+
   test("a points method and its settings set in Grid are the format's in RotorHazard (set_points_params)", async ({
     page,
     rig

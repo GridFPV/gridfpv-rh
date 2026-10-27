@@ -17,6 +17,10 @@ test.describe('Stages', () => {
     await page.getByRole('button', { name: 'Create' }).click();
 
     await expect(page.getByRole('heading', { name: 'E2E Qualifying' })).toBeVisible();
+    // The empty ranking choice says what RotorHazard does with it (#46).
+    await expect(page.getByLabel('Ranked by').locator('option').first()).toHaveText(
+      /^By the format's win condition \(/
+    );
     const rows = page.locator('tr.heat');
     await expect(rows).toHaveCount(2);
 
@@ -175,11 +179,14 @@ test.describe('Stages', () => {
 
     // The stage's format is locked too, until unlocked.
     const stage = page.locator('.classhead', { hasText: 'E2E Locked' }).locator('..');
-    await expect(stage.getByLabel('Format')).toBeDisabled();
+    // The label wraps the select, so its accessible name carries every option: find it by structure.
+    const formatSelect = stage
+      .locator('label', { has: page.locator('span', { hasText: /^Format$/ }) })
+      .locator('select');
+    await expect(formatSelect).toBeDisabled();
     await stage.getByRole('button', { name: 'Unlock…' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Unlock', exact: true }).click();
-    await expect(stage.getByLabel('Format')).toBeEnabled();
-    const formatSelect = stage.getByLabel('Format');
+    await expect(formatSelect).toBeEnabled();
     const practice = await formatSelect
       .locator('option', { hasText: /Practice/i })
       .first()
@@ -223,14 +230,16 @@ test.describe('Stages', () => {
     expect(heat).toBeTruthy();
     await rig.seatHeat(heat.heat_id, [null, ace, bee]);
 
-    // Round 1 Ace, round 2 Bee, round 3 Ace: Ace has won twice.
+    // Round 1 Ace, round 2 Bee, round 3 nobody finishes a lap (no win, #52), round 4 Ace.
     await rig.raceHeat(heat.heat_id, { 1: [500, 2000, 3500], 2: [600, 2400] });
     await expect(page.getByLabel('Chase the Ace')).toContainText('Wins: Ace 1');
     await rig.raceHeat(heat.heat_id, { 1: [500, 2000], 2: [600, 1800, 3000] });
     await expect(page.getByLabel('Chase the Ace')).toContainText('Wins: Ace 1 · Bee 1');
+    await rig.raceHeat(heat.heat_id, {});
+    await expect(page.getByLabel('Chase the Ace')).toContainText('Wins: Ace 1 · Bee 1');
     await rig.raceHeat(heat.heat_id, { 1: [500, 1800, 3000, 4200], 2: [600, 2400] });
     await expect(page.getByLabel('Chase the Ace')).toContainText(
-      'Ace is the ace — decided in round 3'
+      'Ace is the ace — decided in round 4'
     );
     await expect(
       page.locator('.classhead', { hasText: 'E2E Ace' }).getByText('Done')
@@ -240,6 +249,48 @@ test.describe('Stages', () => {
     const ranking = await rig.classRanking(cls.id);
     expect(ranking[0]?.callsign).toBe('Ace');
     await rh.expectResultsToMention('E2E Ace');
-    expect((await rig.rounds()).find((h) => h.id === heat.heat_id)?.rounds).toBe(3);
+    expect((await rig.rounds()).find((h) => h.id === heat.heat_id)?.rounds).toBe(4);
+
+    // The Run page no longer offers the decided stage's heat, and says why while it is loaded (#52).
+    await page.goto('/grid/run');
+    const heatName = (await rig.heats()).find((h) => h.heat_id === heat.heat_id)!.displayname;
+    const picker = page.locator('select').first();
+    const loaded = (await rig.status()).current_heat === heat.heat_id;
+    await expect(picker.locator('option', { hasText: heatName })).toHaveCount(loaded ? 1 : 0);
+    if (loaded) await expect(page.getByRole('note')).toContainText('Another round here changes');
+  });
+
+  test('a refused delete says why at once: a race is on the timer (#53)', async ({
+    page,
+    rig,
+    rh
+  }) => {
+    test.setTimeout(90_000);
+    const ace = await rig.addPilot({ callsign: 'Ace' });
+    const cls = await rig.addClass({ name: 'E2E Busy' });
+    const heat = await rig.addHeat({ name: 'Heat B', classId: cls, pilots: [null, ace] });
+    await rig.setMinLap(1);
+    await rig.raceHeat(heat, { 1: [500, 2000] });
+    await rig.setHeat(heat);
+    await rig.start();
+    try {
+      await page.goto('/grid/stages');
+      const row = page.locator('tr.heat', { hasText: 'Heat B' });
+      await row.getByTitle(/Round 1, raced/).click();
+      const dialog = page.getByRole('dialog');
+      await dialog.getByRole('button', { name: 'Delete race…' }).click();
+      const started = Date.now();
+      await dialog.getByRole('button', { name: 'Confirm delete' }).click();
+      await expect(
+        page.getByText(/a race is on the timer; save or discard it first/)
+      ).toBeVisible();
+      expect(Date.now() - started).toBeLessThan(5000);
+    } finally {
+      await rig.stop();
+      await rig.discard();
+    }
+    // RotorHazard agrees: the round is still there.
+    expect((await rig.rounds()).find((h) => h.id === heat)?.rounds).toBe(1);
+    expect(await rh.formatHeatNames()).toContain('Heat B');
   });
 });

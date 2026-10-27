@@ -4,9 +4,9 @@
  * last heat position, so its own Results page agrees once the deciding race is the last one.
  * The stage type lives on the class as the plugin's `gridfpv_stage` attribute.
  */
-import type { RaceResult } from './results.js';
-import { winnerOf } from './results.js';
-import type { RaceClass } from './setup.js';
+import type { RaceResult, Results } from './results.js';
+import { racesFor, winnerOf } from './results.js';
+import type { Heat, RaceClass } from './setup.js';
 
 /** The class attribute the plugin registers; its value is the stage type. */
 export const STAGE_ATTR = 'gridfpv_stage';
@@ -70,9 +70,30 @@ export function aceTally(races: RaceResult[], rule: AceRule = 'twice'): AceTally
   return { wins, ace, rounds: ordered.length };
 }
 
+/** Every saved round of a stage's heats, in round order: the tally reads them all (#52). */
+export function stageRaces(heats: Heat[], results: Results): RaceResult[] {
+  return heats.flatMap((h) => racesFor(results, h.id)).sort((a, b) => a.round - b.round);
+}
+
+/** The stage's tally, over all its heats. */
+export function stageTally(cls: RaceClass, heats: Heat[], results: Results): AceTally {
+  return aceTally(stageRaces(heats, results), aceRule(cls));
+}
+
+/** Rounds flown after the deciding one: they change RotorHazard's last-heat ranking (#52). */
+export function roundsAfterAce(t: AceTally): number {
+  return t.ace ? Math.max(0, t.rounds - t.ace.round) : 0;
+}
+
 /** One line for the board: who has won what, or who the ace is. */
 export function aceLine(t: AceTally, rule: AceRule = 'twice'): string {
-  if (t.ace) return `${t.ace.callsign} is the ace — decided in round ${t.ace.round}`;
+  if (t.ace) {
+    const after = roundsAfterAce(t);
+    const base = `${t.ace.callsign} is the ace — decided in round ${t.ace.round}`;
+    return after
+      ? `${base} · ${after} round${after === 1 ? '' : 's'} flown since: RotorHazard ranks by the last heat, not the ace`
+      : base;
+  }
   if (t.wins.length === 0)
     return rule === 'in-a-row' ? 'First to win two rounds in a row' : 'First to win two rounds';
   const parts = t.wins.map((w) => `${w.callsign} ${w.wins}`);

@@ -526,6 +526,10 @@ export function connect(): Socket {
     archived = { ok: Boolean(p?.ok), file: p?.file ?? null, message: p?.message };
     checkWaiters();
   });
+  socket.on('gridfpv_race_refused', (p: { action?: string; message?: string }) => {
+    raceRefused = p?.message ?? 'RotorHazard refused';
+    checkWaiters();
+  });
   socket.on('gridfpv_races_deleted', (p: DeletedRacesPayload) => {
     state.deletedRaces = applyDeletedRaces(p);
     state.deletedRacesNative = Boolean(p?.native);
@@ -1213,6 +1217,20 @@ export function refreshRoster() {
 
 // ---- rounds: delete a saved race (keeping a copy) and restore it (#36) ---------------
 let lastRaceBackup: string | null = null;
+/** The plugin's reason for refusing the last delete/restore, answered at once (#53). */
+let raceRefused: string | null = null;
+
+/** Wait for `done`, or for the plugin's refusal, whichever comes first. */
+async function awaitRace(
+  what: string,
+  done: () => boolean,
+  timeoutMs: number
+): Promise<WriteResult> {
+  raceRefused = null;
+  const r = await awaitState(what, () => raceRefused != null || done(), timeoutMs);
+  if (raceRefused) return { ok: false, message: `${what}: ${raceRefused}` };
+  return r;
+}
 
 /**
  * Delete one saved race of a heat. The plugin backs RotorHazard's database up first and
@@ -1224,7 +1242,7 @@ export async function deleteRace(
 ): Promise<WriteResult & { backup?: string | null }> {
   lastRaceBackup = null;
   socket?.emit('gridfpv_race_delete', { heat_id: heatId, round_id: round });
-  const r = await awaitState(
+  const r = await awaitRace(
     'Delete race',
     () =>
       !raceFor(state.results, heatId, round) &&
@@ -1237,7 +1255,7 @@ export async function deleteRace(
 /** Put a deleted race back; the readback is the race in result_data and gone from the kept list. */
 export function restoreRace(d: DeletedRace): Promise<WriteResult> {
   socket?.emit('gridfpv_race_restore', { id: d.id });
-  return awaitState(
+  return awaitRace(
     'Restore race',
     () =>
       !!raceFor(state.results, d.heatId, d.round) && !state.deletedRaces.some((x) => x.id === d.id),
@@ -1450,7 +1468,18 @@ export function alterFormat(id: number, fields: FormatFields): Promise<WriteResu
   );
 }
 
+/** The stages (classes) that use a format: RotorHazard cannot delete it while they do (#51). */
+export function stagesUsingFormat(id: number) {
+  return state.setup.classes.filter((c) => c.formatId === id);
+}
+
 export function deleteFormat(id: number): Promise<WriteResult> {
+  const used = stagesUsingFormat(id);
+  if (used.length)
+    return Promise.resolve({
+      ok: false,
+      message: `${used.map((c) => c.displayName).join(', ')} still use${used.length === 1 ? 's' : ''} this format. Change the stage's format first.`
+    });
   socket?.emit('delete_race_format', { format_id: id });
   reloadAfter(() => loadData('format_data', 'class_data'));
   return awaitState('Delete format', () => !state.setup.formats.some((f) => f.id === id)).then(
@@ -1459,7 +1488,7 @@ export function deleteFormat(id: number): Promise<WriteResult> {
         ? r
         : {
             ok: false,
-            message: 'RotorHazard kept the format — formats with saved races cannot be deleted.'
+            message: 'RotorHazard kept the format — a format with saved races cannot be deleted.'
           }
   );
 }

@@ -77,6 +77,8 @@ EVT_RACES_DELETED_GET = "gridfpv_races_deleted_get"
 EVT_RACE_DELETE = "gridfpv_race_delete"
 EVT_RACE_RESTORE = "gridfpv_race_restore"
 EVT_RACE_FORGET = "gridfpv_race_forget"
+#: Answer to the asking client when a delete or restore is refused: {action, ok: False, message}.
+EVT_RACE_REFUSED = "gridfpv_race_refused"
 #: Broadcast: the deleted races that can be restored, after any change and on request;
 #: carries ``backup`` (the database backup file a delete made) and ``changed`` (heat/round).
 EVT_RACES_DELETED = "gridfpv_races_deleted"
@@ -343,6 +345,7 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
             out = races.delete(rhapi, data.get("heat_id"), data.get("round_id"))
         except (races.RaceError, TypeError, ValueError) as e:
             rhapi.ui.message_alert(f"GridFPV race: {e}")
+            send(EVT_RACE_REFUSED, {"action": "delete", "ok": False, "message": str(e)})
             return
         rhapi.ui.socket_broadcast(
             EVT_RACES_DELETED,
@@ -354,6 +357,7 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
             out = races.restore(rhapi, (data or {}).get("id"))
         except (races.RaceError, TypeError, ValueError) as e:
             rhapi.ui.message_alert(f"GridFPV race: {e}")
+            send(EVT_RACE_REFUSED, {"action": "restore", "ok": False, "message": str(e)})
             return
         rhapi.ui.socket_broadcast(EVT_RACES_DELETED, _races_payload(changed={**out, "action": "restored"}))
 
