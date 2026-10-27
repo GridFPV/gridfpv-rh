@@ -36,9 +36,14 @@
   });
 
   let busy = $state(false);
+  // Active pilots not already on another seat of this heat (#61): RotorHazard would race
+  // one pilot twice; our picker is where that mistake is stopped.
+  const seatedElsewhere = $derived(
+    new Set(heat.slots.filter((s) => s.id !== slot.id && s.pilotId > 0).map((s) => s.pilotId))
+  );
   const activePilots = $derived(
     [...setup.pilots]
-      .filter((p) => p.active || p.id === slot.pilotId)
+      .filter((p) => (p.active || p.id === slot.pilotId) && !seatedElsewhere.has(p.id))
       .sort((a, b) =>
         (a.callsign || a.name).localeCompare(b.callsign || b.name, undefined, {
           sensitivity: 'base'

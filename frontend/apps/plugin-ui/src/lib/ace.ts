@@ -41,7 +41,11 @@ export type AceTally = {
 
 /** Count wins over the saved rounds, in round order, and find the ace. */
 export function aceTally(races: RaceResult[], rule: AceRule = 'twice'): AceTally {
-  const ordered = [...races].sort((a, b) => a.round - b.round);
+  // Flight order: by start time when every race has one, else by round number.
+  const timed = races.every((r) => r.startTime);
+  const ordered = [...races].sort((a, b) =>
+    timed && a.startTime !== b.startTime ? (a.startTime < b.startTime ? -1 : 1) : a.round - b.round
+  );
   const byPilot = new Map<number, AceWins>();
   let ace: AceTally['ace'] = null;
   let lastWinner: number | null = null;
@@ -70,9 +74,17 @@ export function aceTally(races: RaceResult[], rule: AceRule = 'twice'): AceTally
   return { wins, ace, rounds: ordered.length };
 }
 
-/** Every saved round of a stage's heats, in round order: the tally reads them all (#52). */
+/**
+ * Every saved round of a stage's heats in the order they were flown (#63): by start time
+ * (RotorHazard's `start_time_formatted`, "YYYY-MM-DD HH:MM:SS.mmm", which sorts as text),
+ * then by round within a heat when two share one.
+ */
 export function stageRaces(heats: Heat[], results: Results): RaceResult[] {
-  return heats.flatMap((h) => racesFor(results, h.id)).sort((a, b) => a.round - b.round);
+  return heats
+    .flatMap((h) => racesFor(results, h.id))
+    .sort((a, b) =>
+      a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : a.round - b.round
+    );
 }
 
 /** The stage's tally, over all its heats. */

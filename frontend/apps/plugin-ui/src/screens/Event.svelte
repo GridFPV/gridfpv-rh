@@ -430,7 +430,15 @@
         size="sm"
         variant="secondary"
         disabled={busy}
-        onclick={() => run(archiveNow, 'Archived.')}>Archive now</Button
+        onclick={async () => {
+          busy = true;
+          try {
+            const r = await archiveNow();
+            onresult(r, r.file ? `Archived as ${r.file}.` : 'Archived.');
+          } finally {
+            busy = false;
+          }
+        }}>Archive now</Button
       >
     {/snippet}
     {#if archives.events.length === 0}

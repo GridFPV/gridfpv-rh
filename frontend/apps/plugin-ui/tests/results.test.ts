@@ -89,3 +89,29 @@ describe('applyResultData', () => {
     expect(applyResultData({ heats: {}, classes: {} }).ranking).toEqual({});
   });
 });
+
+describe('class standings without a rank method (#62)', () => {
+  it('falls back to the class leaderboard primary list', () => {
+    const r = applyResultData({
+      heats: {},
+      classes: {
+        '3': {
+          id: 3,
+          ranking: { ranking: [] },
+          leaderboard: {
+            meta: { primary_leaderboard: 'by_consecutives' },
+            by_consecutives: [
+              { pilot_id: 2, callsign: 'Bee', position: 1, laps: 6 },
+              { pilot_id: 1, callsign: 'Ace', position: 2, laps: 6 }
+            ],
+            by_race_time: [{ pilot_id: 1, callsign: 'Ace', position: 1, laps: 6 }]
+          }
+        }
+      }
+    });
+    expect(r.ranking[3].map((x) => [x.position, x.callsign])).toEqual([
+      [1, 'Bee'],
+      [2, 'Ace']
+    ]);
+  });
+});

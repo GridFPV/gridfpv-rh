@@ -110,6 +110,22 @@ describe('aceTally', () => {
       'Ace is the ace — decided in round 2 · 2 rounds flown since: RotorHazard ranks by the last heat, not the ace'
     );
   });
+  it('a second heat added later is tallied after the rounds already flown (#63)', () => {
+    const at = (r: RaceResult, t: string): RaceResult => ({ ...r, startTime: t });
+    const cls = { id: 1, attributes: { gridfpv_stage: 'ace-row' } } as unknown as RaceClass;
+    const heats = [{ id: 1 }, { id: 2 }] as Heat[];
+    // Heat 1: Ace, Bee, Ace, Ace → Ace is the ace in round 4. Then heat 2's round 1: Bee wins.
+    const h1 = [
+      at(race(1, 'Ace', 1), '2026-10-27 10:00:00.000'),
+      at(race(2, 'Bee', 2), '2026-10-27 10:05:00.000'),
+      at(race(3, 'Ace', 1), '2026-10-27 10:10:00.000'),
+      at(race(4, 'Ace', 1), '2026-10-27 10:15:00.000')
+    ];
+    const h2 = [at({ ...race(1, 'Bee', 2), heatId: 2 }, '2026-10-27 10:20:00.000')];
+    const t = stageTally(cls, heats, { ...emptyResults(), races: { 1: h1, 2: h2 } });
+    expect(t.ace).toEqual({ pilotId: 1, callsign: 'Ace', round: 4 });
+    expect(t.rounds).toBe(5);
+  });
   it('stageTally reads every heat of the stage, not only the first (#52)', () => {
     const cls = { id: 1, attributes: { gridfpv_stage: 'ace' } } as unknown as RaceClass;
     const heats = [{ id: 1 }, { id: 2 }] as Heat[];

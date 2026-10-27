@@ -7,7 +7,7 @@ test.describe('Stages', () => {
     rh
   }) => {
     const ace = await rig.addPilot({ callsign: 'Ace' });
-    await rig.addPilot({ callsign: 'Bee' });
+    const bee = await rig.addPilot({ callsign: 'Bee' });
 
     await page.goto('/grid/stages');
     await expect(page.getByRole('heading', { name: 'Stages' })).toBeVisible();
@@ -35,13 +35,17 @@ test.describe('Stages', () => {
         .getByText('RotorHazard confirmed the change.')
         .or(page.getByText('RotorHazard confirmed the change.'))
     ).toBeVisible();
+    // Ace is seated, so seat 2's picker no longer offers him (#61); Bee it does.
+    await expect(dialog.locator('select').nth(3).locator(`option[value="${ace}"]`)).toHaveCount(0);
+    await expect(dialog.locator('select').nth(3).locator(`option[value="${bee}"]`)).toHaveCount(1);
     await dialog.getByRole('button', { name: 'Done' }).click();
 
-    // RotorHazard agrees: the class, two heats, and Ace on seat 1 of the first.
+    // RotorHazard agrees: the class, two heats, and Ace on seat 1 of the first, once.
     const heats = await rig.heats();
     expect(heats).toHaveLength(2);
     const seated = heats.find((h) => h.nodes_pilots['0'] === ace);
     expect(seated).toBeTruthy();
+    expect(Object.values(seated!.nodes_pilots).filter((p) => p === ace)).toHaveLength(1);
     expect(await rh.formatClassNames()).toContain('E2E Qualifying');
     expect((await rh.formatHeatNames()).length).toBeGreaterThanOrEqual(2);
   });
@@ -270,6 +274,26 @@ test.describe('Stages', () => {
     const loaded = (await rig.status()).current_heat === heat.heat_id;
     await expect(picker.locator('option', { hasText: heatName })).toHaveCount(loaded ? 1 : 0);
     if (loaded) await expect(page.getByRole('note')).toContainText('Another round here changes');
+  });
+
+  test("a stage ranked by the format's win condition shows standings after a round (#62)", async ({
+    page,
+    rig,
+    rh
+  }) => {
+    const ace = await rig.addPilot({ callsign: 'Ace' });
+    const bee = await rig.addPilot({ callsign: 'Bee' });
+    const cls = await rig.addClass({ name: 'E2E Default Rank' }); // win_condition '' = format default
+    const heat = await rig.addHeat({ name: 'Heat D', classId: cls, pilots: [null, ace, bee] });
+    await rig.setMinLap(1);
+    await rig.raceHeat(heat, { 1: [500, 2000], 2: [600, 1800, 3000] });
+    await page.goto('/grid/stages');
+    const standings = page.locator('.standings', { hasText: 'Standings' }).first();
+    await expect(standings).toContainText('1 Bee');
+    await expect(standings).toContainText('2 Ace');
+    // RotorHazard agrees: its class leaderboard is what the line shows.
+    expect(await rig.classRanking(cls)).toEqual([]);
+    await rh.expectResultsToMention('Heat D');
   });
 
   test('a grouped-rounds stage shows the loaded heat as next on its round section (#58)', async ({

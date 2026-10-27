@@ -56,6 +56,24 @@ class ArchiveTests(unittest.TestCase):
             self.assertEqual(archive.archive(self.rhapi_with(backup), "Club Night 10/27"), "Club Night 10-27.db")
             backup.assert_called_once_with(True, use_filename="Club Night 10-27")
 
+    def test_a_taken_name_is_archived_with_a_counter(self):
+        with tempfile.TemporaryDirectory() as d:
+            bkp = os.path.join(d, "db_bkp")
+            os.makedirs(bkp)
+            open(os.path.join(bkp, "Night.db"), "w").close()
+
+            def backup(copy_flag, use_filename=None):
+                p = os.path.join(bkp, use_filename + ".db")
+                open(p, "w").close()
+                return p
+
+            cwd = os.getcwd()
+            os.chdir(d)
+            try:
+                self.assertEqual(archive.archive(self.rhapi_with(mock.Mock(side_effect=backup)), "Night"), "Night (2).db")
+            finally:
+                os.chdir(cwd)
+
     def test_refuses_when_no_file_landed(self):
         with self.assertRaises(archive.ArchiveError):
             archive.archive(self.rhapi_with(mock.Mock(return_value=None)), "x")

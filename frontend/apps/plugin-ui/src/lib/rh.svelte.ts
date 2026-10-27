@@ -1363,11 +1363,9 @@ export async function newEvent(
 }
 
 /** Archive the current database now (RotorHazard's backup_database). */
-export function archiveNow(): Promise<WriteResult> {
-  const before = state.archives.length;
-  socket?.emit('backup_database');
-  reloadAfter(() => socket?.emit('list_backups'));
-  return awaitState('Archive', () => state.archives.length > before);
+export function archiveNow(): Promise<WriteResult & { file?: string }> {
+  // Through the plugin, so the file is named after the event with a counter when taken.
+  return archiveEvent(state.event.name);
 }
 
 /** Replace the whole database with an archive; RotorHazard acks with database_restore_done. */

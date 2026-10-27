@@ -113,11 +113,20 @@ export function applyResultData(payload: { heats?: Raw; classes?: Raw } | null):
   for (const [key, c] of Object.entries(classes)) {
     const classId = num(c.id, Number(key));
     const ranking = (c.ranking as Raw | undefined)?.ranking as Raw[] | undefined;
-    out.ranking[classId] = (ranking ?? []).map((r, i) => ({
+    const rows = (ranking ?? []).map((r, i) => ({
       pilotId: num(r.pilot_id),
       callsign: str(r.callsign),
       position: r.position == null ? i + 1 : Number(r.position)
     }));
+    // No rank method: RotorHazard ranks the class by its format's win condition, in the
+    // class leaderboard's primary list (its own Results page shows that as the summary, #62).
+    out.ranking[classId] = rows.length
+      ? rows
+      : rowsOf(c.leaderboard as Raw | undefined).map((r) => ({
+          pilotId: r.pilotId,
+          callsign: r.callsign,
+          position: r.position
+        }));
   }
   return out;
 }

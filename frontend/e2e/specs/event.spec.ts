@@ -13,6 +13,27 @@ test.describe('Event', () => {
     expect(await rh.eventName()).toBe('E2E Club Night');
   });
 
+  test('Archive now twice makes two archives named after the event, the second with a counter', async ({
+    page,
+    rig,
+    rh
+  }) => {
+    for (const f of await rig.backups())
+      if (/^E2E event( \(\d+\))?\.db$/.test(f)) await rig.deleteBackup(f);
+    await page.goto('/grid/event');
+    await page.getByRole('button', { name: 'Archive now' }).click();
+    await expect(page.getByText('Archived as E2E event.db.')).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Archive now' }).click();
+    await expect(page.getByText('Archived as E2E event (2).db.')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByLabel('Event archives')).toContainText('E2E event (2)');
+    // RotorHazard agrees: both files are in its backup list.
+    const files = await rig.backups();
+    expect(files).toEqual(expect.arrayContaining(['E2E event.db', 'E2E event (2).db']));
+    expect(await rh.eventName()).toBe('E2E event');
+    await rig.deleteBackup('E2E event.db');
+    await rig.deleteBackup('E2E event (2).db');
+  });
+
   test('the event name refuses characters that cannot name an archive (#43)', async ({
     page,
     rh
