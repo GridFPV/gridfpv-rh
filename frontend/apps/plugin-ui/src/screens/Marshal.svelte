@@ -43,7 +43,9 @@
   const timer = rh();
   const setup = $derived(timer.setup);
   const raceList = $derived(timer.marshal.raceList);
-  const currentAvailable = $derived(timer.race.status === RACE_STATUS.DONE);
+  // A stopped race can be marshalled before it is saved, but only a heat's: RotorHazard's
+  // emit_race_marshal_data answers nothing for a practice race, so one is not listed.
+  const currentAvailable = $derived(timer.race.status === RACE_STATUS.DONE && !!timer.race.heatId);
 
   // ---- picking a race ----
   /** 'current' for the stopped, unsaved race, else `${heatId}:${round}`. */

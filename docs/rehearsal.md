@@ -139,7 +139,7 @@ with a few passes on seat 2 and save it.
 1. [ ] **Load the race.** Open `/grid/marshal`: the latest race is picked; choose Ace. The
        trace shows the recording, the ticks the passes the timer recorded, the table the laps
        to the millisecond with "timer" as their source.
-2. [ ] **Recalculate.** Type the same enter and exit into the boxes: the laps are found
+2. [ ] **Recalculate.** Change enter by one in its box and put it back: the laps are found
        again from the recording, now "recalc" (the count can differ from what the timer
        scored live; that is RotorHazard's recalculation too). Raise enter above some
        crossing peaks: those laps vanish; put it back. Lower exit below the dip between the
@@ -164,7 +164,7 @@ with a few passes on seat 2 and save it.
 8. [ ] **Stopped race.** On Run, pick M1 again, start, fly a few passes, stop (do not save);
        on Marshal pick "Stopped race, not saved yet", delete a lap, Save laps; back on Run
        the lap is gone before the race is saved. (RotorHazard offers this only for a heat,
-       never for a practice race; Grid says so.)
+       never for a practice race; a stopped practice race is not listed.)
 
 RotorHazard's Marshal and Results pages were not needed for any step except to agree: pass.
 

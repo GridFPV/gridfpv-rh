@@ -37,4 +37,4 @@ RotorHazard's Reassign Heat does; a grouped stage's raced heats cannot take it.
 
 A race that was just stopped and not yet saved can be marshalled too: pick "Stopped race,
 not saved yet" at the top; saving replaces the laps on the timer before you save the race
-on Run. RotorHazard offers that only for a heat, not for a practice race.
+on Run. RotorHazard offers that only for a heat, so a stopped practice race is not listed.
