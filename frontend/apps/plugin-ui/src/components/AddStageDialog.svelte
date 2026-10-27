@@ -162,6 +162,12 @@
           >
           {#each rankMethods as m (m.name)}<option value={m.name}>{m.label}</option>{/each}
         </Select>
+        {#if rank === 'Cumulative_Points' && !setup.formats.find((x) => String(x.id) === formatId)?.pointsMethod}
+          <small class="muted" role="note"
+            >Cumulative points add up only when the format has a points method (Formats page); this
+            one has none, so everyone would score 0.</small
+          >
+        {/if}
       </label>
       <label class="field narrow"
         ><span>Heats</span><Input type="number" bind:value={heats} min="0" max="64" /></label

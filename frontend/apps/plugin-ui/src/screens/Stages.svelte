@@ -68,8 +68,13 @@
   const setup = $derived(timer.setup);
   const results = $derived(timer.results);
   /** The one race that is actually next: RotorHazard's loaded heat, at that heat's next round. */
-  const isUpNext = (heatId: number, round: number) =>
-    timer.current.heatId === heatId && round === (timer.current.nextRound ?? round);
+  /**
+   * The loaded heat at the round it will race. A grouped-rounds heat belongs to one round
+   * section and RotorHazard counts its next round by the stage, so the loaded heat is next
+   * wherever it sits (#58).
+   */
+  const isUpNext = (heatId: number, round: number, grouped = false) =>
+    timer.current.heatId === heatId && (grouped || round === (timer.current.nextRound ?? round));
   const stages = $derived(
     [...setup.classes].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.id - b.id)
   );
@@ -322,7 +327,7 @@
   </ConfirmDialog>
 {/if}
 
-{#snippet roundCell(h: Heat, r: number, next: number | null, label: boolean)}
+{#snippet roundCell(h: Heat, r: number, next: number | null, label: boolean, grouped = false)}
   {@const race = raceFor(results, h.id, r)}
   {#if race}
     {@const w = winnerOf(race)}
@@ -336,7 +341,7 @@
       }}
       >{#if label}<span class="rn">R{r}</span>{/if}{w?.callsign ?? '✓'}</button
     >
-  {:else if r === next && isUpNext(h.id, r)}
+  {:else if r === next && isUpNext(h.id, r, grouped)}
     <span class="cell next" title="Loaded on the timer"
       >{#if label}<span class="rn">R{r}</span>{/if}next</span
     >
@@ -390,7 +395,7 @@
                         {/each}
                       </div>
                     </td>
-                    <td class="round">{@render roundCell(h, 1, next, false)}</td>
+                    <td class="round">{@render roundCell(h, 1, next, false, true)}</td>
                   </tr>
                 {/each}
               </tbody>
@@ -580,6 +585,12 @@
             >
             {#each timer.rankMethods as m (m.name)}<option value={m.name}>{m.label}</option>{/each}
           </Select>
+          {#if c.winCondition === 'Cumulative_Points' && !setup.formats.find((f) => f.id === c.formatId)?.pointsMethod}
+            <small class="hint" role="note"
+              >Cumulative points add up only when the stage's format has a points method (Formats
+              page); this one has none, so everyone scores 0.</small
+            >
+          {/if}
         </label>
         <label class="field">
           <span>After a race</span>
@@ -1029,6 +1040,12 @@
     color: var(--gf-text-muted);
     border: 1px dashed var(--gf-border);
     padding: 2px 8px;
+  }
+  .hint {
+    color: var(--gf-warning-500, #d29922);
+    font-size: var(--gf-font-size-xs);
+    text-transform: none;
+    letter-spacing: 0;
   }
   .standings.ace.decided {
     color: var(--gf-brand-500);
