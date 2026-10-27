@@ -19,7 +19,8 @@
     resaveLaps,
     rh,
     setLevels,
-    type WriteResult
+    type WriteResult,
+    reassignRace
   } from '../lib/rh.svelte.js';
   import {
     lapTicks,
@@ -31,10 +32,12 @@
     recalcRace,
     setEnterThreshold,
     setExitThreshold,
-    formatLapMs
+    formatLapMs,
+    addManualLap,
+    cleanDeletedLaps
   } from '../lib/race.js';
   import { href, link } from '../lib/router.svelte.js';
-  import { heatById, pilotById } from '../lib/setup.js';
+  import { heatById, pilotById, classById, ROUND_TYPE } from '../lib/setup.js';
 
   const timer = rh();
   const setup = $derived(timer.setup);
@@ -219,11 +222,13 @@
    * threshold never crosses the other, it drags it along (setEnter / setExit).
    */
   function recalc(e: number, x: number) {
-    if (!loaded || !hasTrace) return;
+    if (!loaded) return;
     const t = e !== enter ? setEnterThreshold(enter, exit, e) : setExitThreshold(enter, exit, x);
     enter = t.enter;
     exit = t.exit;
-    laps = recalcRace(loaded.trace, t.enter, t.exit, loaded.startTime, rules, laps);
+    // Without a recording the thresholds are still saved with the race, as on RotorHazard's
+    // page; only the laps cannot be found again.
+    if (hasTrace) laps = recalcRace(loaded.trace, t.enter, t.exit, loaded.startTime, rules, laps);
     dirty = true;
   }
   /** The number boxes beside the sliders: RotorHazard's EnterAt / ExitAt inputs. */
@@ -236,6 +241,56 @@
   function toggle(i: number) {
     laps = toggleLap(laps, i);
     dirty = true;
+  }
+  // ---- RotorHazard's other marshal controls (marshal.html) ----
+  let manualLapText = $state('');
+  /** "Add Lap": a lap at that many seconds since the start, source manual. */
+  function addLap() {
+    const s = Number(manualLapText);
+    if (!loaded || !Number.isFinite(s) || s <= 0) {
+      notice = { tone: 'danger', text: 'Manual lap: enter the seconds since the start, e.g. 7.5.' };
+      return;
+    }
+    laps = addManualLap(laps, s);
+    manualLapText = '';
+    dirty = true;
+  }
+  /** "Clean Deleted Laps": deleted laps are dropped from the list, so a save forgets them. */
+  function cleanLaps() {
+    if (!laps.some((l) => l.deleted)) return;
+    laps = cleanDeletedLaps(laps);
+    dirty = true;
+  }
+  /** "Load from Node": the seat's current enter/exit become the marshal thresholds. */
+  function loadFromSeat() {
+    const seat = loaded ? timer.seats[loaded.node] : undefined;
+    if (!seat || seat.enter == null || seat.exit == null) {
+      notice = { tone: 'danger', text: 'This seat has no thresholds to load.' };
+      return;
+    }
+    recalc(seat.enter, seat.exit);
+    if (exit !== seat.exit) recalc(seat.enter, seat.exit);
+  }
+  /** "Reassign Heat": move this saved race under another heat; RotorHazard keeps the round. */
+  let reassignTo = $state('');
+  const reassignHeats = $derived(
+    setup.heats.map((h) => {
+      const c = h.classId ? classById(setup, h.classId) : undefined;
+      return { h, disabled: !!c && c.roundType === ROUND_TYPE.GROUPED && !h.active };
+    })
+  );
+  async function reassign() {
+    const l = loaded;
+    const heatId = Number(reassignTo);
+    if (!l || l.kind !== 'saved' || !heatId || heatId === l.heatId) return;
+    const r = await run(
+      () => reassignRace(l.raceId, heatId),
+      `Race moved to ${heatById(setup, heatId)?.displayName ?? 'the heat'}; RotorHazard rebuilt the results.`
+    );
+    if (r.ok) {
+      source = `${heatId}:${l.round}`;
+      reassignTo = '';
+    }
   }
   function reset() {
     if (loaded) show(loaded);
@@ -394,6 +449,54 @@
         </tbody>
       </table>
 
+      <div class="tools">
+        <label class="tool"
+          >Manual lap (s)
+          <Input
+            type="number"
+            size="sm"
+            min="0"
+            step="0.001"
+            placeholder="7.500"
+            aria-label="Manual lap time"
+            bind:value={manualLapText}
+            disabled={busy}
+          /></label
+        >
+        <Button size="sm" variant="secondary" disabled={busy || !manualLapText} onclick={addLap}
+          >Add lap</Button
+        >
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy || !laps.some((l) => l.deleted)}
+          title="Drop the deleted laps from the list, so a save forgets them"
+          onclick={cleanLaps}>Clean deleted laps</Button
+        >
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy}
+          title="Use the seat's current enter/exit as the marshal thresholds"
+          onclick={loadFromSeat}>Load from seat</Button
+        >
+        {#if loaded.kind === 'saved'}
+          <label class="tool"
+            >Move to heat
+            <Select bind:value={reassignTo} size="sm" disabled={busy} aria-label="Move to heat">
+              <option value="">— pick a heat —</option>
+              {#each reassignHeats as { h, disabled } (h.id)}
+                {#if h.id !== loaded.heatId}
+                  <option value={String(h.id)} {disabled}>{h.displayName}</option>
+                {/if}
+              {/each}
+            </Select></label
+          >
+          <Button size="sm" variant="secondary" disabled={busy || !reassignTo} onclick={reassign}
+            >Reassign</Button
+          >
+        {/if}
+      </div>
       <div class="foot">
         <span class="muted thresholds"
           >{counted.length} lap{counted.length === 1 ? '' : 's'} counted ·
@@ -404,7 +507,7 @@
               min="0"
               max="255"
               value={String(enter)}
-              disabled={!hasTrace || busy}
+              disabled={busy}
               aria-label="Enter at"
               onchange={(ev: Event) => typed('enter', (ev.currentTarget as HTMLInputElement).value)}
             /></label
@@ -416,7 +519,7 @@
               min="0"
               max="255"
               value={String(exit)}
-              disabled={!hasTrace || busy}
+              disabled={busy}
               aria-label="Exit at"
               onchange={(ev: Event) => typed('exit', (ev.currentTarget as HTMLInputElement).value)}
             /></label
@@ -441,6 +544,20 @@
 </section>
 
 <style>
+  .tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gf-space-2);
+    align-items: end;
+    margin: var(--gf-space-2) 0;
+  }
+  .tool {
+    display: inline-flex;
+    flex-direction: column;
+    gap: var(--gf-space-1);
+    font-size: var(--gf-font-size-sm);
+    color: var(--gf-text-muted);
+  }
   .thresholds label {
     display: inline-flex;
     align-items: center;

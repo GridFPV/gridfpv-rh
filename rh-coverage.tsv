@@ -224,11 +224,11 @@ run	add_callout	button		ours	Run page, Sound settings dialog, Callouts section (
 run	audio-unlock	button		ours	Run page, Enable sound (the first click unlocks, as on RotorHazard page)
 run	m-enterat	input:number		ours	Marshal page thresholds
 run	m-exitat	input:number		ours	Marshal page thresholds
-run	m-load-transitions	button		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
+run	m-load-transitions	button		ours	Marshal page tools: Manual lap + Add lap, Clean deleted laps, Load from seat, Move to heat + Reassign
 run	m-save-transitions	button		ours	Marshal page, Apply to seat
-run	m-manual-lap-time	input:number		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
-run	m-add-lap	button		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
-run	m-clean-laps	button		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
+run	m-manual-lap-time	input:number		ours	Marshal page tools: Manual lap + Add lap, Clean deleted laps, Load from seat, Move to heat + Reassign
+run	m-add-lap	button		ours	Marshal page tools: Manual lap + Add lap, Clean deleted laps, Load from seat, Move to heat + Reassign
+run	m-clean-laps	button		ours	Marshal page tools: Manual lap + Add lap, Clean deleted laps, Load from seat, Move to heat + Reassign
 run	m-save-laps	button		ours	Marshal page, Save laps
 run	m-discard-laps	button		ours	Run page Discard
 marshal	selected_heat	select	Heat	ours	Marshal page, Race
@@ -236,12 +236,12 @@ marshal	selected_round	select	Round	ours	Marshal page, Race
 marshal	selected_pilot	select	Pilot	ours	Marshal page, Pilot
 marshal	enterat	input:number	EnterAt	ours	Marshal page thresholds
 marshal	exitat	input:number	ExitAt	ours	Marshal page thresholds
-marshal	load-transitions	button		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
+marshal	load-transitions	button		ours	Marshal page tools: Manual lap + Add lap, Clean deleted laps, Load from seat, Move to heat + Reassign
 marshal	save-transitions	button		ours	Marshal page, Apply to seat
-marshal	manual-lap-time	input:number	Manual Lap Time	planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
-marshal	add-lap	button		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
-marshal	clean-laps	button		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
-marshal	reassign-heat-selector	select		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
-marshal	reassign-heat	button		planned:T4	marshal: add a lap by time, clean laps, reload thresholds, reassign heat
+marshal	manual-lap-time	input:number	Manual Lap Time	ours	Marshal page tools: Manual lap + Add lap, Clean deleted laps, Load from seat, Move to heat + Reassign
+marshal	add-lap	button		ours	Marshal page tools: Manual lap + Add lap, Clean deleted laps, Load from seat, Move to heat + Reassign
+marshal	clean-laps	button		ours	Marshal page tools: Manual lap + Add lap, Clean deleted laps, Load from seat, Move to heat + Reassign
+marshal	reassign-heat-selector	select		ours	Marshal page tools: Manual lap + Add lap, Clean deleted laps, Load from seat, Move to heat + Reassign
+marshal	reassign-heat	button		ours	Marshal page tools: Manual lap + Add lap, Clean deleted laps, Load from seat, Move to heat + Reassign
 marshal	save-laps	button		ours	Marshal page, Save laps
 marshal	discard-laps	button		ours	Marshal page

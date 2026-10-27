@@ -712,6 +712,18 @@ export class Rig {
     if (ack.ok === false) throw new Error(`rig: block backups failed: ${ack.error}`);
   }
 
+  /** A seat's enter/exit thresholds (set_enter_at_level / set_exit_at_level), read back. */
+  async setSeatLevels(seat: number, enter: number, exit: number): Promise<void> {
+    this.emit('set_enter_at_level', { node: seat, enter_at_level: enter });
+    this.emit('set_exit_at_level', { node: seat, exit_at_level: exit });
+    await this.until(`seat ${seat + 1} levels ${enter}/${exit}`, async () => {
+      const p = await this.loadData<{ enter_at_levels: number[]; exit_at_levels: number[] }>(
+        'enter_and_exit_at_levels'
+      );
+      return p.enter_at_levels[seat] === enter && p.exit_at_levels[seat] === exit;
+    });
+  }
+
   /** RotorHazard's callouts (reload_callouts → callouts). */
   async callouts(): Promise<string[]> {
     const p = this.next<string[]>('callouts', 5_000).catch(() => [] as string[]);

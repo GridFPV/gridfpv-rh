@@ -1827,6 +1827,21 @@ export function resaveLaps(spec: {
   });
 }
 
+/**
+ * RotorHazard's Marshal "Reassign Heat" (alter_race): a saved race keeps its round and pilot
+ * runs and moves under another heat; RotorHazard answers the requester with race_list and
+ * rebuilds results. Read back from the race list.
+ */
+export function reassignRace(raceId: number, heatId: number): Promise<WriteResult> {
+  socket?.emit('alter_race', { race_id: raceId, heat_id: heatId });
+  reloadAfter(() => loadData('race_list', 'heat_data', 'result_data'));
+  return awaitState('Reassign heat', () =>
+    state.marshal.raceList.some(
+      (h) => h.heatId === heatId && h.rounds.some((r) => r.raceId === raceId)
+    )
+  );
+}
+
 /** Replace the stopped, unsaved race's laps for a seat (and its thresholds). */
 export function replaceCurrentLaps(spec: {
   seat: number;
