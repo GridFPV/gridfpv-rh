@@ -59,6 +59,8 @@ EVT_TEAMS_SAVE = "gridfpv_teams_save"
 EVT_TEAMS_DELETE = "gridfpv_teams_delete"
 #: Broadcast: the full team list, after any change and on request.
 EVT_TEAMS = "gridfpv_teams"
+#: Answer to the asking client when a team save or delete is refused: {action, ok: False, message}.
+EVT_TEAM_REFUSED = "gridfpv_team_refused"
 EVT_EVENT_GET = "gridfpv_event_get"
 EVT_EVENT_SAVE = "gridfpv_event_save"
 EVT_EVENT_CLEAR = "gridfpv_event_clear"
@@ -269,6 +271,7 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
             new = teams.save(rhapi, data.get("id") or None, data.get("name"), data.get("description"))
         except teams.TeamError as e:
             rhapi.ui.message_alert(f"GridFPV team: {e}")
+            send(EVT_TEAM_REFUSED, {"action": "save", "ok": False, "message": str(e)})
             return
         rhapi.ui.socket_broadcast(EVT_TEAMS, {"teams": new})
 
@@ -277,6 +280,7 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
             new = teams.delete(rhapi, (data or {}).get("id"))
         except teams.TeamError as e:
             rhapi.ui.message_alert(f"GridFPV team: {e}")
+            send(EVT_TEAM_REFUSED, {"action": "delete", "ok": False, "message": str(e)})
             return
         rhapi.ui.socket_broadcast(EVT_TEAMS, {"teams": new})
 

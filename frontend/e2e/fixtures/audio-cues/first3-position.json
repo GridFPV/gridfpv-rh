@@ -1,0 +1,365 @@
+{
+  "scenario": "first3",
+  "profile": "position",
+  "settings": {
+    "tone_volume": 1,
+    "voice_volume": 1,
+    "indicator_beep_volume": 0.5,
+    "voice_rate": 1.25,
+    "voice_pitch": 1,
+    "use_mp3_tones": false,
+    "voice_language": "Fake English",
+    "voice_string_language": "",
+    "voice_if_node_finished": 1,
+    "voice_callsign": 1,
+    "voice_lap_count": 2,
+    "voice_lap_time": 0,
+    "voice_race_timer": 2,
+    "voice_race_winner": 1,
+    "voice_race_leader": 1,
+    "beep_race_leader_lap": true,
+    "beep_race_winner_declared": true,
+    "beep_on_first_pass_button": true,
+    "beep_crossing_entered": false,
+    "beep_crossing_exited": false
+  },
+  "rotorhazard_panel": {
+    "set_voice_language": "Fake English",
+    "set_voice_string_language": "",
+    "voice_callsign": "1",
+    "voice_lap_count": "2",
+    "voice_lap_time": "0",
+    "voice_race_timer": "2",
+    "voice_team_lap_count": "1",
+    "voice_race_winner": "1",
+    "voice_if_node_finished": "1",
+    "voice_race_leader": "1",
+    "set_voice_volume": "100",
+    "set_voice_rate": "1.25",
+    "set_voice_pitch": "1",
+    "set_tone_volume": "100",
+    "set_indicator_volume": "85",
+    "beep_on_first_pass_button": true,
+    "beep_crossing_entered": false,
+    "beep_crossing_exited": false,
+    "beep_manual_lap_button": false,
+    "beep_race_leader_lap": true,
+    "beep_race_winner_declared": true,
+    "use_mp3_tones": false
+  },
+  "rotorhazard_localStorage": {
+    "rotorhazard.beep_on_first_pass_button": "true",
+    "rotorhazard.voice_team_lap_count": "1",
+    "rotorhazard.min_lap": "0",
+    "rotorhazard.indicator_beep_volume": "0.5",
+    "rotorhazard.display_lap_id": "false",
+    "rotorhazard.display_time_start": "false",
+    "rotorhazard.voice_race_winner": "1",
+    "rotorhazard.voice_pitch": "1",
+    "rotorhazard.voice_rate": "1.25",
+    "rotorhazard.voice_split_timer": "0",
+    "rotorhazard.beep_crossing_entered": "false",
+    "rotorhazard.voice_race_leader": "1",
+    "rotorhazard.beep_manual_lap_button": "false",
+    "rotorhazard.voice_callsign": "1",
+    "rotorhazard.schedule_m": "0",
+    "rotorhazard.schedule_s": "10",
+    "rotorhazard.voice_lap_time": "0",
+    "rotorhazard.beep_crossing_exited": "false",
+    "rotorhazard.beep_cluster_connect": "false",
+    "rotorhazard.display_late_laps_cur": "false",
+    "rotorhazard.voice_volume": "1",
+    "rotorhazard.voice_if_node_finished": "1",
+    "rotorhazard.display_laps_reversed": "false",
+    "rotorhazard.primaryPilot": "-1",
+    "rotorhazard.beep_race_winner_declared": "true",
+    "rotorhazard.use_mp3_tones": "false",
+    "rotorhazard.voice_string_language": "\"\"",
+    "rotorhazard.beep_race_leader_lap": "true",
+    "rotorhazard.display_chan_freq": "true",
+    "rotorhazard.voice_lap_count": "2",
+    "rotorhazard.admin": "true",
+    "rotorhazard.hide_graphs": "false",
+    "rotorhazard.tone_volume": "1",
+    "rotorhazard.voice_language": "\"Fake English\"",
+    "rotorhazard.display_time_first_pass": "false",
+    "rotorhazard.voice_race_timer": "2"
+  },
+  "format_id": 4,
+  "passes_ms": {
+    "1": [
+      2000,
+      7000,
+      12000,
+      17000
+    ],
+    "2": [
+      3000,
+      9000,
+      15000
+    ]
+  },
+  "staging_ms": 4919,
+  "rotorhazard_cues": [
+    {
+      "kind": "speech",
+      "t": -4921,
+      "text": "",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 250
+    },
+    {
+      "kind": "tone",
+      "t": -4001,
+      "frequency": 440,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 101
+    },
+    {
+      "kind": "tone",
+      "t": -3001,
+      "frequency": 440,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 100
+    },
+    {
+      "kind": "tone",
+      "t": -2001,
+      "frequency": 440,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 100
+    },
+    {
+      "kind": "tone",
+      "t": -1001,
+      "frequency": 440,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 100
+    },
+    {
+      "kind": "tone",
+      "t": -1,
+      "frequency": 880,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 701
+    },
+    {
+      "kind": "tone",
+      "t": 2016,
+      "frequency": 466.2,
+      "type": "sawtooth",
+      "gain": 0.5,
+      "duration_ms": 35
+    },
+    {
+      "kind": "tone",
+      "t": 2086,
+      "frequency": 466.2,
+      "type": "sawtooth",
+      "gain": 0.5,
+      "duration_ms": 35
+    },
+    {
+      "kind": "tone",
+      "t": 3014,
+      "frequency": 493.9,
+      "type": "sawtooth",
+      "gain": 0.5,
+      "duration_ms": 35
+    },
+    {
+      "kind": "tone",
+      "t": 3084,
+      "frequency": 493.9,
+      "type": "sawtooth",
+      "gain": 0.5,
+      "duration_ms": 36
+    },
+    {
+      "kind": "tone",
+      "t": 7066,
+      "frequency": 1200,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 76
+    },
+    {
+      "kind": "tone",
+      "t": 7142,
+      "frequency": 1800,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 100
+    },
+    {
+      "kind": "speech",
+      "t": 7167,
+      "text": "Ace, Lap 1",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "speech",
+      "t": 8075,
+      "text": "Ace is leading",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "speech",
+      "t": 9084,
+      "text": "Bee, Lap 1",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "tone",
+      "t": 12017,
+      "frequency": 1200,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 76
+    },
+    {
+      "kind": "tone",
+      "t": 12093,
+      "frequency": 1800,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 101
+    },
+    {
+      "kind": "speech",
+      "t": 12117,
+      "text": "Ace, Lap 2",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "speech",
+      "t": 13025,
+      "text": "Ace is leading",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "speech",
+      "t": 15046,
+      "text": "Bee, Lap 2",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "tone",
+      "t": 17064,
+      "frequency": 1200,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 75
+    },
+    {
+      "kind": "tone",
+      "t": 17139,
+      "frequency": 1800,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 100
+    },
+    {
+      "kind": "speech",
+      "t": 17165,
+      "text": "Ace, Lap 3",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "tone",
+      "t": 18072,
+      "frequency": 1200,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 50
+    },
+    {
+      "kind": "tone",
+      "t": 18122,
+      "frequency": 1800,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 76
+    },
+    {
+      "kind": "speech",
+      "t": 18172,
+      "text": "Winner is Ace",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "tone",
+      "t": 18198,
+      "frequency": 1200,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 50
+    },
+    {
+      "kind": "tone",
+      "t": 18248,
+      "frequency": 1800,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 75
+    },
+    {
+      "kind": "tone",
+      "t": 18322,
+      "frequency": 1200,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 50
+    },
+    {
+      "kind": "tone",
+      "t": 18372,
+      "frequency": 1800,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 100
+    }
+  ],
+  "grid_cues": [],
+  "captured": "2026-10-27T06:21:24.427Z"
+}

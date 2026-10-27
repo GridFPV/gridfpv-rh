@@ -283,14 +283,24 @@ export function clockView(
       raceMs: t
     };
   }
-  if (race.status === RACE_STATUS.DONE)
-    return { phase: 'done', text: raceText(race, Math.max(0, t), duration), raceMs: t };
+  if (race.status === RACE_STATUS.DONE) {
+    // Stopped: the clock freezes where it was; a frozen overrun still reads as time up.
+    const over = !race.unlimitedTime && t > duration;
+    return {
+      phase: over ? 'overtime' : 'done',
+      text: raceText(race, Math.max(0, t), duration),
+      raceMs: t
+    };
+  }
   const over = !race.unlimitedTime && t > duration;
   return { phase: over ? 'overtime' : 'racing', text: raceText(race, t, duration), raceMs: t };
 }
 
 function raceText(race: RaceStatus, t: number, duration: number): string {
-  return race.unlimitedTime ? formatClockMs(t) : formatClockMs(duration - t);
+  if (race.unlimitedTime) return formatClockMs(t);
+  const left = duration - t;
+  // Never "-0:00.0": the tenth that reads zero is zero (#68).
+  return formatClockMs(left > -100 && left < 0 ? 0 : left);
 }
 
 // ---- marshal ---------------------------------------------------------------------

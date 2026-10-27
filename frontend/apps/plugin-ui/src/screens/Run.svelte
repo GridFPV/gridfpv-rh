@@ -11,6 +11,7 @@
   import { Badge, Banner, Button, Card, Select } from '@gridfpv/components';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import RaceClock from '../components/RaceClock.svelte';
+  import { audioState, startCues } from '../lib/audio.svelte.js';
   import { seatTag } from '../lib/channels.js';
   import {
     deleteLap,
@@ -79,6 +80,10 @@
   const stageBadge = $derived(
     cls ? stageState(cls, heatsInClass(setup, cls.id), timer.results) : null
   );
+
+  // ---- audio cues (#38): RotorHazard's tones and callouts, for as long as this page is open ----
+  const audio = audioState();
+  $effect(() => startCues());
 
   // ---- clock ----
   let now = $state(performance.now());
@@ -197,6 +202,11 @@
 </script>
 
 <section class="page">
+  {#if !audio.unlocked}
+    <Banner tone="info"
+      >Click anywhere once to enable sound: staging tones, start, lap callouts.</Banner
+    >
+  {/if}
   {#if notice}
     <Banner tone={notice.tone === 'danger' ? 'danger' : 'success'} ondismiss={() => (notice = null)}
       >{notice.text}</Banner

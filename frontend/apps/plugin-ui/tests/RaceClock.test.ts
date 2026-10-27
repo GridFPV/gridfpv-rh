@@ -79,3 +79,26 @@ describe('RaceClock', () => {
     expect(text(container, '.label')).toBe('not synced');
   });
 });
+
+describe('RaceClock after time runs out (#68)', () => {
+  it('reads 0:00.0 at the end, never -0:00.0, and a frozen overrun says time up', () => {
+    const atEnd = render(RaceClock, {
+      race: timed30(RACE_STATUS.RACING, 10),
+      differential: 0,
+      now: 40_050,
+      frozenAt: null
+    });
+    expect(text(atEnd.container, '.time')).toBe('0:00.0');
+    const frozen = render(RaceClock, {
+      race: timed30(RACE_STATUS.DONE, 10),
+      differential: 0,
+      now: 60_000,
+      frozenAt: 43_000
+    });
+    expect(text(frozen.container, '.time')).toBe('-0:03.0');
+    expect(text(frozen.container, '.label')).toBe('time up');
+    expect(frozen.container.querySelector('.raceclock')?.getAttribute('data-phase')).toBe(
+      'overtime'
+    );
+  });
+});

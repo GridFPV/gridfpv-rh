@@ -90,6 +90,12 @@ class SocketTests(unittest.TestCase):
         self.assertEqual(rhapi.ui.socket_broadcast.call_args_list[-1][0][1], {"teams": []})
         rhapi.listeners[gridfpv.EVT_TEAMS_SAVE]({"name": ""})
         rhapi.ui.message_alert.assert_called_once()
+        # The asking client hears the reason on the plugin's own channel (#67).
+        event, answer = rhapi.sent[-1]
+        self.assertEqual((event, answer["action"], answer["ok"]), (gridfpv.EVT_TEAM_REFUSED, "save", False))
+        rhapi.listeners[gridfpv.EVT_TEAMS_SAVE]({"name": "Red"})
+        rhapi.listeners[gridfpv.EVT_TEAMS_SAVE]({"name": "red"})
+        self.assertIn("already a team called Red", rhapi.sent[-1][1]["message"])
 
 
 if __name__ == "__main__":

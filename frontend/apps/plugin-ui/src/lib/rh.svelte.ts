@@ -311,6 +311,18 @@ function reloadEverything() {
 
 // ---- connection -----------------------------------------------------------------
 
+/**
+ * Listen to a RotorHazard socket event from outside the store (the audio cues, #38). The
+ * socket is opened if it is not yet; returns the function that stops listening.
+ */
+export function onSocket<T = unknown>(event: string, handler: (payload: T) => void): () => void {
+  const s = connect();
+  s.on(event, handler as (...args: unknown[]) => void);
+  return () => {
+    s.off(event, handler as (...args: unknown[]) => void);
+  };
+}
+
 /** Open the socket once; safe to call again (returns the existing one). */
 export function connect(): Socket {
   if (socket) return socket;
@@ -526,6 +538,10 @@ export function connect(): Socket {
   });
   socket.on('gridfpv_archived', (p: { ok: boolean; file: string | null; message?: string }) => {
     archived = { ok: Boolean(p?.ok), file: p?.file ?? null, message: p?.message };
+    checkWaiters();
+  });
+  socket.on('gridfpv_team_refused', (p: { action?: string; message?: string }) => {
+    teamRefused = p?.message ?? 'RotorHazard refused';
     checkWaiters();
   });
   socket.on('gridfpv_race_refused', (p: { action?: string; message?: string }) => {
@@ -1161,23 +1177,41 @@ export async function generateBracket(
 // ---- teams (stored by the plugin; names are what RotorHazard stores on pilots) --------
 
 /** Create (`id` null) or update a team. A rename moves the team's pilots along. */
-export function saveTeam(
+/** The plugin's reason for refusing the last team save or delete, answered at once (#67). */
+let teamRefused: string | null = null;
+
+export async function saveTeam(
   id: string | null,
   name: string,
   description: string
 ): Promise<WriteResult> {
+  teamRefused = null;
+  // A new team must be a new entry: an identical one already there is not a success.
+  const before = new Set(state.teams.map((t) => t.id));
   socket?.emit('gridfpv_teams_save', { id, name, description });
-  return awaitState('Save team', () =>
-    state.teams.some(
-      (t) => (id ? t.id === id : true) && t.name === name && t.description === description
-    )
+  const r = await awaitState(
+    'Save team',
+    () =>
+      teamRefused != null ||
+      state.teams.some(
+        (t) =>
+          (id ? t.id === id : !before.has(t.id)) && t.name === name && t.description === description
+      )
   );
+  if (teamRefused) return { ok: false, message: teamRefused };
+  return r;
 }
 
 /** Delete a team; its pilots are left with no team. */
-export function deleteTeam(id: string): Promise<WriteResult> {
+export async function deleteTeam(id: string): Promise<WriteResult> {
+  teamRefused = null;
   socket?.emit('gridfpv_teams_delete', { id });
-  return awaitState('Delete team', () => !state.teams.some((t) => t.id === id));
+  const r = await awaitState(
+    'Delete team',
+    () => teamRefused != null || !state.teams.some((t) => t.id === id)
+  );
+  if (teamRefused) return { ok: false, message: teamRefused };
+  return r;
 }
 
 // ---- the event (RotorHazard's name/description + the plugin's details) ------------

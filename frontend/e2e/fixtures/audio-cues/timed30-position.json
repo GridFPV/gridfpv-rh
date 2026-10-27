@@ -1,0 +1,433 @@
+{
+  "scenario": "timed30",
+  "profile": "position",
+  "settings": {
+    "tone_volume": 1,
+    "voice_volume": 1,
+    "indicator_beep_volume": 0.5,
+    "voice_rate": 1.25,
+    "voice_pitch": 1,
+    "use_mp3_tones": false,
+    "voice_language": "Fake English",
+    "voice_string_language": "",
+    "voice_if_node_finished": 1,
+    "voice_callsign": 1,
+    "voice_lap_count": 2,
+    "voice_lap_time": 0,
+    "voice_race_timer": 2,
+    "voice_race_winner": 1,
+    "voice_race_leader": 1,
+    "beep_race_leader_lap": true,
+    "beep_race_winner_declared": true,
+    "beep_on_first_pass_button": true,
+    "beep_crossing_entered": false,
+    "beep_crossing_exited": false
+  },
+  "rotorhazard_panel": {
+    "set_voice_language": "Fake English",
+    "set_voice_string_language": "",
+    "voice_callsign": "1",
+    "voice_lap_count": "2",
+    "voice_lap_time": "0",
+    "voice_race_timer": "2",
+    "voice_team_lap_count": "1",
+    "voice_race_winner": "1",
+    "voice_if_node_finished": "1",
+    "voice_race_leader": "1",
+    "set_voice_volume": "100",
+    "set_voice_rate": "1.25",
+    "set_voice_pitch": "1",
+    "set_tone_volume": "100",
+    "set_indicator_volume": "85",
+    "beep_on_first_pass_button": true,
+    "beep_crossing_entered": false,
+    "beep_crossing_exited": false,
+    "beep_manual_lap_button": false,
+    "beep_race_leader_lap": true,
+    "beep_race_winner_declared": true,
+    "use_mp3_tones": false
+  },
+  "rotorhazard_localStorage": {
+    "rotorhazard.beep_on_first_pass_button": "true",
+    "rotorhazard.voice_team_lap_count": "1",
+    "rotorhazard.min_lap": "0",
+    "rotorhazard.indicator_beep_volume": "0.5",
+    "rotorhazard.display_lap_id": "false",
+    "rotorhazard.display_time_start": "false",
+    "rotorhazard.voice_race_winner": "1",
+    "rotorhazard.voice_pitch": "1",
+    "rotorhazard.voice_rate": "1.25",
+    "rotorhazard.voice_split_timer": "0",
+    "rotorhazard.beep_crossing_entered": "false",
+    "rotorhazard.voice_race_leader": "1",
+    "rotorhazard.beep_manual_lap_button": "false",
+    "rotorhazard.voice_callsign": "1",
+    "rotorhazard.schedule_m": "0",
+    "rotorhazard.schedule_s": "10",
+    "rotorhazard.voice_lap_time": "0",
+    "rotorhazard.beep_crossing_exited": "false",
+    "rotorhazard.beep_cluster_connect": "false",
+    "rotorhazard.display_late_laps_cur": "false",
+    "rotorhazard.voice_volume": "1",
+    "rotorhazard.voice_if_node_finished": "1",
+    "rotorhazard.display_laps_reversed": "false",
+    "rotorhazard.primaryPilot": "-1",
+    "rotorhazard.beep_race_winner_declared": "true",
+    "rotorhazard.use_mp3_tones": "false",
+    "rotorhazard.voice_string_language": "\"\"",
+    "rotorhazard.beep_race_leader_lap": "true",
+    "rotorhazard.display_chan_freq": "true",
+    "rotorhazard.voice_lap_count": "2",
+    "rotorhazard.admin": "true",
+    "rotorhazard.hide_graphs": "false",
+    "rotorhazard.tone_volume": "1",
+    "rotorhazard.voice_language": "\"Fake English\"",
+    "rotorhazard.display_time_first_pass": "false",
+    "rotorhazard.voice_race_timer": "2"
+  },
+  "format_id": 15,
+  "passes_ms": {
+    "1": [
+      2000,
+      8000,
+      14000,
+      20000
+    ],
+    "2": [
+      2500,
+      9500,
+      17000
+    ]
+  },
+  "staging_ms": 4920,
+  "rotorhazard_cues": [
+    {
+      "kind": "speech",
+      "t": -4923,
+      "text": "",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 250
+    },
+    {
+      "kind": "tone",
+      "t": -4000,
+      "frequency": 440,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 100
+    },
+    {
+      "kind": "tone",
+      "t": -3000,
+      "frequency": 440,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 100
+    },
+    {
+      "kind": "tone",
+      "t": -2000,
+      "frequency": 440,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 100
+    },
+    {
+      "kind": "tone",
+      "t": -1000,
+      "frequency": 440,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 100
+    },
+    {
+      "kind": "tone",
+      "t": 0,
+      "frequency": 880,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 700
+    },
+    {
+      "kind": "tone",
+      "t": 2016,
+      "frequency": 466.2,
+      "type": "sawtooth",
+      "gain": 0.5,
+      "duration_ms": 35
+    },
+    {
+      "kind": "tone",
+      "t": 2086,
+      "frequency": 466.2,
+      "type": "sawtooth",
+      "gain": 0.5,
+      "duration_ms": 35
+    },
+    {
+      "kind": "tone",
+      "t": 2517,
+      "frequency": 493.9,
+      "type": "sawtooth",
+      "gain": 0.5,
+      "duration_ms": 36
+    },
+    {
+      "kind": "tone",
+      "t": 2588,
+      "frequency": 493.9,
+      "type": "sawtooth",
+      "gain": 0.5,
+      "duration_ms": 35
+    },
+    {
+      "kind": "tone",
+      "t": 8078,
+      "frequency": 1200,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 75
+    },
+    {
+      "kind": "tone",
+      "t": 8153,
+      "frequency": 1800,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 101
+    },
+    {
+      "kind": "speech",
+      "t": 8180,
+      "text": "Ace, Lap 1",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "speech",
+      "t": 9089,
+      "text": "Ace is leading",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "speech",
+      "t": 9996,
+      "text": "Bee, Lap 1",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "tone",
+      "t": 14031,
+      "frequency": 1200,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 76
+    },
+    {
+      "kind": "tone",
+      "t": 14107,
+      "frequency": 1800,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 100
+    },
+    {
+      "kind": "speech",
+      "t": 14132,
+      "text": "Ace, Lap 2",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "speech",
+      "t": 15040,
+      "text": "Ace is leading",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "speech",
+      "t": 17061,
+      "text": "Bee, Lap 2",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "speech",
+      "t": 20093,
+      "text": "10 Seconds",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 560
+    },
+    {
+      "kind": "tone",
+      "t": 20699,
+      "frequency": 1200,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 75
+    },
+    {
+      "kind": "tone",
+      "t": 20774,
+      "frequency": 1800,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 100
+    },
+    {
+      "kind": "speech",
+      "t": 20800,
+      "text": "Ace, Lap 3",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "speech",
+      "t": 21709,
+      "text": "Ace is leading",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "tone",
+      "t": 24999,
+      "frequency": 440,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 101
+    },
+    {
+      "kind": "tone",
+      "t": 25999,
+      "frequency": 440,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 101
+    },
+    {
+      "kind": "tone",
+      "t": 27000,
+      "frequency": 440,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 100
+    },
+    {
+      "kind": "tone",
+      "t": 27999,
+      "frequency": 440,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 101
+    },
+    {
+      "kind": "tone",
+      "t": 28999,
+      "frequency": 440,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 101
+    },
+    {
+      "kind": "tone",
+      "t": 30000,
+      "frequency": 880,
+      "type": "triangle",
+      "gain": 1,
+      "duration_ms": 700
+    },
+    {
+      "kind": "tone",
+      "t": 30094,
+      "frequency": 1200,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 50
+    },
+    {
+      "kind": "tone",
+      "t": 30144,
+      "frequency": 1800,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 75
+    },
+    {
+      "kind": "speech",
+      "t": 30195,
+      "text": "Winner is Ace",
+      "rate": 1.25,
+      "pitch": 1,
+      "volume": 1,
+      "voice": "Fake English",
+      "emulated_ms": 840
+    },
+    {
+      "kind": "tone",
+      "t": 30219,
+      "frequency": 1200,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 50
+    },
+    {
+      "kind": "tone",
+      "t": 30269,
+      "frequency": 1800,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 75
+    },
+    {
+      "kind": "tone",
+      "t": 30344,
+      "frequency": 1200,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 50
+    },
+    {
+      "kind": "tone",
+      "t": 30394,
+      "frequency": 1800,
+      "type": "square",
+      "gain": 0.5,
+      "duration_ms": 100
+    }
+  ],
+  "grid_cues": [],
+  "captured": "2026-10-27T06:20:07.706Z"
+}

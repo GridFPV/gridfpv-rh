@@ -589,6 +589,13 @@ export class Rig {
     return p.backup_files ?? [];
   }
 
+  /** The plugin's teams, as it lists them. */
+  async teams(): Promise<Array<{ id: string; name: string }>> {
+    const done = this.next<{ teams: Array<{ id: string; name: string }> }>('gridfpv_teams');
+    this.emit('gridfpv_teams_get');
+    return (await done).teams;
+  }
+
   /** The plugin's roster (#14), as it lists it. */
   async roster(): Promise<Array<{ id: string; callsign: string; in_event: boolean }>> {
     const done = this.next<{ pilots: Array<{ id: string; callsign: string; in_event: boolean }> }>(
