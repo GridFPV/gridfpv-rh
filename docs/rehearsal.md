@@ -109,6 +109,10 @@ save, next heat as the board says) is written at the end of the tier.
 - [ ] **Race settings strip.** Under the heat picker: profile, minimum lap and short-lap rule,
       and the format on the timer, as RotorHazard's Race Management panel shows them; the
       links land on Seats, Event and Formats; **edit** opens the format dialog.
+- [ ] **Scheduled start.** In practice pick a format in the header's Race format box
+      (RotorHazard's Run page shows the same). Schedule 0:30, hear "Next race begins in
+      30 seconds", Cancel start; schedule 0:10, hear 10 and 5 seconds, and RotorHazard
+      stages the race by itself. Stop and Discard.
 
 ## T4 — Marshal and Results parity
 

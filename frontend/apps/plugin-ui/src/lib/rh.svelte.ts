@@ -150,6 +150,8 @@ const state = $state({
   sync: { samples: [] as SyncSample[], differential: null as number | null },
   /** RotorHazard's last broadcast message (priority_message). */
   message: null as { text: string; interrupt: boolean; at: number } | null,
+  /** RotorHazard's scheduled start (race_scheduled): `at` is its monotonic clock, seconds. */
+  schedule: { scheduled: false, at: null as number | null },
   lastSaved: null as { raceId: number; heatId: number; classId: number; at: number } | null,
   /** Lap detection (RotorHazard's min_lap message) and the consecutive laps base (#35). */
   timing: {
@@ -290,6 +292,7 @@ function loadData(...types: string[]) {
 
 /** After a reset or restore every list may have changed; ask for all of it again. */
 function reloadEverything() {
+  socket?.emit('get_race_scheduled');
   loadData(
     'frequency_data',
     'enter_and_exit_at_levels',
@@ -510,6 +513,12 @@ export function connect(): Socket {
   });
   socket.on('clear_priority_messages', () => {
     state.message = null;
+  });
+  socket.on('race_scheduled', (p: { scheduled?: boolean; scheduled_at?: number | null }) => {
+    state.schedule = {
+      scheduled: Boolean(p.scheduled),
+      at: p.scheduled ? Number(p.scheduled_at ?? 0) : null
+    };
   });
   socket.on(
     'min_lap',
@@ -1644,6 +1653,27 @@ export function restoreLap(seat: number, lapIndex: number): Promise<WriteResult>
   const before = state.liveVersion;
   socket?.emit('restore_deleted_lap', { node: seat, lap_index: lapIndex });
   return awaitState('Restore lap', () => state.liveVersion > before);
+}
+
+/** RotorHazard's "Schedule Race": the timer stages the race itself in m:ss from now. */
+export function scheduleRace(minutes: number, seconds: number): Promise<WriteResult> {
+  socket?.emit('schedule_race', { m: minutes, s: seconds });
+  reloadAfter(() => socket?.emit('get_race_scheduled'));
+  return awaitState('Schedule start', () => state.schedule.scheduled);
+}
+export function cancelScheduledRace(): Promise<WriteResult> {
+  socket?.emit('cancel_schedule_race');
+  reloadAfter(() => socket?.emit('get_race_scheduled'));
+  return awaitState('Cancel start', () => !state.schedule.scheduled);
+}
+/**
+ * RotorHazard's Run page format select: the format the timer races with when the heat's
+ * stage does not fix one (practice, or a stage with no format). Only while Ready.
+ */
+export function setRaceFormat(formatId: number): Promise<WriteResult> {
+  socket?.emit('set_race_format', { race_format: formatId });
+  reloadAfter(() => loadData('race_status'));
+  return awaitState('Race format', () => state.race.formatId === formatId);
 }
 
 /**

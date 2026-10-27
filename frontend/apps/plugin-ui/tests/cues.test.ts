@@ -374,6 +374,29 @@ describe('CueEngine rules', () => {
     mp3.engine.manualLap(1);
     expect(mp3.mp3s.map((m) => m.file)).toEqual(['beep']);
   });
+  it('speaks RotorHazard\'s "Next race begins in …" marks down to a scheduled start, and stops at it', () => {
+    const h = harness(laptime);
+    h.engine.scheduleAt(65, 0); // 1:05 from our t = 0
+    h.tl.advance(70_000, h.tick);
+    // Each mark is queued at its tenth and spoken on the next heartbeat (≤ 500 ms here).
+    expect(h.said.map((u) => `${Math.floor(u.t / 1000)} ${u.text}`)).toEqual([
+      '5 Next race begins in 1 Minute',
+      '35 Next race begins in 30 Seconds',
+      '55 Next race begins in 10 Seconds',
+      '60 Next race begins in 5 Seconds'
+    ]);
+    const quiet = harness({ ...laptime, voice_race_timer: 0 });
+    quiet.engine.scheduleAt(65, 0);
+    quiet.tl.advance(70_000, quiet.tick);
+    expect(quiet.said).toEqual([]);
+    // Cancelled: nothing more is said.
+    const c = harness(laptime);
+    c.engine.scheduleAt(65, 0);
+    c.tl.advance(10_000, c.tick);
+    c.engine.scheduleAt(null, 0);
+    c.tl.advance(70_000, c.tick);
+    expect(c.said.map((u) => u.text)).toEqual(['Next race begins in 1 Minute']);
+  });
   it('stops on a Ready race_status and does not kick off from a later running one (#73)', () => {
     const h = harness(laptime);
     h.engine.raceStatus({ race_status: 0 }, 0);

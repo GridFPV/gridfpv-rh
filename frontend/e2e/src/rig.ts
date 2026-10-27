@@ -712,6 +712,13 @@ export class Rig {
     if (ack.ok === false) throw new Error(`rig: block backups failed: ${ack.error}`);
   }
 
+  /** RotorHazard's scheduled start (get_race_scheduled → race_scheduled). */
+  async raceScheduled(): Promise<{ scheduled: boolean; scheduled_at: number | null }> {
+    const p = this.next<{ scheduled: boolean; scheduled_at: number | null }>('race_scheduled');
+    this.emit('get_race_scheduled');
+    return p;
+  }
+
   /** Exceptions RotorHazard has logged since it started (the mock plugin counts logger.exception). */
   async exceptions(): Promise<number> {
     const done = this.next<{ action?: string; ok?: boolean; count?: number; error?: string }>(

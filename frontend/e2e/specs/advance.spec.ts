@@ -28,7 +28,7 @@ async function stage(rig: Rig, advance: number, roundType: number) {
 
 /** Race the loaded heat from the Run page: Start, two seats fly, Stop, Save. */
 async function raceFromRunPage(page: Parameters<Parameters<typeof test>[2]>[0]['page'], rig: Rig) {
-  await page.getByRole('button', { name: 'Start' }).click();
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
   await rig.until('racing', async () => (await rig.status()).race_status === 1, 30_000);
   await rig.fly({ 1: [300, 1600, 2900], 2: [500, 2400] }); // Ace 2 laps, Bee 1 lap
   await expect(page.locator('.seat', { hasText: 'Ace' }).locator('.laps .n')).toHaveText('2');
@@ -158,7 +158,7 @@ test('seat cards show position, lap count and last lap as RotorHazard ranks them
   const ace = page.locator('.seat', { hasText: 'Ace' });
   const bee = page.locator('.seat', { hasText: 'Bee' });
   await expect(ace.locator('.pos .n')).toHaveText('—'); // nothing ranked while Ready
-  await page.getByRole('button', { name: 'Start' }).click();
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
   await rig.until('racing', async () => (await rig.status()).race_status === 1, 30_000);
   await rig.fly({ 1: [300, 1600, 2900], 2: [500, 2400] });
   await expect(ace.locator('.laps .n')).toHaveText('2');

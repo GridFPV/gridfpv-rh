@@ -159,6 +159,9 @@ export function startCues(): () => void {
     ),
     // Each pi_time sample moves the measured differential; the timer follows it (#73).
     onSocket('pi_time', () => e.resync(timer.sync.differential)),
+    onSocket<{ scheduled?: boolean; scheduled_at?: number | null }>('race_scheduled', (p) =>
+      e.scheduleAt(p.scheduled ? Number(p.scheduled_at ?? 0) : null, timer.sync.differential)
+    ),
     onSocket('stop_timer', () => e.stop()),
     onSocket('heartbeat', () => e.heartbeat()),
     onSocket<Parameters<CueEngine['phoneticData']>[0]>('phonetic_data', (p) => {
@@ -178,6 +181,8 @@ export function startCues(): () => void {
   // gone before this ran; RotorHazard's page would have kicked its timer off from it. Do the
   // same from the state it left behind.
   untrack(() => {
+    const sch = timer.schedule;
+    if (sch.scheduled && sch.at != null) e.scheduleAt(sch.at, timer.sync.differential);
     const r = timer.race;
     if (r.status === RACE_STATUS.RACING || r.status === RACE_STATUS.STAGING) {
       e.raceStatus(

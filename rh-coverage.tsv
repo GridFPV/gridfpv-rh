@@ -173,11 +173,11 @@ run	start_race	button		ours	Run page Start
 run	stop_race	button		ours	Run page Stop
 run	save_laps	button		ours	Run page Save
 run	discard_laps	button		ours	Run page Discard
-run	set_race_format	select	Race Format	ours	Formats page
-run	schedule_m	input:number	Minutes	planned:T3	format override and scheduled start on Run
-run	schedule_s	input:number	Seconds	planned:T3	format override and scheduled start on Run
-run	schedule_race	button		planned:T3	format override and scheduled start on Run
-run	cancel_schedule_race	button		planned:T3	format override and scheduled start on Run
+run	set_race_format	select	Race Format	ours	Formats page; Run page "Race format" when no stage fixes it (practice)
+run	schedule_m	input:number	Minutes	ours	Run page, Schedule start / Cancel start (RotorHazard stages the race itself)
+run	schedule_s	input:number	Seconds	ours	Run page, Schedule start / Cancel start (RotorHazard stages the race itself)
+run	schedule_race	button		ours	Run page, Schedule start / Cancel start (RotorHazard stages the race itself)
+run	cancel_schedule_race	button		ours	Run page, Schedule start / Cancel start (RotorHazard stages the race itself)
 run	set_profile	select	Profile	ours	Seats page, profile bar
 run	set_min_lap	input:number	Minimum Lap Time	ours	Event page, Scoring and Lap detection cards (#35)
 run	set_min_lap_behavior	select	Minimum Lap Behavior	ours	Event page, Scoring and Lap detection cards (#35)

@@ -18,7 +18,8 @@ import {
   offSeatWarnings,
   flownLaps,
   type LiveLap,
-  countedLaps
+  countedLaps,
+  countdownText
 } from '../src/lib/race.js';
 
 const rules = {
@@ -308,6 +309,15 @@ describe('flownLaps', () => {
     };
     expect(flownLaps(seat).map((l) => l.index)).toEqual([1, 3]);
     expect(countedLaps(seat).map((l) => l.index)).toEqual([0, 1, 3, 4]);
+  });
+});
+
+describe('countdownText', () => {
+  it('rounds up to whole seconds as m:ss and stops at zero', () => {
+    expect(countdownText(65_000)).toBe('1:05');
+    expect(countdownText(4_100)).toBe('0:05');
+    expect(countdownText(0)).toBe('0:00');
+    expect(countdownText(-500)).toBe('0:00');
   });
 });
 

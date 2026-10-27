@@ -161,6 +161,9 @@ export class CueEngine {
   private differential: number | null = null;
   /** RotorHazard's resume_check: the first race_status after load kicks a running race off. */
   private resumeCheck = true;
+  // RotorHazard's deferred timer: a scheduled start, in its clock (seconds), spoken down.
+  private piScheduledS: number | null = null;
+  private lastDeferredTenth: number | null = null;
   private countUp = false;
   private durationTenths = 0;
   private stagingTones = 0;
@@ -300,6 +303,30 @@ export class CueEngine {
     this.lastStagingTenth = null;
     this.winnerDeclared = false;
     this.running = true;
+    this.piScheduledS = null; // the race timer takes over from the deferred one
+  }
+  /**
+   * run.html's race_scheduled: RotorHazard's deferred timer counts down to a scheduled start
+   * and speaks "Next race begins in …" at its marks (hours, 30/10 minutes, 5–2 minutes,
+   * 1 minute, 30/10/5 seconds) while no race runs; null cancels it.
+   */
+  scheduleAt(piSeconds: number | null, differential: number | null) {
+    this.piScheduledS = piSeconds;
+    if (differential != null) this.differential = differential;
+    this.lastDeferredTenth = null;
+  }
+  private deferredStep(tenths: number) {
+    if (this.settings.voice_race_timer === 0) return;
+    const say = (what: string) => this.speak(`Next race begins in ${what}`, true);
+    if (tenths < -36000 && !(tenths % -36000)) say(`${tenths / -36000} Hours`);
+    else if (tenths === -36000) say('1 Hour');
+    else if (tenths === -18000) say('30 Minutes');
+    else if (tenths === -6000) say('10 Minutes');
+    else if (tenths < -600 && tenths >= -3000 && !(tenths % 600)) say(`${tenths / -600} Minutes`);
+    else if (tenths === -600) say('1 Minute');
+    else if (tenths === -300) say('30 Seconds');
+    else if (tenths === -100) say('10 Seconds');
+    else if (tenths === -50) say('5 Seconds');
   }
   /**
    * The race stopped (or was discarded): the timer stops, nothing more fires. A tenth whose
@@ -423,6 +450,20 @@ export class CueEngine {
   // ---- the race timer (rotorhazard.js timer callbacks.step), one call per tick ----
 
   tick() {
+    if (!this.running && this.piScheduledS != null && this.differential != null) {
+      const at = this.piScheduledS * 1000 - this.differential;
+      const elapsed = Math.floor((this.now() - at) / 100);
+      if (this.lastDeferredTenth == null) this.lastDeferredTenth = elapsed - 1;
+      for (let e = this.lastDeferredTenth + 1; e <= elapsed; e++) {
+        if (e >= 0) {
+          this.piScheduledS = null; // expired: RotorHazard's page shows "Wait" for the start
+          break;
+        }
+        this.deferredStep(e);
+      }
+      this.lastDeferredTenth = elapsed;
+      return;
+    }
     const start = this.raceStartMs;
     if (!this.running || start == null) return;
     const now = this.now();

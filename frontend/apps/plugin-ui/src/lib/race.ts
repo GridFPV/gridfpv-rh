@@ -571,6 +571,12 @@ export function applyMarshalCurrent(p: Raw): MarshalCurrent {
   };
 }
 
+/** "m:ss" for a scheduled start, never negative. */
+export function countdownText(msLeft: number): string {
+  const s = Math.max(0, Math.ceil(msLeft / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
 // ---- warnings before a start -------------------------------------------------------
 
 /**

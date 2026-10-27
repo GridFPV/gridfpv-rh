@@ -8,7 +8,7 @@
    * The clock runs locally against RotorHazard's monotonic clock (sampled on connect and
    * at every staging), the way RotorHazard's own page does, so both agree.
    */
-  import { Badge, Banner, Button, Card, Select } from '@gridfpv/components';
+  import { Badge, Banner, Button, Card, Input, Select } from '@gridfpv/components';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import RaceClock from '../components/RaceClock.svelte';
   import HeatPlanDialog from '../components/HeatPlanDialog.svelte';
@@ -34,10 +34,14 @@
     stageRace,
     stopRace,
     type WriteResult,
-    simulateLap
+    simulateLap,
+    cancelScheduledRace,
+    scheduleRace,
+    setRaceFormat
   } from '../lib/rh.svelte.js';
   import {
     clockView,
+    countdownText,
     countedLaps,
     flownLaps,
     offSeatWarnings,
@@ -269,6 +273,23 @@
   const pending = $derived(setup.heats.filter(needsSeeding).length);
   const report = $derived(timer.autoSeedReport);
 
+  // ---- a scheduled start and the format the timer races with (RotorHazard's Run page) ----
+  let scheduleM = $state('0');
+  let scheduleS = $state('30');
+  const scheduleLeftMs = $derived(
+    timer.schedule.scheduled && timer.schedule.at != null && timer.sync.differential != null
+      ? timer.schedule.at * 1000 - timer.sync.differential - now
+      : null
+  );
+  async function schedule() {
+    const m = Math.max(0, Math.floor(Number(scheduleM) || 0));
+    const s = Math.max(0, Math.floor(Number(scheduleS) || 0));
+    if (!m && !s) return onresult({ ok: false, message: 'Schedule: enter a time ahead.' });
+    await run(() => scheduleRace(m, s), `Start scheduled in ${m}:${String(s).padStart(2, '0')}.`);
+  }
+  /** RotorHazard lets the format be picked on Run only when no stage fixes it. */
+  const formatPickable = $derived(status === RACE_STATUS.READY && (!heat || !cls || !cls.formatId));
+
   // ---- race settings strip (RotorHazard's Race Management panel, read here, set elsewhere) ----
   const profileName = $derived(
     timer.profiles.list.find((p) => p.id === timer.profiles.currentId)?.name ??
@@ -363,7 +384,21 @@
             Practice: whoever is on a seat. RotorHazard does not save practice laps; Stop, then
             Discard, clears them.
           {/if}
-          {#if format}· {format.name}, {formatSummary(format)}{/if}
+          {#if formatPickable}
+            · <Select
+              value={String(race.formatId ?? '')}
+              size="sm"
+              disabled={busy}
+              aria-label="Race format"
+              onchange={(e: Event) =>
+                run(
+                  () => setRaceFormat(Number((e.currentTarget as HTMLSelectElement).value)),
+                  'Format set.'
+                )}
+            >
+              {#each setup.formats as f (f.id)}<option value={String(f.id)}>{f.name}</option>{/each}
+            </Select>
+          {:else if format}· {format.name}, {formatSummary(format)}{/if}
         </div>
         <RaceSettingsStrip
           {profileName}
@@ -410,6 +445,49 @@
         <Button variant="ghost" size="lg" disabled={!canDiscard || busy} onclick={discard}
           >Discard</Button
         >
+        {#if scheduleLeftMs != null}
+          <span class="scheduled" role="status">Starts in {countdownText(scheduleLeftMs)}</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onclick={() => run(cancelScheduledRace, 'Scheduled start cancelled.')}
+            >Cancel start</Button
+          >
+        {:else}
+          <form
+            class="schedule"
+            onsubmit={(e) => {
+              e.preventDefault();
+              void schedule();
+            }}
+          >
+            <Input
+              type="number"
+              size="sm"
+              min="0"
+              max="999"
+              aria-label="Minutes"
+              bind:value={scheduleM}
+              disabled={busy || status !== RACE_STATUS.READY}
+            />:<Input
+              type="number"
+              size="sm"
+              min="0"
+              max="59"
+              aria-label="Seconds"
+              bind:value={scheduleS}
+              disabled={busy || status !== RACE_STATUS.READY}
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              type="submit"
+              disabled={busy || status !== RACE_STATUS.READY}
+              title="RotorHazard starts the race itself when the time is up">Schedule start</Button
+            >
+          </form>
+        {/if}
       </div>
     </div>
   </Card>
@@ -636,6 +714,19 @@
 <style>
   .offline {
     display: block;
+  }
+  .schedule {
+    display: flex;
+    align-items: center;
+    gap: var(--gf-space-1);
+    flex-basis: 100%;
+  }
+  .schedule :global(.gf-input) {
+    width: 4.5rem;
+  }
+  .scheduled {
+    flex-basis: 100%;
+    font-weight: 600;
   }
   .tune {
     font-size: var(--gf-font-size-xs);

@@ -26,14 +26,14 @@ test.describe('Run', () => {
       await expect(
         page.getByText(/No frequency on this seat: Ace will not be timed/)
       ).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Start' })).toBeEnabled();
+      await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeEnabled();
 
       // Practice: Save is not offered; Stop, then Discard, clears the laps (#50).
       await page.getByRole('combobox').first().selectOption('0');
       await expect(page.getByText(/Ace is on seat 8/)).toHaveCount(0);
       await expect(page.getByText(/RotorHazard does not save practice laps/)).toBeVisible();
       await rig.setMinLap(1);
-      await page.getByRole('button', { name: 'Start' }).click();
+      await page.getByRole('button', { name: 'Start', exact: true }).click();
       await rig.until('racing', async () => (await rig.status()).race_status === 1, 30_000);
       await rig.fly({ 1: [300, 1600] });
       await expect(page.getByRole('heading', { name: 'Leaderboard' })).toBeVisible();
@@ -52,6 +52,45 @@ test.describe('Run', () => {
     } finally {
       await rig.setFrequency(seat, was);
     }
+  });
+
+  test("a scheduled start counts down to RotorHazard's own staging; the practice format is RotorHazard's", async ({
+    page,
+    rig
+  }) => {
+    test.setTimeout(90_000);
+    await page.goto('/grid/run'); // practice: the format can be picked here
+    const f3 = (await rig.formats()).find((f) => /First to 3/.test(f.name))!;
+    await page.getByLabel('Race format').selectOption(String(f3.id));
+    await expect(page.getByText('Format set.')).toBeVisible();
+    // RotorHazard agrees: its race_status carries that format.
+    expect(
+      Number((await rig.loadData<{ race_format_id: number }>('race_status')).race_format_id)
+    ).toBe(f3.id);
+
+    // Schedule 0:30, see the countdown, cancel it.
+    await page.getByLabel('Minutes').fill('0');
+    await page.getByLabel('Seconds').fill('30');
+    await page.getByRole('button', { name: 'Schedule start' }).click();
+    await expect(
+      page.getByRole('status').filter({ hasText: /^Starts in 0:[23]\d$/ })
+    ).toBeVisible();
+    expect((await rig.raceScheduled()).scheduled).toBe(true);
+    await page.getByRole('button', { name: 'Cancel start' }).click();
+    await expect(page.getByText('Scheduled start cancelled.')).toBeVisible();
+    expect((await rig.raceScheduled()).scheduled).toBe(false);
+
+    // Schedule 0:05: RotorHazard stages the race itself when the time is up.
+    await page.getByLabel('Seconds').fill('5');
+    await page.getByRole('button', { name: 'Schedule start' }).click();
+    await expect(page.getByRole('status').filter({ hasText: /^Starts in 0:0\d$/ })).toBeVisible();
+    await rig.until(
+      'staged by the schedule',
+      async () => (await rig.status()).race_status !== 0,
+      20_000
+    );
+    await rig.stop();
+    await rig.discard();
   });
 
   test("RotorHazard's messages: a plain one fades after 8 s, an interrupt stays until dismissed or the heat changes (#71)", async ({
@@ -133,9 +172,9 @@ test.describe('Run', () => {
     await expect(page.getByLabel('Race settings')).toContainText('Min lap 1 s');
     expect((await rig.minLap()).min_lap).toBe(1);
     await page.getByRole('combobox').first().selectOption(String(heat));
-    await expect(page.getByText('Ace').first()).toBeVisible();
+    await expect(page.getByText('Ace', { exact: true }).first()).toBeVisible();
 
-    await page.getByRole('button', { name: 'Start' }).click();
+    await page.getByRole('button', { name: 'Start', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Stop' })).toBeEnabled();
     await rig.until('racing', async () => (await rig.status()).race_status === 1, 30_000);
     await rig.fly({ 1: [300, 1600, 2900, 4200] });

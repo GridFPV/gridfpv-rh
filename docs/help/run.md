@@ -30,6 +30,17 @@ then the start tone. The big clock counts the race as RotorHazard's does. **Stop
 the stage's rules; the Last race card says what it loaded ("Next: …"). **Discard** clears
 the laps instead (it asks first when there are laps).
 
+## Scheduled start and the format in practice
+
+Under the buttons, enter minutes and seconds and press **Schedule start**: RotorHazard
+counts down and stages the race itself when the time is up, as its own Run page's Schedule
+Race does. The header shows "Starts in m:ss"; with sound on, RotorHazard's countdown
+callouts are spoken ("Next race begins in 1 minute", 30, 10 and 5 seconds). **Cancel
+start** calls it off.
+
+In practice, or when the heat's stage has no format of its own, a **Race format** box in
+the header picks the format RotorHazard times with. A stage with a format fixes it.
+
 ## Seat cards
 
 One card per seat with a frequency. During a race each shows the pilot's position (from
