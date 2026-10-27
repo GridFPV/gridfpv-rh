@@ -13,14 +13,14 @@ it is confirmed.
 4. **Stages**: practice, qualifying, brackets, Chase the Ace; heats and rounds on a board.
 5. **Run**: pick the heat, start, watch, save; the board tells you what is next.
 6. **Marshal**: fix a lap after the fact.
-7. **Seats** and **Overlays**: channels and thresholds; stream overlays for OBS.
+7. **Seats**: channels, profiles, thresholds and calibration. **Overlays**: stream overlays for OBS.
 
 Every page has a **?** that opens its help. This help ships inside the plugin and works
 with no internet at the field.
 
 ## RotorHazard agrees
 
-RotorHazard's own pages (Format, Run, Marshal, Results) stay reachable at their usual
-addresses and always show what GridFPV wrote. Settings GridFPV does not cover yet (its
-advanced settings, LEDs, plugins, audio) are still set on RotorHazard's own pages; they
-come to GridFPV tier by tier.
+RotorHazard's own pages (Settings, Format, Run, Marshal, Results) stay reachable at their
+usual addresses and always show what GridFPV wrote. What GridFPV does not cover yet (LEDs,
+plugins, the server and database settings, voice-recognition and VRx control) is still set
+on RotorHazard's own pages; it comes to GridFPV tier by tier.

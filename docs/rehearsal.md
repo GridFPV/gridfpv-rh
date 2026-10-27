@@ -199,3 +199,8 @@ loaded on Run.
        says "Lowered to 94/74 for 5 s at start", RotorHazard's log says the same for node 2,
        its Sensor Tuning still shows 100/80; a practice race shows no such line, as
        RotorHazard lowers nothing without pilots. Stop, discard; set Amount back to 0 (#57).
+4. [ ] **Help.** The `?` on Seats opens its help page: profiles, channels and presets, the
+       cards, the Tune page, calibration and lowering, and what a race locks are all there,
+       with no network (#41).
+
+RotorHazard's Settings page was not needed for any step except to agree: pass.
