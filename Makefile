@@ -76,10 +76,11 @@ coverage: $(RH_SRC)/.ok ## Check rh-coverage.tsv classifies every control on Rot
 coverage-scrape: $(RH_SRC)/.ok ## Print RotorHazard's admin-page controls (page, id, kind, label)
 	python3 -I dev/rh_controls.py scrape $(RH_SRC)
 
-py-test-rig: ## Plugin tests inside the running rig (RotorHazard's own Python + Flask)
-	docker exec gridfpv-rh-dev rm -rf /tmp/gridfpv-tests
-	docker cp plugin gridfpv-rh-dev:/tmp/gridfpv-tests
-	docker exec gridfpv-rh-dev sh -c 'cd /tmp/gridfpv-tests && python3 -m unittest discover -s tests -v'
+RIG_CONTAINER ?= gridfpv-rh-dev
+py-test-rig: ## Plugin tests inside the running rig (RotorHazard's own Python + Flask; RIG_CONTAINER=gridfpv-rh-main for main)
+	docker exec $(RIG_CONTAINER) rm -rf /tmp/gridfpv-tests
+	docker cp plugin $(RIG_CONTAINER):/tmp/gridfpv-tests
+	docker exec $(RIG_CONTAINER) sh -c 'cd /tmp/gridfpv-tests && python3 -m unittest discover -s tests -v'
 
 zip: build ## Package the plugin (with the built UI) as $(ZIP)
 	rm -rf $(DIST_DIR)/stage && mkdir -p $(DIST_DIR)/stage/gridfpv
@@ -146,7 +147,7 @@ rig-main-up: ## A second rig from RotorHazard *main* on :$(RH_MAIN_PORT) (#34; s
 # to $(E2E_SUMMARY) (CI points it at the job summary).
 E2E_SUMMARY ?= /dev/stdout
 e2e-main: build ## Both layers against the main rig; a PASS/FAIL line per layer (rig layer is the exit status)
-	@rig=PASS; RH_URL=http://localhost:$(RH_MAIN_PORT) $(MAKE) --no-print-directory e2e E2E_ARGS="race-loop" || rig=FAIL; \
+	@rig=PASS; RH_URL=http://localhost:$(RH_MAIN_PORT) $(MAKE) --no-print-directory e2e E2E_ARGS="race-loop rounds-rig" || rig=FAIL; \
 	 ui=PASS; RH_URL=http://localhost:$(RH_MAIN_PORT) $(MAKE) --no-print-directory e2e E2E_ARGS="--grep-invert rig-driven --retries=0 --timeout=20000" || ui=FAIL; \
 	 { echo "RotorHazard main rig layer: $$rig"; echo "RotorHazard main UI layer: $$ui (expected FAIL until T8, #34)"; } | tee -a $(E2E_SUMMARY); \
 	 [ "$$rig" = PASS ]

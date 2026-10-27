@@ -16,14 +16,25 @@
     addHeat,
     alterClass,
     alterHeat,
+    deleteRace,
     deleteStage,
     duplicateClass,
+    forgetDeletedRace,
+    restoreRace,
     rh,
     seedHeat,
+    setCurrentHeat,
     unseedHeat,
     type WriteResult
   } from '../lib/rh.svelte.js';
   import { raceFor, racesFor, winnerOf } from '../lib/results.js';
+  import {
+    deletedLabel,
+    deletedNotice,
+    deletedRacesFor,
+    restoreBlocker,
+    type DeletedRace
+  } from '../lib/rounds.js';
   import { seatTag } from '../lib/channels.js';
   import {
     CLASS_NONE,
@@ -65,23 +76,43 @@
 
   let notice: { tone: 'success' | 'danger'; text: string } | null = $state(null);
   let noticeTimer = 0;
-  function onresult(r: WriteResult) {
+  function onresult(r: WriteResult, okText = 'RotorHazard confirmed the change.', holdMs = 2500) {
     window.clearTimeout(noticeTimer);
     notice = r.ok
-      ? { tone: 'success', text: 'RotorHazard confirmed the change.' }
+      ? { tone: 'success', text: okText }
       : { tone: 'danger', text: r.message ?? 'RotorHazard did not confirm the change.' };
-    if (r.ok) noticeTimer = window.setTimeout(() => (notice = null), 2500);
+    if (r.ok) noticeTimer = window.setTimeout(() => (notice = null), holdMs);
   }
 
   let busy = $state(false);
-  async function run(fn: () => Promise<WriteResult>) {
+  async function run(fn: () => Promise<WriteResult>, okText?: string, holdMs?: number) {
     busy = true;
     try {
-      onresult(await fn());
+      onresult(await fn(), okText, holdMs);
     } finally {
       busy = false;
     }
   }
+
+  // ---- rounds (#36): re-run, delete with a kept copy, restore ----
+  async function rerun(heatId: number) {
+    raceOpen = null;
+    const h = setup.heats.find((x) => x.id === heatId);
+    await run(() => setCurrentHeat(heatId), `${h?.displayName ?? 'Heat'} is loaded on the timer.`);
+  }
+  async function removeRace(heatId: number, round: number) {
+    raceOpen = null;
+    busy = true;
+    try {
+      const r = await deleteRace(heatId, round);
+      onresult(r, deletedNotice(r.backup), 8000);
+    } finally {
+      busy = false;
+    }
+  }
+  const restoreRaceOf = (d: DeletedRace) =>
+    run(() => restoreRace(d), `Round ${d.round} is back in the results.`);
+  const forgetRace = (d: DeletedRace) => run(() => forgetDeletedRace(d), 'Copy discarded.');
 
   // ---- dialogs ----
   let adding = $state(false);
@@ -213,7 +244,10 @@
   <RaceDialog
     race={raceLive}
     heatName={setup.heats.find((h) => h.id === raceLive!.heatId)?.displayName ?? 'Heat'}
+    {busy}
     onclose={() => (raceOpen = null)}
+    onrerun={() => rerun(raceLive!.heatId)}
+    ondelete={() => removeRace(raceLive!.heatId, raceLive!.round)}
   />
 {/if}
 
@@ -282,8 +316,16 @@
       >{#if label}<span class="rn">R{r}</span>{/if}next</span
     >
   {:else if r === next}
-    <span class="cell open" title="This heat's next round"
-      >{#if label}R{r}{:else}·{/if}</span
+    <button
+      type="button"
+      class="cell open"
+      title="This heat's next round — click to load it on the timer"
+      aria-label="Load {h.displayName} for round {r}"
+      onclick={(e) => {
+        e.stopPropagation();
+        void rerun(h.id);
+      }}
+      >{#if label}R{r}{:else}·{/if}</button
     >
   {:else}
     <span class="cell todo"></span>
@@ -542,6 +584,39 @@
       {:else}
         <p class="muted empty">No heats yet.</p>
       {/if}
+      {@const deleted = deletedRacesFor(
+        timer.deletedRaces,
+        heats.map((h) => h.id)
+      )}
+      {#if deleted.length}
+        <div class="deleted" aria-label="Deleted races">
+          <span class="label">Deleted races</span>
+          <ul>
+            {#each deleted as d (d.id)}
+              {@const blocker = restoreBlocker(d, results, setup)}
+              <li>
+                <span>{deletedLabel(d, setup)}</span>
+                {#if d.deletedAt}<span class="muted">deleted {d.deletedAt}</span>{/if}
+                <span class="spacer"></span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={busy || !!blocker}
+                  title={blocker
+                    ? `Cannot restore: ${blocker}`
+                    : 'Put this race back in the results'}
+                  onclick={() => restoreRaceOf(d)}>Restore</Button
+                >
+                {#if !timer.deletedRacesNative}
+                  <Button size="sm" variant="ghost" disabled={busy} onclick={() => forgetRace(d)}
+                    >Discard copy</Button
+                  >
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
       <div class="foot">
         <Button
           size="sm"
@@ -726,6 +801,32 @@
     gap: var(--gf-space-2);
     flex-wrap: wrap;
     margin-top: var(--gf-space-2);
+  }
+  .deleted {
+    margin-top: var(--gf-space-3);
+    font-size: var(--gf-font-size-sm);
+  }
+  .deleted .label {
+    font-size: var(--gf-font-size-xs);
+    color: var(--gf-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .deleted ul {
+    list-style: none;
+    margin: var(--gf-space-1) 0 0;
+    padding: 0;
+    display: grid;
+    gap: var(--gf-space-1);
+  }
+  .deleted li {
+    display: flex;
+    align-items: center;
+    gap: var(--gf-space-2);
+    flex-wrap: wrap;
+  }
+  .deleted .spacer {
+    flex: 1;
   }
 
   /* the board */

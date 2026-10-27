@@ -59,6 +59,8 @@ import {
 } from './race.js';
 import { needsSeeding } from './stages.js';
 import type { Timing } from './timing.js';
+import { applyDeletedRaces, type DeletedRace, type DeletedRacesPayload } from './rounds.js';
+import { raceFor } from './results.js';
 
 export type HelloAck = {
   plugin_version: string;
@@ -113,6 +115,9 @@ const state = $state({
   setup: emptySetup() as Setup,
   /** Saved races and class standings (RotorHazard's result_data). */
   results: emptyResults() as Results,
+  /** Deleted races the plugin can restore (#36), and whether RotorHazard itself keeps them. */
+  deletedRaces: [] as DeletedRace[],
+  deletedRacesNative: false,
   /** The heat RotorHazard has loaded to race next, and which round that will be. */
   current: { heatId: 0, nextRound: null as number | null },
   /** Class ranking methods RotorHazard offers (its own plus plugins'), by name. */
@@ -213,7 +218,11 @@ function checkWaiters() {
 }
 
 /** Resolve once `pred` holds (checked after every incoming update), or fail after a timeout. */
-function awaitState(what: string, pred: () => boolean): Promise<WriteResult> {
+function awaitState(
+  what: string,
+  pred: () => boolean,
+  timeoutMs = READBACK_MS
+): Promise<WriteResult> {
   if (pred()) return Promise.resolve({ ok: true });
   return new Promise((resolve) => {
     const w: Waiter = {
@@ -224,7 +233,7 @@ function awaitState(what: string, pred: () => boolean): Promise<WriteResult> {
         const idx = waiters.indexOf(w);
         if (idx >= 0) waiters.splice(idx, 1);
         resolve({ ok: false, message: `${what}: RotorHazard did not confirm the change` });
-      }, READBACK_MS)
+      }, timeoutMs)
     };
     waiters.push(w);
   });
@@ -253,6 +262,7 @@ function reloadEverything() {
   socket?.emit('gridfpv_presets_get');
   socket?.emit('gridfpv_teams_get');
   socket?.emit('gridfpv_event_get');
+  socket?.emit('gridfpv_races_deleted_get');
   socket?.emit('list_backups');
 }
 
@@ -291,6 +301,7 @@ export function connect(): Socket {
     socket?.emit('gridfpv_presets_get');
     socket?.emit('gridfpv_teams_get');
     socket?.emit('gridfpv_event_get');
+    socket?.emit('gridfpv_races_deleted_get');
     socket?.emit('list_backups');
   });
   socket.on('disconnect', () => {
@@ -458,6 +469,17 @@ export function connect(): Socket {
     checkWaiters();
   });
 
+  socket.on('gridfpv_races_deleted', (p: DeletedRacesPayload) => {
+    state.deletedRaces = applyDeletedRaces(p);
+    state.deletedRacesNative = Boolean(p?.native);
+    if (p?.backup !== undefined) lastRaceBackup = p.backup ?? null;
+    // Results, heats (locked flags), the race list and the loaded heat's next round all change.
+    if (p?.changed) {
+      loadData('result_data', 'heat_data', 'race_list', 'current_heat');
+      socket?.emit('list_backups');
+    }
+    checkWaiters();
+  });
   socket.on('gridfpv_event', (p: Partial<EventInfo> & { consecutives_base?: number }) => {
     if (p.consecutives_base != null)
       state.timing = { ...state.timing, consecutivesBase: Number(p.consecutives_base) };
@@ -1098,6 +1120,46 @@ export function saveEvent(fields: Partial<EventInfo>): Promise<WriteResult> {
   return awaitState('Event', () =>
     (Object.keys(fields) as Array<keyof EventInfo>).every((k) => state.event[k] === fields[k])
   );
+}
+
+// ---- rounds: delete a saved race (keeping a copy) and restore it (#36) ---------------
+let lastRaceBackup: string | null = null;
+
+/**
+ * Delete one saved race of a heat. The plugin backs RotorHazard's database up first and
+ * keeps a copy; the readback is the race gone from result_data and present in the kept list.
+ */
+export async function deleteRace(
+  heatId: number,
+  round: number
+): Promise<WriteResult & { backup?: string | null }> {
+  lastRaceBackup = null;
+  socket?.emit('gridfpv_race_delete', { heat_id: heatId, round_id: round });
+  const r = await awaitState(
+    'Delete race',
+    () =>
+      !raceFor(state.results, heatId, round) &&
+      state.deletedRaces.some((d) => d.heatId === heatId && d.round === round),
+    8000
+  );
+  return r.ok ? { ...r, backup: lastRaceBackup } : r;
+}
+
+/** Put a deleted race back; the readback is the race in result_data and gone from the kept list. */
+export function restoreRace(d: DeletedRace): Promise<WriteResult> {
+  socket?.emit('gridfpv_race_restore', { id: d.id });
+  return awaitState(
+    'Restore race',
+    () =>
+      !!raceFor(state.results, d.heatId, d.round) && !state.deletedRaces.some((x) => x.id === d.id),
+    8000
+  );
+}
+
+/** Drop a kept copy for good. */
+export function forgetDeletedRace(d: DeletedRace): Promise<WriteResult> {
+  socket?.emit('gridfpv_race_forget', { id: d.id });
+  return awaitState('Forget race', () => !state.deletedRaces.some((x) => x.id === d.id));
 }
 
 // ---- lap detection and scoring options (#35) --------------------------------------

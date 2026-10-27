@@ -23,7 +23,7 @@ import os
 
 from flask import Blueprint, abort, redirect, request, send_from_directory
 
-from . import auth, capture, event, presets, teams
+from . import auth, capture, event, presets, races, teams
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +64,13 @@ EVT_EVENT_SAVE = "gridfpv_event_save"
 EVT_EVENT_CLEAR = "gridfpv_event_clear"
 #: Broadcast: the whole event (name, description, details), after any change and on request.
 EVT_EVENT = "gridfpv_event"
+EVT_RACES_DELETED_GET = "gridfpv_races_deleted_get"
+EVT_RACE_DELETE = "gridfpv_race_delete"
+EVT_RACE_RESTORE = "gridfpv_race_restore"
+EVT_RACE_FORGET = "gridfpv_race_forget"
+#: Broadcast: the deleted races that can be restored, after any change and on request;
+#: carries ``backup`` (the database backup file a delete made) and ``changed`` (heat/round).
+EVT_RACES_DELETED = "gridfpv_races_deleted"
 
 #: Paths RotorHazard owns that the redirect must never touch.
 _NEVER_REDIRECT = ("/first-run",)
@@ -254,10 +261,46 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
     def on_event_clear(*_args, **_kwargs):
         rhapi.ui.socket_broadcast(EVT_EVENT, event.clear_extras(rhapi))
 
+    # Saved races (#36): delete keeps a copy, restore puts it back. RotorHazard's own path
+    # on RHAPI 1.12+, the plugin's snapshot path on 4.4.0; see races.py.
+    def _races_payload(**extra):
+        return {"races": races.load(rhapi), "native": races.is_native(rhapi), **extra}
+
+    def on_races_deleted_get(*_args, **_kwargs):
+        send(EVT_RACES_DELETED, _races_payload())
+
+    def on_race_delete(data=None, *_args, **_kwargs):
+        data = data or {}
+        try:
+            out = races.delete(rhapi, data.get("heat_id"), data.get("round_id"))
+        except (races.RaceError, TypeError, ValueError) as e:
+            rhapi.ui.message_alert(f"GridFPV race: {e}")
+            return
+        rhapi.ui.socket_broadcast(
+            EVT_RACES_DELETED,
+            _races_payload(backup=out["backup"], changed={"heat_id": int(data["heat_id"]), "round_id": int(data["round_id"]), "action": "deleted"}),
+        )
+
+    def on_race_restore(data=None, *_args, **_kwargs):
+        try:
+            out = races.restore(rhapi, (data or {}).get("id"))
+        except (races.RaceError, TypeError, ValueError) as e:
+            rhapi.ui.message_alert(f"GridFPV race: {e}")
+            return
+        rhapi.ui.socket_broadcast(EVT_RACES_DELETED, _races_payload(changed={**out, "action": "restored"}))
+
+    def on_race_forget(data=None, *_args, **_kwargs):
+        races.forget(rhapi, (data or {}).get("id"))
+        rhapi.ui.socket_broadcast(EVT_RACES_DELETED, _races_payload())
+
     rhapi.ui.socket_listen(EVT_HELLO, on_hello)
     rhapi.ui.socket_listen(EVT_EVENT_GET, on_event_get)
     rhapi.ui.socket_listen(EVT_EVENT_SAVE, on_event_save)
     rhapi.ui.socket_listen(EVT_EVENT_CLEAR, on_event_clear)
+    rhapi.ui.socket_listen(EVT_RACES_DELETED_GET, on_races_deleted_get)
+    rhapi.ui.socket_listen(EVT_RACE_DELETE, on_race_delete)
+    rhapi.ui.socket_listen(EVT_RACE_RESTORE, on_race_restore)
+    rhapi.ui.socket_listen(EVT_RACE_FORGET, on_race_forget)
     rhapi.ui.socket_listen(EVT_TEAMS_GET, on_teams_get)
     rhapi.ui.socket_listen(EVT_TEAMS_SAVE, on_teams_save)
     rhapi.ui.socket_listen(EVT_TEAMS_DELETE, on_teams_delete)

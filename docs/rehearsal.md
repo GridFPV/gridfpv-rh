@@ -38,8 +38,11 @@ Grid), pilots added in Grid.
        preview matches what lands in RotorHazard.
 8. [ ] **Seed now**: after a Qualifying round is flown, Seed now on Final fills the seats;
        RotorHazard shows the seeded pilots.
-9. [ ] **Rounds**: on the board, re-run a heat, delete the second round's race, restore it.
-       RotorHazard's Results page shows rounds 1 and 2 again.
+9. [ ] **Rounds**: on the board, click a raced cell, *Delete race…*, *Confirm delete*: the
+       notice names RotorHazard's backup file, the cell empties, the race appears under
+       *Deleted races*. RotorHazard's Results page no longer shows that round. *Restore*: the
+       cell and RotorHazard's Results page show the round again with the same laps. Click a
+       heat's next-round cell: RotorHazard's Run page shows that heat loaded.
 10. [ ] **Chase the Ace**: add the stage, fly it (simulated), the ace is declared when a
         pilot wins twice; RotorHazard's Results page ranks the class by last heat position.
 11. [ ] **New event**: archive and start a new event from Grid; pilots survive (roster);

@@ -498,6 +498,52 @@ export class Rig {
     return this.race(heatId, round);
   }
 
+  /** Load a heat, run it with these passes (seat index → ms after start), stop and save. */
+  async raceHeat(heatId: number, passes: Record<number, number[]>): Promise<ApiRace> {
+    await this.setHeat(heatId);
+    await this.start();
+    await this.fly(passes);
+    await this.stop();
+    return this.save();
+  }
+
+  // ---- the plugin's round management (#36), driven from the socket ------------------------
+
+  async deletedRaces(): Promise<Array<{ id: string; heat_id: number; round_id: number }>> {
+    const done = this.next<{ races: Array<{ id: string; heat_id: number; round_id: number }> }>(
+      'gridfpv_races_deleted'
+    );
+    this.emit('gridfpv_races_deleted_get');
+    return (await done).races;
+  }
+
+  /** Delete a saved race through the plugin; resolves with the backup file it reported. */
+  async deleteRace(heatId: number, round: number): Promise<string | null> {
+    const done = this.next<{ backup?: string | null }>('gridfpv_races_deleted');
+    this.emit('gridfpv_race_delete', { heat_id: heatId, round_id: round });
+    const p = await done;
+    await this.until('race deleted', async () =>
+      (await this.deletedRaces()).some((d) => d.heat_id === heatId && d.round_id === round)
+    );
+    return p.backup ?? null;
+  }
+
+  async restoreRace(id: string): Promise<void> {
+    const done = this.next('gridfpv_races_deleted');
+    this.emit('gridfpv_race_restore', { id });
+    await done;
+    await this.until(
+      'race restored',
+      async () => !(await this.deletedRaces()).some((d) => d.id === id)
+    );
+  }
+
+  /** HTTP status of a JSON API path (RotorHazard answers 500 for a round that does not exist). */
+  async apiStatus(path: string): Promise<number> {
+    const res = await fetch(this.url + path, { headers: { Authorization: this.authHeader } });
+    return res.status;
+  }
+
   async discard(): Promise<void> {
     this.emit('discard_laps');
     await this.until('discarded', async () => (await this.status()).race_status === RACE.READY);

@@ -94,6 +94,13 @@ export class RhPages {
     return (await this.page.locator('main h2').first().textContent())?.trim() ?? '';
   }
 
+  /** Expect RotorHazard's Results page not to mention `text` anywhere once its data has loaded. */
+  async expectResultsNotToMention(text: string, loadedMarker: string): Promise<void> {
+    await this.page.goto('/results');
+    await expect(this.page.locator('body')).toContainText(loadedMarker, { timeout: 15_000 });
+    await expect(this.page.locator('body')).not.toContainText(text);
+  }
+
   /** Expect RotorHazard's Results page to mention `text` somewhere (collapsed rounds included). */
   async expectResultsToMention(text: string): Promise<void> {
     await this.page.goto('/results');
