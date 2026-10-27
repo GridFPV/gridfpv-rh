@@ -7,7 +7,14 @@
  * Browsers refuse sound until the page has been clicked: like RotorHazard's page, the
  * first click resumes the context and speaks a blank, and `unlocked` tells the UI.
  */
-import { AUDIO_DEFAULTS, CueEngine, readAudioSettings, type Tone, type Utterance } from './cues.js';
+import {
+  AUDIO_DEFAULTS,
+  CueEngine,
+  readAudioSettings,
+  type Mp3Cue,
+  type Tone,
+  type Utterance
+} from './cues.js';
 import { onSocket, rh } from './rh.svelte.js';
 import { RACE_STATUS } from './race.js';
 
@@ -66,6 +73,25 @@ function playTone(t: Tone) {
   }, t.durationMs);
 }
 
+/**
+ * rotorhazard.js play_mp3_beep (#75): RotorHazard's own files, served by it next to this page
+ * (layout.html's <audio> elements point at /static/audio/*.mp3), so they work offline.
+ */
+const mp3s = new Map<string, HTMLAudioElement>();
+function playMp3(m: Mp3Cue) {
+  let el = mp3s.get(m.file);
+  if (!el) {
+    el = new Audio(`/static/audio/${m.file}.mp3`);
+    el.preload = 'auto';
+    mp3s.set(m.file, el);
+  }
+  el.volume = m.volume;
+  el.currentTime = 0;
+  void el.play()?.catch(() => {
+    /* not unlocked yet */
+  });
+}
+
 function speakNow(u: Utterance) {
   const synth = window.speechSynthesis;
   if (!synth) return;
@@ -91,6 +117,7 @@ export function startCues(): () => void {
   engine = new CueEngine(
     {
       tone: playTone,
+      mp3: playMp3,
       speak: speakNow,
       speaking: () => Boolean(window.speechSynthesis?.speaking),
       setTimeout: (fn, ms) => void window.setTimeout(fn, ms)

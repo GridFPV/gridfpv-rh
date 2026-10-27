@@ -85,6 +85,10 @@ save, next heat as the board says) is written at the end of the tier.
 - [ ] **Volume floor.** In RotorHazard's own Settings, drag the Tone volume slider to its
       bottom (its stored value is 0.01 with float noise); reload Grid's Run page: no beeps at
       all, the same as RotorHazard's page. Drag it up a notch: beeps again (#74).
+- [ ] **MP3 tones.** Tick "Use MP3 tones" in RotorHazard's Settings and reload Grid's Run
+      page: staging and final-second ticks are RotorHazard's stage.mp3, start and expiry its
+      buzzer.mp3, at the tone volume; the leader and winner cues are its leader.mp3 and
+      winner.mp3 (#75).
 
 ## T4 — Marshal and Results parity
 

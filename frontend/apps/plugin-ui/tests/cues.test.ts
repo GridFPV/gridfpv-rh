@@ -4,6 +4,7 @@ import {
   CueEngine,
   MIN_LOG_VOL_LIM,
   readAudioSettings,
+  type Mp3Cue,
   type Tone,
   type Utterance
 } from '../src/lib/cues.js';
@@ -38,10 +39,12 @@ function harness(settings = AUDIO_DEFAULTS) {
   const tl = new Timeline();
   const tones: Array<Tone & { t: number }> = [];
   const said: Array<Utterance & { t: number }> = [];
+  const mp3s: Array<Mp3Cue & { t: number }> = [];
   let speakingUntil = 0;
   const engine = new CueEngine(
     {
       tone: (x) => tones.push({ ...x, t: tl.t }),
+      mp3: (m) => mp3s.push({ ...m, t: tl.t }),
       speak: (u) => {
         said.push({ ...u, t: tl.t });
         speakingUntil = tl.t + Math.max(250, u.text.split(' ').length * 350);
@@ -61,7 +64,7 @@ function harness(settings = AUDIO_DEFAULTS) {
     }
     engine.tick();
   };
-  return { tl, tones, said, engine, tick };
+  return { tl, tones, said, mp3s, engine, tick };
 }
 
 const laptime = { ...AUDIO_DEFAULTS, voice_if_node_finished: 1, indicator_beep_volume: 0.5 };
@@ -252,6 +255,51 @@ describe('CueEngine rules', () => {
     const low = harness({ ...position, tone_volume: 0.011 });
     low.engine.beep(100, 440, 0.011, 'triangle');
     expect(low.tones).toHaveLength(1);
+  });
+  it('plays RotorHazard\'s MP3 files instead of synthetic tones when "Use MP3 tones" is set (#75)', () => {
+    const h = harness({ ...position, use_mp3_tones: true });
+    h.engine.stageReady(
+      {
+        pi_staging_at_s: 1,
+        pi_starts_at_s: 4,
+        staging_tones: 2,
+        unlimited_time: 0,
+        race_time_sec: 12
+      },
+      0
+    );
+    h.engine.firstPassRegistered({ node_index: 1 });
+    h.engine.phoneticData({
+      callsign: 'Ace',
+      lap: 1,
+      phonetic: '4.0',
+      raw_time: 4000,
+      leader_flag: true
+    });
+    h.engine.phoneticText({ text: 'Winner is Ace', domain: 'race_winner', winner_flag: true });
+    h.tl.advance(16_000, h.tick);
+    expect(h.tones).toEqual([]);
+    const files = h.mp3s.map((m) => `${m.t} ${m.file} ${m.volume}`);
+    // staging tones at 1 s and 2 s, the buzzer at the start (4 s) and the expiry (16 s), the
+    // final seconds 11–15 s; the first pass, leader and winner at the indicator volume.
+    expect(files).toEqual([
+      '0 beep 0.5',
+      '500 leader 0.5',
+      '1000 stage 1',
+      '2000 stage 1',
+      '2500 winner 0.5',
+      '4000 buzzer 1',
+      '11000 stage 1',
+      '12000 stage 1',
+      '13000 stage 1',
+      '14000 stage 1',
+      '15000 stage 1',
+      '16000 buzzer 1'
+    ]);
+    expect(h.mp3s.filter((m) => m.file === 'leader')).toHaveLength(1);
+    expect(h.mp3s.filter((m) => m.file === 'winner')).toHaveLength(1);
+    expect(h.mp3s.filter((m) => m.file === 'stage')).toHaveLength(7);
+    expect(h.mp3s.filter((m) => m.file === 'buzzer')).toHaveLength(2);
   });
   it('reads RotorHazard settings from localStorage with its JSON values and defaults', () => {
     const store = new Map<string, string>([

@@ -21,9 +21,14 @@ export type Utterance = {
   volume: number;
   voice: string;
 };
+/** RotorHazard's "MP3 tones" (play_mp3_beep): one of its /static/audio files at a volume. */
+export type Mp3File = 'stage' | 'buzzer' | 'beep' | 'leader' | 'winner';
+export type Mp3Cue = { file: Mp3File; volume: number };
 
 export type CueOutputs = {
   tone: (t: Tone) => void;
+  /** Play an MP3 (#75); a page without the files may leave it out, the tone is then silent. */
+  mp3?: (m: Mp3Cue) => void;
   speak: (u: Utterance) => void;
   /** Whether the speech engine is busy (RotorHazard waits for the previous callout). */
   speaking: () => boolean;
@@ -172,13 +177,19 @@ export class CueEngine {
     if (volume && volume > MIN_LOG_VOL_LIM)
       this.out.tone({ durationMs, frequency, volume, type, fadeS });
   }
+  /** rotorhazard.js play_mp3_beep: the file at that volume, nothing below the floor. */
+  mp3(file: Mp3File, volume: number) {
+    if (volume && volume > MIN_LOG_VOL_LIM) this.out.mp3?.({ file, volume });
+  }
   private leaderTone() {
     const v = this.settings.indicator_beep_volume;
+    if (this.settings.use_mp3_tones) return this.mp3('leader', v);
     this.beep(75, 1200, v, 'square');
     this.out.setTimeout(() => this.beep(100, 1800, v, 'square'), 75);
   }
   private winnerTone() {
     const v = this.settings.indicator_beep_volume;
+    if (this.settings.use_mp3_tones) return this.mp3('winner', v);
     this.beep(50, 1200, v, 'square');
     this.out.setTimeout(() => this.beep(75, 1800, v, 'square'), 50);
     this.out.setTimeout(() => this.beep(50, 1200, v, 'square'), 125);
@@ -187,9 +198,11 @@ export class CueEngine {
     this.out.setTimeout(() => this.beep(100, 1800, v, 'square'), 300);
   }
   private stageTone() {
+    if (this.settings.use_mp3_tones) return this.mp3('stage', this.settings.tone_volume);
     this.beep(100, 440, this.settings.tone_volume, 'triangle');
   }
   private startTone() {
+    if (this.settings.use_mp3_tones) return this.mp3('buzzer', this.settings.tone_volume);
     this.beep(700, 880, this.settings.tone_volume, 'triangle', 0.25);
   }
 
@@ -338,6 +351,7 @@ export class CueEngine {
   firstPassRegistered(msg: { node_index: number }) {
     const s = this.settings;
     if (s.beep_crossing_exited || !s.beep_on_first_pass_button) return;
+    if (s.use_mp3_tones) return this.mp3('beep', s.indicator_beep_volume);
     const f = NODE_TONE[msg.node_index] ?? 440;
     this.beep(35, f, s.indicator_beep_volume, 'sawtooth', 0.02);
     this.out.setTimeout(() => this.beep(35, f, s.indicator_beep_volume, 'sawtooth'), 70);

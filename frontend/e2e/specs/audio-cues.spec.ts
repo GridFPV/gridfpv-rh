@@ -32,6 +32,9 @@ type Cue = {
   text?: string;
   rate?: number;
   voice?: string | null;
+  /** mp3: the file RotorHazard's play_mp3_beep played (basename) and the volume it set. */
+  src?: string;
+  volume?: number;
 };
 type Fixture = {
   scenario: string;
@@ -43,10 +46,59 @@ type Fixture = {
 
 const STUB = fs.readFileSync(path.join(process.cwd(), 'src/audio-stub.js'), 'utf8');
 const FIX = path.join(process.cwd(), 'fixtures/audio-cues');
-const fixtures = fs
+const recorded = fs
   .readdirSync(FIX)
   .filter((f) => f.endsWith('.json'))
   .map((f) => JSON.parse(fs.readFileSync(path.join(FIX, f), 'utf8')) as Fixture);
+
+/**
+ * "Use MP3 tones" (#75): RotorHazard then plays its files instead of synthesising (rotorhazard.js
+ * play_mp3_beep): stage.mp3 for each 440 Hz tick, buzzer.mp3 for the 880 Hz start/expiry tone,
+ * beep.mp3 once for a first pass (its two sawtooth beeps), leader.mp3 once for the leader pair
+ * (1200 Hz 75 ms, 1800 Hz 100 ms) and winner.mp3 once for the six winner beeps, all at the
+ * volume the synthetic tone had. The MP3 recording is derived from the synthetic one by those
+ * rules, which the live page then confirms cue by cue in the same run.
+ */
+function mp3Recording(cues: Cue[]): Cue[] {
+  const sorted = [...cues].sort((a, b) => a.t - b.t);
+  const out: Cue[] = [];
+  let skip = 0;
+  for (const c of sorted) {
+    if (skip > 0 && c.kind === 'tone') {
+      skip--;
+      continue;
+    }
+    if (c.kind !== 'tone') {
+      out.push(c);
+      continue;
+    }
+    const mp3 = (src: string) => out.push({ kind: 'mp3', t: c.t, src, volume: c.gain ?? 1 });
+    if (c.type === 'triangle' && c.frequency === 440) mp3('stage.mp3');
+    else if (c.type === 'triangle' && c.frequency === 880) mp3('buzzer.mp3');
+    else if (c.type === 'sawtooth') {
+      mp3('beep.mp3');
+      skip = 1;
+    } else if (c.type === 'square' && c.frequency === 1200 && (c.duration_ms ?? 0) >= 70) {
+      mp3('leader.mp3');
+      skip = 1;
+    } else if (c.type === 'square' && c.frequency === 1200) {
+      mp3('winner.mp3');
+      skip = 5;
+    } else out.push(c);
+  }
+  return out;
+}
+const fixtures: Fixture[] = [
+  ...recorded,
+  ...recorded
+    .filter((fx) => fx.scenario === 'timed30' && fx.profile === 'position')
+    .map((fx) => ({
+      ...fx,
+      profile: 'position-mp3',
+      settings: { ...fx.settings, use_mp3_tones: true },
+      rotorhazard_cues: mp3Recording(fx.rotorhazard_cues)
+    }))
+];
 
 async function formatFor(rig: Rig, scenario: string): Promise<number> {
   if (scenario === 'timed30') {
@@ -123,18 +175,29 @@ const same = (a: Cue, b: Cue) =>
     ? a.frequency === b.frequency && a.type === b.type
     : a.kind === 'speech'
       ? sameSpeech(a, b)
-      : true);
+      : a.src === b.src);
 const fmt = (c: Cue) =>
   c.kind === 'tone'
     ? `${String(c.t).padStart(6)} tone ${c.frequency} Hz ${c.type} ${c.duration_ms ?? '?'} ms g=${c.gain}`
-    : `${String(c.t).padStart(6)} say "${c.text}" r=${c.rate}`;
+    : c.kind === 'mp3'
+      ? `${String(c.t).padStart(6)} mp3 ${c.src} v=${c.volume}`
+      : `${String(c.t).padStart(6)} say "${c.text}" r=${c.rate}`;
 
-/** RotorHazard's start (and expiry) tone: the clock's 880 Hz, 700 ms triangle. */
+/** RotorHazard's start (and expiry) tone: the clock's 880 Hz, 700 ms triangle, or buzzer.mp3. */
 const isStartTone = (c: Cue) =>
-  c.kind === 'tone' && c.frequency === 880 && c.type === 'triangle' && (c.duration_ms ?? 0) >= 600;
-/** Clock-driven: the 440 Hz staging/final-second ticks and the 880 Hz start/expiry tone. */
+  (c.kind === 'tone' &&
+    c.frequency === 880 &&
+    c.type === 'triangle' &&
+    (c.duration_ms ?? 0) >= 600) ||
+  (c.kind === 'mp3' && c.src === 'buzzer.mp3');
+/** Clock-driven: the 440 Hz staging/final-second ticks and the 880 Hz start/expiry tone (or their MP3s). */
 const clockDriven = (c: Cue) =>
-  c.kind === 'tone' && c.type === 'triangle' && (c.frequency === 440 || c.frequency === 880);
+  (c.kind === 'tone' && c.type === 'triangle' && (c.frequency === 440 || c.frequency === 880)) ||
+  (c.kind === 'mp3' && (c.src === 'stage.mp3' || c.src === 'buzzer.mp3'));
+/** Queued cues: the leader and winner tones come out of RotorHazard's speech queue. */
+const queuedCue = (c: Cue) =>
+  (c.kind === 'tone' && c.type === 'square' && (c.frequency === 1200 || c.frequency === 1800)) ||
+  (c.kind === 'mp3' && (c.src === 'leader.mp3' || c.src === 'winner.mp3'));
 /** Re-zero a ledger on its first start tone (falls back to the given zero when there is none). */
 function anchored(cues: Cue[], fallback: number): Cue[] {
   const start = [...cues].sort((a, b) => a.t - b.t).find(isStartTone);
@@ -151,11 +214,7 @@ function compare(reference: Cue[], ours: Cue[]): string[] {
     // (1200/1800 Hz square) are played by RotorHazard from its speech queue, on the first
     // heartbeat after the previous callout has ended, so their time carries one heartbeat of
     // phase (100 ms) in RotorHazard's own page from run to run; they get ±150 ms. Speech ±200 ms.
-    const queued =
-      ref.kind === 'tone' &&
-      ref.type === 'square' &&
-      (ref.frequency === 1200 || ref.frequency === 1800);
-    const tol = ref.kind === 'tone' ? (queued ? 150 : 50) : 200;
+    const tol = ref.kind === 'speech' ? 200 : queuedCue(ref) ? 150 : 50;
     let best = -1;
     let bestD = Infinity;
     ours.forEach((c, i) => {
@@ -176,6 +235,8 @@ function compare(reference: Cue[], ours: Cue[]): string[] {
     const c = ours[best];
     if (ref.kind === 'tone' && Math.abs((c.duration_ms ?? 0) - (ref.duration_ms ?? 0)) > 50)
       problems.push(`duration off: ${fmt(ref)} vs ${fmt(c)}`);
+    if (ref.kind === 'mp3' && Math.abs((c.volume ?? 0) - (ref.volume ?? 0)) > 0.001)
+      problems.push(`volume off: ${fmt(ref)} vs ${fmt(c)}`);
   }
   ours.forEach((c, i) => {
     if (!used.has(i)) problems.push(`extra: ${fmt(c)}`);
@@ -198,6 +259,8 @@ function compareRecording(reference: Cue[], ours: Cue[]): string[] {
     if (ref && c && same(ref, c)) {
       if (ref.kind === 'tone' && Math.abs((c.duration_ms ?? 0) - (ref.duration_ms ?? 0)) > 50)
         problems.push(`duration off: ${fmt(ref)} vs ${fmt(c)}`);
+      if (ref.kind === 'mp3' && Math.abs((c.volume ?? 0) - (ref.volume ?? 0)) > 0.001)
+        problems.push(`volume off: ${fmt(ref)} vs ${fmt(c)}`);
       continue;
     }
     problems.push(
