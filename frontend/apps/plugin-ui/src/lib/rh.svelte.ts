@@ -61,6 +61,7 @@ import { needsSeeding } from './stages.js';
 import type { Timing } from './timing.js';
 import { applyDeletedRaces, type DeletedRace, type DeletedRacesPayload } from './rounds.js';
 import type { PointsMethod } from './points.js';
+import { applyRoster, type RosterPayload, type RosterPilot } from './roster.js';
 import { raceFor } from './results.js';
 
 export type HelloAck = {
@@ -116,6 +117,9 @@ const state = $state({
   setup: emptySetup() as Setup,
   /** Saved races and class standings (RotorHazard's result_data). */
   results: emptyResults() as Results,
+  /** The roster (#14): pilots kept across events by the plugin, flagged if in this event. */
+  roster: [] as RosterPilot[],
+  rosterPath: '',
   /** Deleted races the plugin can restore (#36), and whether RotorHazard itself keeps them. */
   deletedRaces: [] as DeletedRace[],
   deletedRacesNative: false,
@@ -299,6 +303,7 @@ function reloadEverything() {
   socket?.emit('gridfpv_teams_get');
   socket?.emit('gridfpv_event_get');
   socket?.emit('gridfpv_races_deleted_get');
+  socket?.emit('gridfpv_roster_get');
   socket?.emit('list_backups');
 }
 
@@ -338,6 +343,7 @@ export function connect(): Socket {
     socket?.emit('gridfpv_teams_get');
     socket?.emit('gridfpv_event_get');
     socket?.emit('gridfpv_races_deleted_get');
+    socket?.emit('gridfpv_roster_get');
     socket?.emit('list_backups');
   });
   socket.on('disconnect', () => {
@@ -509,6 +515,13 @@ export function connect(): Socket {
     checkWaiters();
   });
 
+  socket.on('gridfpv_roster', (p: RosterPayload) => {
+    state.roster = applyRoster(p);
+    state.rosterPath = p?.path ?? '';
+    // The plugin created pilots: RotorHazard's own list is what the page shows.
+    if (p?.added?.length) loadData('pilot_data');
+    checkWaiters();
+  });
   socket.on('gridfpv_archived', (p: { ok: boolean; file: string | null; message?: string }) => {
     archived = { ok: Boolean(p?.ok), file: p?.file ?? null, message: p?.message };
     checkWaiters();
@@ -1168,6 +1181,34 @@ export function saveEvent(fields: Partial<EventInfo>): Promise<WriteResult> {
   return awaitState('Event', () =>
     (Object.keys(fields) as Array<keyof EventInfo>).every((k) => state.event[k] === fields[k])
   );
+}
+
+// ---- the roster (#14) --------------------------------------------------------------
+
+/** Create these roster pilots in the event; the readback is RotorHazard listing their callsigns. */
+export function addFromRoster(pilots: RosterPilot[]): Promise<WriteResult> {
+  const callsigns = pilots.map((p) => p.callsign.toLowerCase());
+  socket?.emit('gridfpv_roster_add', { ids: pilots.map((p) => p.id) });
+  reloadAfter(() => loadData('pilot_data'));
+  return awaitState(
+    'Add from roster',
+    () => {
+      const have = new Set(state.setup.pilots.map((p) => p.callsign.toLowerCase()));
+      return callsigns.every((c) => have.has(c));
+    },
+    8000
+  );
+}
+
+/** Forget a roster entry (the pilot stays in any event they are in). */
+export function removeFromRoster(id: string): Promise<WriteResult> {
+  socket?.emit('gridfpv_roster_remove', { id });
+  return awaitState('Roster', () => !state.roster.some((p) => p.id === id));
+}
+
+/** Refresh the roster, capturing this event's pilots into it. */
+export function refreshRoster() {
+  socket?.emit('gridfpv_roster_get');
 }
 
 // ---- rounds: delete a saved race (keeping a copy) and restore it (#36) ---------------

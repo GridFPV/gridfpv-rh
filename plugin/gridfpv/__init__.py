@@ -23,7 +23,7 @@ import os
 
 from flask import Blueprint, abort, redirect, request, send_from_directory
 
-from . import archive, auth, capture, event, presets, races, teams
+from . import archive, auth, capture, event, presets, races, roster, teams
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +64,12 @@ EVT_EVENT_SAVE = "gridfpv_event_save"
 EVT_EVENT_CLEAR = "gridfpv_event_clear"
 #: Broadcast: the whole event (name, description, details), after any change and on request.
 EVT_EVENT = "gridfpv_event"
+#: The roster (#14): pilots that outlive events. gridfpv_roster carries every entry with an
+#: in_event flag; after an add it also carries ``added`` (callsigns created).
+EVT_ROSTER_GET = "gridfpv_roster_get"
+EVT_ROSTER_ADD = "gridfpv_roster_add"
+EVT_ROSTER_REMOVE = "gridfpv_roster_remove"
+EVT_ROSTER = "gridfpv_roster"
 #: Archive the database under a name (sanitised); answered with gridfpv_archived {ok, file}.
 EVT_ARCHIVE = "gridfpv_archive"
 EVT_ARCHIVED = "gridfpv_archived"
@@ -288,6 +294,36 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
     # RotorHazard's own reset / restore drop them too (#48).
     races.hook_database_events(rhapi)
 
+    def _roster_payload(**extra):
+        return {"pilots": roster.listing(rhapi), "path": roster.path(rhapi), **extra}
+
+    def on_roster_get(*_args, **_kwargs):
+        try:
+            roster.capture_all(rhapi)  # whatever this event already has belongs in the roster
+        except Exception:
+            logger.exception("gridfpv roster: capture failed")
+        send(EVT_ROSTER, _roster_payload())
+
+    def on_roster_add(data=None, *_args, **_kwargs):
+        try:
+            added = roster.add_to_event(rhapi, (data or {}).get("ids") or [])
+        except (roster.RosterError, TypeError, ValueError) as e:
+            rhapi.ui.message_alert(f"GridFPV roster: {e}")
+            return
+        broadcast_pilots = getattr(rhapi.ui, "broadcast_pilots", None)
+        if callable(broadcast_pilots):
+            try:
+                broadcast_pilots()
+            except Exception:
+                logger.debug("gridfpv roster: broadcast_pilots failed", exc_info=True)
+        rhapi.ui.socket_broadcast(EVT_ROSTER, _roster_payload(added=added))
+
+    def on_roster_remove(data=None, *_args, **_kwargs):
+        roster.remove(rhapi, (data or {}).get("id"))
+        rhapi.ui.socket_broadcast(EVT_ROSTER, _roster_payload())
+
+    roster.hook_pilot_events(rhapi)
+
     def on_archive(data=None, *_args, **_kwargs):
         name = str((data or {}).get("name") or "")
         try:
@@ -329,6 +365,9 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
     rhapi.ui.socket_listen(EVT_EVENT_GET, on_event_get)
     rhapi.ui.socket_listen(EVT_EVENT_SAVE, on_event_save)
     rhapi.ui.socket_listen(EVT_EVENT_CLEAR, on_event_clear)
+    rhapi.ui.socket_listen(EVT_ROSTER_GET, on_roster_get)
+    rhapi.ui.socket_listen(EVT_ROSTER_ADD, on_roster_add)
+    rhapi.ui.socket_listen(EVT_ROSTER_REMOVE, on_roster_remove)
     rhapi.ui.socket_listen(EVT_ARCHIVE, on_archive)
     rhapi.ui.socket_listen(EVT_RACES_DELETED_GET, on_races_deleted_get)
     rhapi.ui.socket_listen(EVT_RACE_DELETE, on_race_delete)

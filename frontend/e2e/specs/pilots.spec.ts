@@ -35,6 +35,47 @@ test.describe('Pilots', () => {
     expect((await rig.pilots()).map((p) => p.callsign)).toEqual(['O\'Brien "Oby"']);
   });
 
+  test('a pilot added in one event comes back from the roster in the next (#14)', async ({
+    page,
+    rig,
+    rh
+  }) => {
+    test.setTimeout(90_000);
+    // Added in Grid (captured into the roster by RotorHazard's pilotAlter event).
+    await page.goto('/grid/pilots');
+    await page.getByRole('button', { name: 'New pilot' }).click();
+    await page.getByPlaceholder('What the announcer says').fill('E2E Rosty');
+    await page.getByPlaceholder('Optional').first().fill('Rosty Roster');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByText('RotorHazard confirmed the change.')).toBeVisible();
+
+    // A new event with the pilots cleared: RotorHazard has nobody.
+    await rig.reset('pilots');
+    expect(await rig.pilots()).toEqual([]);
+    await page.goto('/grid/pilots');
+    await expect(page.getByText('0 pilots')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Add from roster' }).click();
+    const dialog = page.getByRole('dialog');
+    const row = dialog.getByLabel('Roster').locator('li', { hasText: 'E2E Rosty' });
+    await expect(row).toBeVisible();
+    await expect(row).toContainText('Rosty Roster');
+    // Only Rosty: untick anything else the roster holds from earlier runs.
+    for (const box of await dialog.getByRole('checkbox').all()) {
+      const li = box.locator('xpath=ancestor::li');
+      if ((await li.textContent())?.includes('E2E Rosty')) await box.check();
+      else await box.uncheck();
+    }
+    await dialog.getByRole('button', { name: 'Add E2E Rosty' }).click();
+    await expect(page.getByText('E2E Rosty is in this event.')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('1 pilot', { exact: false }).first()).toBeVisible();
+
+    // RotorHazard agrees: the pilot is back with the name, in its API and on its Format page.
+    const pilots = await rig.pilots();
+    expect(pilots.map((p) => [p.callsign, p.name])).toEqual([['E2E Rosty', 'Rosty Roster']]);
+    expect(await rh.formatPilotCallsigns()).toContain('E2E Rosty');
+  });
+
   test('New pilot then Cancel, ×, or Esc writes nothing (#42)', async ({ page, rig, rh }) => {
     await rig.addPilot({ callsign: 'Bee' });
     await page.goto('/grid/pilots');

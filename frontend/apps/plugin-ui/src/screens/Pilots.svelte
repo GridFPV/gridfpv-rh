@@ -1,9 +1,17 @@
 <script lang="ts">
   /** Pilots (#9): the roster, with Edit → dialog → Save, New, and Delete. */
-  import { Badge, Banner, Button, Card } from '@gridfpv/components';
+  import { Badge, Banner, Button, Card, Dialog } from '@gridfpv/components';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import PilotDialog from '../components/PilotDialog.svelte';
-  import { deletePilot, rh, type WriteResult } from '../lib/rh.svelte.js';
+  import {
+    addFromRoster,
+    deletePilot,
+    refreshRoster,
+    removeFromRoster,
+    rh,
+    type WriteResult
+  } from '../lib/rh.svelte.js';
+  import { addLabel, rosterMissing, type RosterPilot } from '../lib/roster.js';
   import type { Pilot } from '../lib/setup.js';
   import { href, link } from '../lib/router.svelte.js';
 
@@ -59,6 +67,42 @@
     };
   }
 
+  // ---- the roster (#14): pilots kept across events, offered back with "Add from roster" ----
+  const missing = $derived(rosterMissing(timer.roster));
+  let rosterOpen = $state(false);
+  let picked: string[] = $state([]);
+  function openRoster() {
+    refreshRoster();
+    picked = missing.map((p) => p.id);
+    rosterOpen = true;
+  }
+  const pickedPilots = $derived(missing.filter((p) => picked.includes(p.id)));
+  async function addPicked() {
+    const pilots = pickedPilots;
+    if (!pilots.length) return;
+    rosterOpen = false;
+    busy = true;
+    try {
+      const r = await addFromRoster(pilots);
+      onresult(r);
+      if (r.ok)
+        notice = {
+          tone: 'success',
+          text: `${pilots.length === 1 ? pilots[0].callsign + ' is' : pilots.length + ' pilots are'} in this event.`
+        };
+    } finally {
+      busy = false;
+    }
+  }
+  async function forget(p: RosterPilot) {
+    busy = true;
+    try {
+      onresult(await removeFromRoster(p.id));
+    } finally {
+      busy = false;
+    }
+  }
+
   async function remove(p: Pilot) {
     busy = true;
     try {
@@ -99,6 +143,50 @@
   </ConfirmDialog>
 {/if}
 
+{#if rosterOpen}
+  <Dialog bind:open={rosterOpen} title="Add from roster">
+    <p class="muted">
+      Pilots from earlier events, kept by Grid outside RotorHazard's database. Tick who is racing
+      today; everyone else stays on the roster for next time.
+    </p>
+    {#if missing.length === 0}
+      <p class="muted">
+        {timer.roster.length === 0
+          ? 'The roster is empty: pilots join it as they are added here.'
+          : 'Everyone on the roster is already in this event.'}
+      </p>
+    {:else}
+      <ul class="roster" aria-label="Roster">
+        {#each missing as p (p.id)}
+          <li>
+            <label class="check">
+              <input type="checkbox" bind:group={picked} value={p.id} />
+              <span class="swatch" style="background: {p.color || 'transparent'}"></span>
+              <span class="call">{p.callsign}</span>
+              {#if p.name && p.name !== p.callsign}<span class="muted">{p.name}</span>{/if}
+              {#if p.team}<Badge tone="neutral" variant="outline">{p.team}</Badge>{/if}
+              {#if p.lastSeen}<span class="muted when">last seen {p.lastSeen}</span>{/if}
+            </label>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              title="Forget this pilot: drop them from the roster"
+              onclick={() => forget(p)}>Forget</Button
+            >
+          </li>
+        {/each}
+      </ul>
+    {/if}
+    {#snippet footer()}
+      <Button variant="ghost" onclick={() => (rosterOpen = false)}>Cancel</Button>
+      <Button variant="primary" disabled={busy || pickedPilots.length === 0} onclick={addPicked}
+        >{addLabel(pickedPilots)}</Button
+      >
+    {/snippet}
+  </Dialog>
+{/if}
+
 <section class="page">
   <header class="pagehead">
     <div>
@@ -106,9 +194,18 @@
       <p class="lede">
         {pilots.length} pilot{pilots.length === 1 ? '' : 's'}. Callsign is what the announcer says.
         Teams are named on the <a href={href('teams')} onclick={link}>Teams</a> page.
+        {#if missing.length}{missing.length} more on the roster.{/if}
       </p>
     </div>
-    <Button variant="primary" disabled={busy} onclick={newPilot}>New pilot</Button>
+    <div class="actions">
+      <Button
+        variant="secondary"
+        disabled={busy}
+        title="Pilots from earlier events, kept by Grid"
+        onclick={openRoster}>Add from roster</Button
+      >
+      <Button variant="primary" disabled={busy} onclick={newPilot}>New pilot</Button>
+    </div>
   </header>
 
   {#if notice}
@@ -223,5 +320,35 @@
   .actions {
     display: flex;
     gap: var(--gf-space-2);
+  }
+  .actions {
+    display: flex;
+    gap: var(--gf-space-2);
+  }
+  .roster {
+    list-style: none;
+    margin: var(--gf-space-2) 0 0;
+    padding: 0;
+    display: grid;
+    gap: var(--gf-space-1);
+  }
+  .roster li {
+    display: flex;
+    align-items: center;
+    gap: var(--gf-space-2);
+  }
+  .roster .check {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--gf-space-2);
+    cursor: pointer;
+  }
+  .roster .call {
+    font-weight: 600;
+  }
+  .roster .when {
+    font-size: var(--gf-font-size-xs);
+    margin-left: auto;
   }
 </style>
