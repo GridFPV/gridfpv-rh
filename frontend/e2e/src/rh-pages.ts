@@ -67,6 +67,27 @@ export class RhPages {
     return options.evaluateAll((els) => els.map((e) => e.textContent?.trim() ?? ''));
   }
 
+  /**
+   * The lap-detection and scoring options as RotorHazard's Format page (Event panel) holds
+   * them. The consecutive base is rendered server side; the other three are filled from the
+   * `min_lap` message when the page loads, so wait for the behaviour select to have a value.
+   */
+  async formatEventOptions(): Promise<{
+    consecutivesBase: string;
+    minLap: string;
+    minLapBehavior: string;
+    minFirstCrossing: string;
+  }> {
+    await this.openPanel('/format', 'Event');
+    await expect(this.page.locator('#set_min_lap')).not.toHaveValue('');
+    return {
+      consecutivesBase: await this.page.locator('#set_consecutives_count').inputValue(),
+      minLap: await this.page.locator('#set_min_lap').inputValue(),
+      minLapBehavior: await this.page.locator('#set_min_lap_behavior').inputValue(),
+      minFirstCrossing: await this.page.locator('#set_min_first_crossing').inputValue()
+    };
+  }
+
   /** The event name as RotorHazard's Event page renders it (server side, from the option). */
   async eventName(): Promise<string> {
     await this.page.goto('/event');

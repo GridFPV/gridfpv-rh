@@ -114,10 +114,10 @@ format	do_import	button		planned:T6	data import/export; ours in T6, lowest prior
 format	generate_heats	button		ours	Stages, Generate bracket
 format	set_event_name	input:text	Event Name	ours	Event page
 format	set_event_description	textarea	Event Description	ours	Event page
-format	set_consecutives_count	input:number	Consecutive Laps Base	planned:T2	Event page lap-detection options (#35)
-format	set_min_lap	input:number	Minimum Lap Time	planned:T2	Event page lap-detection options (#35)
-format	set_min_lap_behavior	select	Minimum Lap Behavior	planned:T2	Event page lap-detection options (#35)
-format	set_min_first_crossing	input:number	Ignore Crossings Before	planned:T2	Event page lap-detection options (#35)
+format	set_consecutives_count	input:number	Consecutive Laps Base	ours	Event page, Scoring and Lap detection cards (#35)
+format	set_min_lap	input:number	Minimum Lap Time	ours	Event page, Scoring and Lap detection cards (#35)
+format	set_min_lap_behavior	select	Minimum Lap Behavior	ours	Event page, Scoring and Lap detection cards (#35)
+format	set_min_first_crossing	input:number	Ignore Crossings Before	ours	Event page, Scoring and Lap detection cards (#35)
 format	database_list	select	Archived Events	ours	Event page, Archives
 format	download_database	button		planned:T6	data management; ours in T6, lowest priority (off the race-day critical path)
 format	reset_type	select	Items to Clear	planned:T6	data management; ours in T6, lowest priority (off the race-day critical path)
@@ -179,9 +179,9 @@ run	schedule_s	input:number	Seconds	planned:T3	format override and scheduled sta
 run	schedule_race	button		planned:T3	format override and scheduled start on Run
 run	cancel_schedule_race	button		planned:T3	format override and scheduled start on Run
 run	set_profile	select	Profile	ours	Seats page, profile bar
-run	set_min_lap	input:number	Minimum Lap Time	planned:T2	Event page lap-detection options (#35)
-run	set_min_lap_behavior	select	Minimum Lap Behavior	planned:T2	Event page lap-detection options (#35)
-run	set_min_first_crossing	input:number	Ignore Crossings Before	planned:T2	Event page lap-detection options (#35)
+run	set_min_lap	input:number	Minimum Lap Time	ours	Event page, Scoring and Lap detection cards (#35)
+run	set_min_lap_behavior	select	Minimum Lap Behavior	ours	Event page, Scoring and Lap detection cards (#35)
+run	set_min_first_crossing	input:number	Ignore Crossings Before	ours	Event page, Scoring and Lap detection cards (#35)
 run	heat_coop_num_laps_id	input:number	Co-op Best # of Laps	planned:T6	co-op racing; ours in T6, lowest priority (off the race-day critical path)
 run	heat_coop_best_time_id	input:text	Co-op Best Time	planned:T6	co-op racing; ours in T6, lowest priority (off the race-day critical path)
 run	message_body	input:text	Message Body	planned:T3	priority messages from the Run page

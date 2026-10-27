@@ -21,9 +21,10 @@ Grid), pilots added in Grid.
 
 1. [ ] **Event**: open `/grid/event`, Edit, set the name, date, venue. RotorHazard's
        Event page shows the name.
-2. [ ] **Event options**: set Consecutive Laps Base to 3, Minimum Lap Time to 5 s,
-       Minimum Lap Behavior to *highlight*. RotorHazard's Format page, Event panel, shows
-       the same values.
+2. [ ] **Event options**: on `/grid/event` set Consecutive laps base to 3, Minimum lap time
+       to 5 s, Short laps to *Discard new short laps*, Ignore crossings before to 2 s; each
+       confirms as it lands. RotorHazard's Format page, Event panel, shows the same four
+       values. A Formats card ranking by consecutives says "(best 3 consecutive)".
 3. [ ] **Pilots**: add every pilot with callsign and name; set two teams on the Teams page.
        RotorHazard's Format page, Pilots panel, lists them with the team.
 4. [ ] **Formats**: create a "Qualifying — best 3 laps, 2:00" format and a "Final, first to

@@ -18,8 +18,13 @@ class EventTests(unittest.TestCase):
     def test_load_merges_rotorhazard_options_with_our_details(self):
         rhapi = FakeRhapi(options={"eventName": "Club night", "eventDescription": "round 3"})
         self.assertEqual(event.load(rhapi), {
-            "name": "Club night", "description": "round 3",
+            "name": "Club night", "description": "round 3", "consecutives_base": 3,
             "date": "", "venue": "", "organizer": "", "notes": ""})
+
+    def test_consecutives_base_is_rotorhazards_option_with_a_sane_default(self):
+        self.assertEqual(event.load(FakeRhapi(options={"consecutivesCount": "5"}))["consecutives_base"], 5)
+        self.assertEqual(event.load(FakeRhapi(options={"consecutivesCount": "junk"}))["consecutives_base"], 3)
+        self.assertEqual(event.load(FakeRhapi(options={"consecutivesCount": "1"}))["consecutives_base"], 3)
 
     def test_save_writes_only_the_fields_given(self):
         rhapi = FakeRhapi(options={"eventName": "Old", "eventDescription": "d"})

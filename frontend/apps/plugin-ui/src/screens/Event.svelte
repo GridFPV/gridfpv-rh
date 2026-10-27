@@ -6,7 +6,7 @@
    * classes, keep pilots unless told otherwise, and always keep formats, profiles, teams
    * and presets. Archives are RotorHazard's backup files, listed with restore and delete.
    */
-  import { Badge, Banner, Button, Card, Dialog, Input } from '@gridfpv/components';
+  import { Badge, Banner, Button, Card, Dialog, Input, Select } from '@gridfpv/components';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import {
     archiveNow,
@@ -15,11 +15,26 @@
     restoreArchive,
     rh,
     saveEvent,
+    setConsecutivesBase,
+    setMinFirstCrossing,
+    setMinLap,
+    setMinLapBehavior,
     type WriteResult
   } from '../lib/rh.svelte.js';
+  import {
+    CONSECUTIVES_MAX,
+    CONSECUTIVES_MIN,
+    lapRulesSummary,
+    MIN_LAP_BEHAVIOR,
+    MIN_LAP_BEHAVIOR_LABELS,
+    parseConsecutivesBase,
+    parseSeconds,
+    SECONDS_MAX
+  } from '../lib/timing.js';
 
   const timer = rh();
   const ev = $derived(timer.event);
+  const timing = $derived(timer.timing);
   const counts = $derived({
     pilots: timer.setup.pilots.length,
     classes: timer.setup.classes.length,
@@ -64,6 +79,50 @@
       if (f[k].trim() !== ev[k]) changed[k] = f[k].trim();
     }
     await run(() => saveEvent(changed));
+  }
+
+  // ---- lap detection and scoring (#35): each field saves on change, with readback ----
+  // The inputs are text the director is typing; they follow the timer until a change lands.
+  let minLapText = $state('');
+  let firstCrossingText = $state('');
+  let consecText = $state('');
+  let behaviorText = $state('0');
+  $effect(() => {
+    minLapText = String(Math.round(timing.minLapMs / 1000));
+    firstCrossingText = String(Math.round(timing.minFirstCrossingMs / 1000));
+    consecText = String(timing.consecutivesBase);
+    behaviorText = String(timing.minLapBehavior);
+  });
+  async function saveSeconds(
+    text: string,
+    currentMs: number,
+    write: (s: number) => Promise<WriteResult>,
+    what: string
+  ) {
+    const n = parseSeconds(text);
+    if (n === null) {
+      onresult({ ok: false, message: `${what}: enter whole seconds from 0 to ${SECONDS_MAX}.` });
+      return;
+    }
+    if (n * 1000 === currentMs) return;
+    await run(() => write(n), `${what} set to ${n} s.`);
+  }
+  async function saveConsecutives() {
+    const n = parseConsecutivesBase(consecText);
+    if (n === null) {
+      onresult({
+        ok: false,
+        message: `Consecutive laps base: enter a number from ${CONSECUTIVES_MIN} to ${CONSECUTIVES_MAX}.`
+      });
+      return;
+    }
+    if (n === timing.consecutivesBase) return;
+    await run(() => setConsecutivesBase(n), `Results now rank the best ${n} consecutive laps.`);
+  }
+  async function saveBehavior() {
+    const b = Number(behaviorText);
+    if (b === timing.minLapBehavior) return;
+    await run(() => setMinLapBehavior(b), `${MIN_LAP_BEHAVIOR_LABELS[b as 0 | 1]}.`);
   }
 
   // ---- new event ----
@@ -239,6 +298,79 @@
         Formats, frequency profiles, teams and presets live outside the event and carry over.
       </p>
     </Card>
+
+    <Card
+      title="Scoring"
+      subtitle="Formats that rank by fastest consecutive laps score each pilot's best run of this many laps in a row."
+    >
+      <div class="options">
+        <label class="field">
+          <span>Consecutive laps base</span>
+          <Input
+            type="number"
+            inputmode="numeric"
+            min={CONSECUTIVES_MIN}
+            max={CONSECUTIVES_MAX}
+            bind:value={consecText}
+            disabled={busy}
+            onchange={saveConsecutives}
+          />
+        </label>
+      </div>
+    </Card>
+
+    <Card
+      title="Lap detection"
+      subtitle={lapRulesSummary(timing) || 'Every crossing counts as a lap.'}
+    >
+      <div class="options">
+        <label class="field">
+          <span>Minimum lap time (s)</span>
+          <Input
+            type="number"
+            inputmode="numeric"
+            min="0"
+            max={SECONDS_MAX}
+            bind:value={minLapText}
+            disabled={busy}
+            onchange={() => saveSeconds(minLapText, timing.minLapMs, setMinLap, 'Minimum lap time')}
+          />
+        </label>
+        <label class="field">
+          <span>Short laps</span>
+          <Select bind:value={behaviorText} disabled={busy} onchange={saveBehavior}>
+            <option value={String(MIN_LAP_BEHAVIOR.HIGHLIGHT)}
+              >{MIN_LAP_BEHAVIOR_LABELS[MIN_LAP_BEHAVIOR.HIGHLIGHT]}</option
+            >
+            <option value={String(MIN_LAP_BEHAVIOR.DISCARD)}
+              >{MIN_LAP_BEHAVIOR_LABELS[MIN_LAP_BEHAVIOR.DISCARD]}</option
+            >
+          </Select>
+        </label>
+        <label class="field">
+          <span>Ignore crossings before (s)</span>
+          <Input
+            type="number"
+            inputmode="numeric"
+            min="0"
+            max={SECONDS_MAX}
+            bind:value={firstCrossingText}
+            disabled={busy}
+            onchange={() =>
+              saveSeconds(
+                firstCrossingText,
+                timing.minFirstCrossingMs,
+                setMinFirstCrossing,
+                'Ignore crossings before'
+              )}
+          />
+        </label>
+      </div>
+      <p class="muted">
+        Highlighted short laps stay in the results for the marshal to judge; discarded ones are
+        dropped as they happen. Both apply from the next race.
+      </p>
+    </Card>
   </div>
 
   <Card
@@ -329,6 +461,12 @@
   .form {
     display: grid;
     gap: var(--gf-space-3);
+  }
+  .options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: var(--gf-space-3);
+    margin-bottom: var(--gf-space-2);
   }
   .row {
     display: flex;

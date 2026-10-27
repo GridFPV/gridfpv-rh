@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 OPT_EVENT = "gridfpv_event"
 OPT_NAME = "eventName"
 OPT_DESCRIPTION = "eventDescription"
+# RotorHazard's "Consecutive Laps Base" (results rank "fastest N consecutive"). Written over
+# RotorHazard's own ``set_consecutives_count`` so its side effects (results cache) happen;
+# read back here so the UI sees the stored value, since RotorHazard does not broadcast it.
+OPT_CONSECUTIVES = "consecutivesCount"
+DEFAULT_CONSECUTIVES = 3
 MAX_NAME = 80
 MAX_DESCRIPTION = 300
 EXTRA_FIELDS = ("date", "venue", "organizer", "notes")
@@ -39,10 +44,19 @@ def _extras(rhapi) -> dict:
     return {k: str(data.get(k) or "") for k in EXTRA_FIELDS}
 
 
+def consecutives_base(rhapi) -> int:
+    try:
+        n = int(rhapi.db.option(OPT_CONSECUTIVES, default=DEFAULT_CONSECUTIVES) or DEFAULT_CONSECUTIVES)
+    except (TypeError, ValueError):
+        return DEFAULT_CONSECUTIVES
+    return n if n >= 2 else DEFAULT_CONSECUTIVES
+
+
 def load(rhapi) -> dict:
     out = {
         "name": str(rhapi.db.option(OPT_NAME, default="") or ""),
         "description": str(rhapi.db.option(OPT_DESCRIPTION, default="") or ""),
+        "consecutives_base": consecutives_base(rhapi),
     }
     out.update(_extras(rhapi))
     return out

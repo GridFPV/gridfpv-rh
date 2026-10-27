@@ -8,7 +8,14 @@
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import FormatDialog from '../components/FormatDialog.svelte';
   import { addFormat, alterFormat, deleteFormat, rh, type WriteResult } from '../lib/rh.svelte.js';
-  import { formatSummary, graceSummary, stagingSummary, type RaceFormat } from '../lib/setup.js';
+  import {
+    formatSummary,
+    graceSummary,
+    stagingSummary,
+    WIN_CONDITION,
+    type RaceFormat
+  } from '../lib/setup.js';
+  import { consecutivesPhrase } from '../lib/timing.js';
 
   const timer = rh();
   const formats = $derived([...timer.setup.formats].sort((a, b) => a.id - b.id));
@@ -130,7 +137,12 @@
           </div>
         </div>
         <p class="summary">
-          {formatSummary(f)}{#if graceSummary(f)}<span class="muted">, {graceSummary(f)}</span>{/if}
+          {formatSummary(f)}{#if f.winCondition === WIN_CONDITION.FASTEST_CONSECUTIVE}<span
+              class="muted"
+              title="The event's consecutive laps base; set it on the Event page"
+            >
+              ({consecutivesPhrase(timer.timing.consecutivesBase)})</span
+            >{/if}{#if graceSummary(f)}<span class="muted">, {graceSummary(f)}</span>{/if}
         </p>
         <p class="muted">{stagingSummary(f)}</p>
         <div class="actions">

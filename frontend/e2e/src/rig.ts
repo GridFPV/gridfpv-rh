@@ -289,6 +289,7 @@ export class Rig {
       // Formats and options survive 'all'; a spec must not inherit the last run's.
       await this.resetFormats();
       await this.setOption('eventName', 'E2E event');
+      await this.setLapOptions({ minLap: 10, behavior: 0, minFirstCrossing: 0, consecutives: 3 });
     }
   }
 
@@ -389,8 +390,48 @@ export class Rig {
 
   /** Minimum lap time in seconds, and whether short laps are kept (highlight) or discarded. */
   async setMinLap(seconds: number, behavior: 'highlight' | 'discard' = 'highlight'): Promise<void> {
-    this.emit('set_min_lap', { min_lap: seconds });
-    this.emit('set_min_lap_behavior', { min_lap_behavior: behavior === 'discard' ? 1 : 0 });
+    await this.setLapOptions({ minLap: seconds, behavior: behavior === 'discard' ? 1 : 0 });
+  }
+
+  /**
+   * RotorHazard's lap-detection options, read back from the `min_lap` message (MinLapBehavior
+   * is server config, not an option, so /api/options cannot show it) and from /api/options
+   * for the consecutive base.
+   */
+  async setLapOptions(o: {
+    minLap?: number;
+    behavior?: number;
+    minFirstCrossing?: number;
+    consecutives?: number;
+  }): Promise<void> {
+    if (o.minLap !== undefined) this.emit('set_min_lap', { min_lap: o.minLap });
+    if (o.behavior !== undefined)
+      this.emit('set_min_lap_behavior', { min_lap_behavior: o.behavior });
+    if (o.minFirstCrossing !== undefined)
+      this.emit('set_min_first_crossing', { min_first_crossing: o.minFirstCrossing });
+    if (o.consecutives !== undefined)
+      this.emit('set_consecutives_count', { count: o.consecutives });
+    await this.until('lap options', async () => {
+      const m = await this.minLap();
+      if (o.minLap !== undefined && Number(m.min_lap) !== o.minLap) return false;
+      if (o.behavior !== undefined && Number(m.min_lap_behavior) !== o.behavior) return false;
+      if (o.minFirstCrossing !== undefined && Number(m.min_first_crossing) !== o.minFirstCrossing)
+        return false;
+      if (o.consecutives !== undefined) {
+        const opts = await this.options();
+        if (Number(opts.consecutivesCount ?? 3) !== o.consecutives) return false;
+      }
+      return true;
+    });
+  }
+
+  /** The `min_lap` message: RotorHazard's answer to `load_data min_lap`. */
+  async minLap(): Promise<{
+    min_lap: number;
+    min_lap_behavior: number;
+    min_first_crossing: number;
+  }> {
+    return this.loadData('min_lap');
   }
 
   // ---- the race loop ------------------------------------------------------------------

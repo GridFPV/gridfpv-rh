@@ -58,6 +58,7 @@ import {
   type SyncSample
 } from './race.js';
 import { needsSeeding } from './stages.js';
+import type { Timing } from './timing.js';
 
 export type HelloAck = {
   plugin_version: string;
@@ -135,7 +136,13 @@ const state = $state({
   /** RotorHazard's last broadcast message (priority_message). */
   message: null as { text: string; interrupt: boolean; at: number } | null,
   lastSaved: null as { raceId: number; heatId: number; classId: number; at: number } | null,
-  timing: { minLapMs: 10000, minFirstCrossingMs: 0, minLapBehavior: 0 },
+  /** Lap detection (RotorHazard's min_lap message) and the consecutive laps base (#35). */
+  timing: {
+    minLapMs: 10000,
+    minFirstCrossingMs: 0,
+    minLapBehavior: 0,
+    consecutivesBase: 3
+  } as Timing,
   marshal: {
     current: null as MarshalCurrent | null,
     raceList: [] as RaceListHeat[],
@@ -430,10 +437,12 @@ export function connect(): Socket {
     'min_lap',
     (p: { min_lap: number; min_first_crossing?: number; min_lap_behavior?: number }) => {
       state.timing = {
+        ...state.timing,
         minLapMs: Number(p.min_lap) * 1000,
         minFirstCrossingMs: Number(p.min_first_crossing ?? 0) * 1000,
         minLapBehavior: Number(p.min_lap_behavior ?? 0)
       };
+      checkWaiters();
     }
   );
   socket.on('current_marshal_data', (p: Parameters<typeof applyMarshalCurrent>[0]) => {
@@ -449,7 +458,9 @@ export function connect(): Socket {
     checkWaiters();
   });
 
-  socket.on('gridfpv_event', (p: Partial<EventInfo>) => {
+  socket.on('gridfpv_event', (p: Partial<EventInfo> & { consecutives_base?: number }) => {
+    if (p.consecutives_base != null)
+      state.timing = { ...state.timing, consecutivesBase: Number(p.consecutives_base) };
     state.event = {
       name: p.name ?? '',
       description: p.description ?? '',
@@ -1087,6 +1098,43 @@ export function saveEvent(fields: Partial<EventInfo>): Promise<WriteResult> {
   return awaitState('Event', () =>
     (Object.keys(fields) as Array<keyof EventInfo>).every((k) => state.event[k] === fields[k])
   );
+}
+
+// ---- lap detection and scoring options (#35) --------------------------------------
+// RotorHazard answers set_min_lap / set_min_lap_behavior / set_min_first_crossing with a
+// `min_lap` broadcast to everyone *but* the sender (noself), so each write re-requests it.
+// set_consecutives_count broadcasts nothing; the plugin's event payload carries the stored
+// value, so the readback is a gridfpv_event_get.
+
+export function setMinLap(seconds: number): Promise<WriteResult> {
+  socket?.emit('set_min_lap', { min_lap: seconds });
+  window.setTimeout(() => loadData('min_lap'), 200);
+  return awaitState('Minimum lap time', () => state.timing.minLapMs === seconds * 1000);
+}
+
+export function setMinLapBehavior(behavior: number): Promise<WriteResult> {
+  socket?.emit('set_min_lap_behavior', { min_lap_behavior: behavior });
+  window.setTimeout(() => loadData('min_lap'), 200);
+  return awaitState('Minimum lap behaviour', () => state.timing.minLapBehavior === behavior);
+}
+
+export function setMinFirstCrossing(seconds: number): Promise<WriteResult> {
+  socket?.emit('set_min_first_crossing', { min_first_crossing: seconds });
+  window.setTimeout(() => loadData('min_lap'), 200);
+  return awaitState(
+    'Ignore crossings before',
+    () => state.timing.minFirstCrossingMs === seconds * 1000
+  );
+}
+
+/** RotorHazard clears every cached result when this changes; ask for them again too. */
+export function setConsecutivesBase(count: number): Promise<WriteResult> {
+  socket?.emit('set_consecutives_count', { count });
+  window.setTimeout(() => {
+    socket?.emit('gridfpv_event_get');
+    loadData('result_data');
+  }, 200);
+  return awaitState('Consecutive laps base', () => state.timing.consecutivesBase === count);
 }
 
 /**
