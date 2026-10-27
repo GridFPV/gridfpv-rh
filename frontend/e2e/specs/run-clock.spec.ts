@@ -48,9 +48,9 @@ test.describe('Run clock', () => {
     await page.goto('/grid/run');
     // Both pages sample RotorHazard's clock (pi_time) for a few seconds before they are exact.
     await page.waitForTimeout(3500);
-    await expect(page.getByLabel('Race clock')).toBeVisible();
+    await expect(page.getByLabel('Race clock', { exact: true })).toBeVisible();
 
-    const ours = page.getByLabel('Race clock').locator('.time');
+    const ours = page.getByLabel('Race clock', { exact: true }).locator('.time');
     const theirs = rhPage.locator('.time-display').first();
     const deltas: number[] = [];
     // Staging: both clocks count the fixed delay down (neither says Ready).
