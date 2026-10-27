@@ -68,6 +68,14 @@ RotorHazard's own per-browser settings: the same keys its page reads, so both pl
 same. **Export** writes RotorHazard's settings file, **Import** reads one, **Set audio
 settings to defaults** puts everything back.
 
+## Display and callouts
+
+The same dialog holds RotorHazard's Display Settings for this browser: show each lap's
+time since the start or since the first pass, newest lap first, and whether to show the
+RSSI readout. And its Callouts: lines the director can have spoken on every connected
+page (RotorHazard's own included) with ▶, kept on the timer; **Add callout** adds a line,
+× removes it.
+
 ## Messages
 
 A message sent from RotorHazard shows as a banner. A plain one goes by itself after about

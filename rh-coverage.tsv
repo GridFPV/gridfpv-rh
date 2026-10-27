@@ -165,9 +165,9 @@ run	set_voice_language	select	Voice Select	ours	Run page, Sound settings dialog 
 run	led-effects-select	select		planned:T6	unassigned (review); ours in T6, lowest priority (off the race-day critical path)
 run	set_led_color	button	LED Color	planned:T6	unassigned (review); ours in T6, lowest priority (off the race-day critical path)
 run	use-led-effect	button		planned:T6	unassigned (review); ours in T6, lowest priority (off the race-day critical path)
-run	callout_text_	input:text	Callout	planned:T3	audio cues and their settings (#38)
-run	play_callout_	button		planned:T3	audio cues and their settings (#38)
-run	del-callout-action_	button		planned:T3	audio cues and their settings (#38)
+run	callout_text_	input:text	Callout	ours	Run page, Sound settings dialog, Callouts section (save_callouts / play_callout_text)
+run	play_callout_	button		ours	Run page, Sound settings dialog, Callouts section (save_callouts / play_callout_text)
+run	del-callout-action_	button		ours	Run page, Sound settings dialog, Callouts section (save_callouts / play_callout_text)
 run	set_current_heat	select	Current Heat	ours	Run page
 run	start_race	button		ours	Run page Start
 run	stop_race	button		ours	Run page Stop
@@ -214,13 +214,13 @@ run	export_audio_settings	button		ours	Run page, Sound settings dialog (RotorHaz
 run	select_audio_import_file	input:file	Select File to Import	ours	Run page, Sound settings dialog (RotorHazard Audio Control panel; the same rotorhazard.* keys)
 run	import_audio_settings	button		ours	Run page, Sound settings dialog (RotorHazard Audio Control panel; the same rotorhazard.* keys)
 run	default_audio_settings	button		ours	Run page, Sound settings dialog (RotorHazard Audio Control panel; the same rotorhazard.* keys)
-run	display_lap_id	input:checkbox		planned:T3	Run page display preferences; ours (per-browser, in Grid)
-run	display_time_start	input:checkbox		planned:T3	Run page display preferences; ours (per-browser, in Grid)
-run	display_time_first_pass	input:checkbox		planned:T3	Run page display preferences; ours (per-browser, in Grid)
-run	display_laps_reversed	input:checkbox		planned:T3	Run page display preferences; ours (per-browser, in Grid)
-run	hide_graphs	input:checkbox		planned:T3	Run page display preferences; ours (per-browser, in Grid)
+run	display_lap_id	input:checkbox		ours	Run page, Sound settings dialog, Display section (per browser, the same rotorhazard.display_* keys)
+run	display_time_start	input:checkbox		ours	Run page, Sound settings dialog, Display section (per browser, the same rotorhazard.display_* keys)
+run	display_time_first_pass	input:checkbox		ours	Run page, Sound settings dialog, Display section (per browser, the same rotorhazard.display_* keys)
+run	display_laps_reversed	input:checkbox		ours	Run page, Sound settings dialog, Display section (per browser, the same rotorhazard.display_* keys)
+run	hide_graphs	input:checkbox		ours	Run page, Sound settings dialog, Display section (per browser, the same rotorhazard.display_* keys)
 run	set_led_brightness	input:range	LED Brightness	planned:T6	unassigned (review); ours in T6, lowest priority (off the race-day critical path)
-run	add_callout	button		planned:T3	audio cues and their settings (#38)
+run	add_callout	button		ours	Run page, Sound settings dialog, Callouts section (save_callouts / play_callout_text)
 run	audio-unlock	button		ours	Run page, Enable sound (the first click unlocks, as on RotorHazard page)
 run	m-enterat	input:number		ours	Marshal page thresholds
 run	m-exitat	input:number		ours	Marshal page thresholds

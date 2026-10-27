@@ -117,6 +117,10 @@ save, next heat as the board says) is written at the end of the tier.
       tones, drop Tone volume to 0, Play the test line. Open RotorHazard's Run page in the
       same browser: its Audio Control panel shows the same. Export, then Import the file;
       Set audio settings to defaults; RotorHazard's panel agrees each time.
+- [ ] **Display and callouts.** In the same dialog tick Lap order reversed and Time since
+      start: after a race the chips come newest first with "@m:ss.sss"; RotorHazard's Run
+      page shows the same preferences ticked. Add a callout "Pilots to the line", press ▶:
+      every page speaks it; RotorHazard's Callouts panel lists it after a reload.
 
 ## T4 — Marshal and Results parity
 

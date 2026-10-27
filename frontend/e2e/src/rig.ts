@@ -712,6 +712,13 @@ export class Rig {
     if (ack.ok === false) throw new Error(`rig: block backups failed: ${ack.error}`);
   }
 
+  /** RotorHazard's callouts (reload_callouts → callouts). */
+  async callouts(): Promise<string[]> {
+    const p = this.next<string[]>('callouts', 5_000).catch(() => [] as string[]);
+    this.emit('reload_callouts');
+    return p;
+  }
+
   /** RotorHazard's scheduled start (get_race_scheduled → race_scheduled). */
   async raceScheduled(): Promise<{ scheduled: boolean; scheduled_at: number | null }> {
     const p = this.next<{ scheduled: boolean; scheduled_at: number | null }>('race_scheduled');

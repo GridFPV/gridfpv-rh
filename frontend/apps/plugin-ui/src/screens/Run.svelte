@@ -27,6 +27,15 @@
     startCues
   } from '../lib/audio.svelte.js';
   import AudioSettingsPanel from '../components/AudioSettingsPanel.svelte';
+  import CalloutsPanel from '../components/CalloutsPanel.svelte';
+  import {
+    DISPLAY_KEYS,
+    DISPLAY_LABELS,
+    lapChips,
+    readDisplayPrefs,
+    saveDisplayPrefs,
+    type DisplayPrefs
+  } from '../lib/displayPrefs.js';
   import { seatTag } from '../lib/channels.js';
   import {
     cancelHeatPlan,
@@ -47,7 +56,9 @@
     simulateLap,
     cancelScheduledRace,
     scheduleRace,
-    setRaceFormat
+    setRaceFormat,
+    playCallout,
+    saveCallouts
   } from '../lib/rh.svelte.js';
   import {
     clockView,
@@ -312,6 +323,19 @@
   let editFormat: RaceFormat | null = $state(null);
   /** RotorHazard's Audio Control panel, as a dialog from the header. */
   let soundOpen = $state(false);
+  /** RotorHazard's Display Settings (per browser, its rotorhazard.display_* keys). */
+  let prefs: DisplayPrefs = $state(readDisplayPrefs(safeStorage()));
+  function safeStorage(): Storage | null {
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
+  }
+  function setPref(key: keyof DisplayPrefs, value: boolean) {
+    prefs = { ...prefs, [key]: value };
+    saveDisplayPrefs(safeStorage(), prefs);
+  }
 
   // ---- RotorHazard's own messages ----
   const message = $derived(timer.message && now - 0 ? timer.message : null);
@@ -523,7 +547,7 @@
           </span>
           {#if row.crossing}<span class="cross" role="status">crossing</span>{/if}
           {#if row.finished}<span class="fin" role="status">finished</span>{/if}
-          <span class="rssi" title="RSSI">{row.seat.rssi || ''}</span>
+          {#if !prefs.hide_graphs}<span class="rssi" title="RSSI">{row.seat.rssi || ''}</span>{/if}
           <a
             class="tune"
             href={href(`seats/${row.seat.index}`)}
@@ -565,7 +589,8 @@
         </div>
         {#if row.live?.laps.length}
           <div class="laps">
-            {#each row.live.laps as lap (lap.index)}
+            {#each lapChips(row.live.laps, prefs) as chip (chip.lap.index)}
+              {@const lap = chip.lap}
               <button
                 type="button"
                 class="lap"
@@ -574,7 +599,9 @@
                 disabled={!canEditLaps || busy}
                 title={lap.deleted ? 'Deleted — click to restore' : 'Click to delete this lap'}
                 onclick={() => onLap(row.seat.index, lap)}
-                ><span class="ln">{lapLabel(lap)}</span>{lap.formatted}</button
+                ><span class="ln">{lapLabel(lap)}</span
+                >{lap.formatted}{#each chip.extra as x (x)}<span class="extra">{x}</span
+                  >{/each}</button
               >
             {/each}
           </div>
@@ -587,6 +614,33 @@
   </div>
 
   <Dialog bind:open={soundOpen} title="Sound settings" size="wide">
+    <section class="prefs" aria-label="Display settings">
+      <h3>Display</h3>
+      <div class="checks">
+        {#each DISPLAY_KEYS as key (key)}
+          <label class="check" data-key={key}>
+            <input
+              type="checkbox"
+              checked={prefs[key]}
+              onchange={(e) => setPref(key, (e.currentTarget as HTMLInputElement).checked)}
+            />
+            {DISPLAY_LABELS[key]}
+          </label>
+        {/each}
+      </div>
+      <p class="muted">
+        Per browser, as on RotorHazard's Run page: what each lap chip shows and in which order, and
+        whether the RSSI readout is shown. Lap numbers are always on the chips here.
+      </p>
+    </section>
+    <section class="prefs" aria-label="Callouts settings">
+      <h3>Callouts</h3>
+      <CalloutsPanel
+        callouts={timer.callouts}
+        onsave={(list) => run(() => saveCallouts(list), 'Callouts saved on the timer.')}
+        onplay={(text) => run(() => playCallout(text), `Spoken: ${text}`)}
+      />
+    </section>
     <AudioSettingsPanel
       settings={audio.settings}
       voices={audio.voices}
@@ -664,7 +718,7 @@
 
 {#snippet board(
   rows: Array<{
-    position: number;
+    position: number | null;
     callsign: string;
     laps: number;
     totalTime: string;
@@ -688,7 +742,7 @@
     <tbody>
       {#each rows as r (r.callsign + ':' + r.node)}
         <tr>
-          <td class="pos">{r.position}</td>
+          <td class="pos">{r.position ?? '—'}</td>
           <td>{r.callsign}</td>
           <td>{r.laps}</td>
           <td>{r.totalTime || '—'}</td>
@@ -764,6 +818,31 @@
   .scheduled {
     flex-basis: 100%;
     font-weight: 600;
+  }
+  .prefs {
+    margin-bottom: var(--gf-space-3);
+  }
+  .prefs h3 {
+    margin: 0 0 var(--gf-space-2);
+    font-size: var(--gf-font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gf-text-muted);
+  }
+  .checks {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: var(--gf-space-1) var(--gf-space-3);
+  }
+  .check {
+    display: flex;
+    gap: var(--gf-space-1);
+    align-items: center;
+  }
+  .lap .extra {
+    margin-left: var(--gf-space-1);
+    color: var(--gf-text-muted);
+    font-size: var(--gf-font-size-xs);
   }
   .soundrow {
     margin: 0;

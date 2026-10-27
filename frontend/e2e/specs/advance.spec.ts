@@ -153,10 +153,14 @@ test('seat cards show position, lap count and last lap as RotorHazard ranks them
 }) => {
   test.setTimeout(90_000);
   const { h1 } = await stage(rig, NONE, PER_HEAT);
+  // A third pilot who never crosses: RotorHazard leaves them unranked (position null, #76).
+  const cal = await rig.addPilot({ callsign: 'Cal' });
+  await rig.seatHeat(h1, [null, null, null, cal]);
   await page.goto('/grid/run');
   await page.getByRole('combobox').first().selectOption(String(h1));
   const ace = page.locator('.seat', { hasText: 'Ace' });
   const bee = page.locator('.seat', { hasText: 'Bee' });
+  const calCard = page.locator('.seat', { hasText: 'Cal' });
   await expect(ace.locator('.pos .n')).toHaveText('—'); // nothing ranked while Ready
   await page.getByRole('button', { name: 'Start', exact: true }).click();
   await rig.until('racing', async () => (await rig.status()).race_status === 1, 30_000);
@@ -165,6 +169,8 @@ test('seat cards show position, lap count and last lap as RotorHazard ranks them
   await expect(bee.locator('.laps .n')).toHaveText('1');
   await expect(ace.locator('.pos .n')).toHaveText('P1');
   await expect(bee.locator('.pos .n')).toHaveText('P2');
+  await expect(calCard.locator('.pos .n')).toHaveText('—'); // no lap, no rank (#76)
+  await expect(calCard.locator('.laps .n')).toHaveText('0');
   await expect(ace.locator('.last .n')).toHaveText(/^0:01\.[23]/); // 1.3 s lap
   await page.getByRole('button', { name: 'Stop' }).click();
   await page.getByRole('button', { name: 'Save' }).click();
@@ -178,6 +184,7 @@ test('seat cards show position, lap count and last lap as RotorHazard ranks them
   ).by_race_time;
   expect(board.map((r) => [r.position, r.callsign, r.laps])).toEqual([
     [1, 'Ace', 2],
-    [2, 'Bee', 1]
+    [2, 'Bee', 1],
+    [null, 'Cal', 0]
   ]);
 });

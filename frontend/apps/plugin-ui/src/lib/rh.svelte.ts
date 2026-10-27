@@ -150,6 +150,8 @@ const state = $state({
   sync: { samples: [] as SyncSample[], differential: null as number | null },
   /** RotorHazard's last broadcast message (priority_message). */
   message: null as { text: string; interrupt: boolean; at: number } | null,
+  /** RotorHazard's callouts (its Run page's Callouts panel; kept in its config, `callouts` event). */
+  callouts: [] as string[],
   /** RotorHazard's phrase languages (`language` event), for the audio settings' voice language. */
   languages: [] as Array<{ id: string; name: string }>,
   /** RotorHazard's scheduled start (race_scheduled): `at` is its monotonic clock, seconds. */
@@ -296,6 +298,7 @@ function loadData(...types: string[]) {
 function reloadEverything() {
   socket?.emit('get_race_scheduled');
   loadData('language');
+  socket?.emit('reload_callouts');
   loadData(
     'frequency_data',
     'enter_and_exit_at_levels',
@@ -516,6 +519,9 @@ export function connect(): Socket {
   });
   socket.on('clear_priority_messages', () => {
     state.message = null;
+  });
+  socket.on('callouts', (p: unknown) => {
+    state.callouts = Array.isArray(p) ? p.map((x) => String(x)) : [];
   });
   socket.on('language', (p: { languages?: Array<{ id: string; name: string }> }) => {
     state.languages = (p.languages ?? []).map((l) => ({ id: String(l.id), name: String(l.name) }));
@@ -1659,6 +1665,33 @@ export function restoreLap(seat: number, lapIndex: number): Promise<WriteResult>
   const before = state.liveVersion;
   socket?.emit('restore_deleted_lap', { node: seat, lap_index: lapIndex });
   return awaitState('Restore lap', () => state.liveVersion > before);
+}
+
+/**
+ * RotorHazard's Callouts panel: save the list (save_callouts) and read it back through
+ * reload_callouts → `callouts`. RotorHazard keeps non-empty lines only.
+ */
+export function saveCallouts(list: string[]): Promise<WriteResult> {
+  const want = list.map((s) => s.trim()).filter(Boolean);
+  socket?.emit('save_callouts', { callouts: want });
+  reloadAfter(() => socket?.emit('reload_callouts'));
+  return awaitState('Callouts', () => JSON.stringify(state.callouts) === JSON.stringify(want));
+}
+/** Speak a callout on every connected page (play_callout_text → phonetic_text, broadcast). */
+export function playCallout(text: string): Promise<WriteResult> {
+  return new Promise((resolve) => {
+    const off = onSocket<{ text?: string }>('phonetic_text', (p) => {
+      if (String(p.text ?? '') === text) {
+        off();
+        resolve({ ok: true });
+      }
+    });
+    socket?.emit('play_callout_text', { callout: text });
+    window.setTimeout(() => {
+      off();
+      resolve({ ok: false, message: 'RotorHazard did not play the callout.' });
+    }, READBACK_MS);
+  });
 }
 
 /** RotorHazard's "Schedule Race": the timer stages the race itself in m:ss from now. */

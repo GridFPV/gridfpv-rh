@@ -156,6 +156,61 @@ test.describe('Run', () => {
     expect(await rhSetting('voice_rate')).toBe(1.25);
   });
 
+  test("display preferences and callouts: RotorHazard's keys and its callout list", async ({
+    page,
+    rig
+  }) => {
+    test.setTimeout(90_000);
+    const ace = await rig.addPilot({ callsign: 'Ace' });
+    const heat = await rig.addHeat({ name: 'Heat P', pilots: [null, ace] });
+    await rig.setMinLap(1);
+    await page.goto('/grid/run');
+    await page.getByRole('button', { name: 'Sound settings…' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.locator('[data-key="display_laps_reversed"] input').check();
+    await dialog.locator('[data-key="display_time_start"] input').check();
+    // Callouts: add one, it is saved on the timer; ▶ has RotorHazard speak it everywhere.
+    await dialog.getByRole('button', { name: 'Add callout' }).click();
+    const line = dialog.getByLabel('Callout 1', { exact: true });
+    await line.fill('Pilots to the line');
+    await line.press('Tab');
+    await expect(page.getByText('Callouts saved on the timer.')).toBeVisible();
+    expect(await rig.callouts()).toEqual(['Pilots to the line']);
+    const spoken = rig.next<{ text: string }>('phonetic_text', 10_000);
+    await dialog.getByRole('button', { name: 'Play callout 1' }).click();
+    expect((await spoken).text).toBe('Pilots to the line');
+    await expect(page.getByText('Spoken: Pilots to the line')).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    // The chips honour the preferences during a race.
+    await page.getByRole('combobox').first().selectOption(String(heat));
+    await page.getByRole('button', { name: 'Start', exact: true }).click();
+    await rig.until('racing', async () => (await rig.status()).race_status === 1, 30_000);
+    await rig.fly({ 1: [300, 1600] });
+    const chips = page.locator('.seat', { hasText: 'Ace' }).locator('.lap');
+    await expect(chips).toHaveCount(2);
+    await expect(chips.first()).toContainText('L1'); // newest first
+    await expect(chips.first()).toContainText(/@0:0\d\.\d{3}/);
+    await page.getByRole('button', { name: 'Stop' }).click();
+    await page.getByRole('button', { name: 'Discard' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Discard' }).click();
+
+    // RotorHazard agrees: its Run page reads the same preferences; its callouts list is ours.
+    const theirs = await page.context().newPage();
+    await theirs.goto(rig.url + '/run');
+    await theirs.waitForTimeout(1500);
+    const rhv = (k: string) =>
+      theirs.evaluate(
+        (key) => (window as unknown as { rotorhazard: Record<string, unknown> }).rotorhazard[key],
+        k
+      );
+    expect(await rhv('display_laps_reversed')).toBe(true);
+    expect(await rhv('display_time_start')).toBe(true);
+    expect(await rhv('display_lap_id')).toBe(false);
+    await theirs.close();
+    expect(await rig.callouts()).toEqual(['Pilots to the line']);
+  });
+
   test("RotorHazard's messages: a plain one fades after 8 s, an interrupt stays until dismissed or the heat changes (#71)", async ({
     page,
     rig

@@ -171,6 +171,23 @@ describe('live laps and leaderboard', () => {
     });
     expect(lb.current?.primary).toBe('by_fastest_lap');
     expect(lb.current?.rows[0]).toMatchObject({ callsign: 'Nova', position: 1, node: 0 });
+  });
+  it("keeps RotorHazard's null position for a pilot it has not ranked yet (#76)", () => {
+    const lb = applyLeaderboard({
+      current: {
+        meta: { primary_leaderboard: 'by_race_time' },
+        leaderboard: {
+          by_race_time: [
+            { pilot_id: 1, callsign: 'Nova', node: 0, position: 1, laps: 2 },
+            { pilot_id: 2, callsign: 'Cal', node: 3, position: null, laps: 0 }
+          ]
+        }
+      }
+    });
+    expect(lb.current?.rows.map((r) => [r.callsign, r.position])).toEqual([
+      ['Nova', 1],
+      ['Cal', null]
+    ]);
     expect(lb.last).toBeNull();
   });
 });

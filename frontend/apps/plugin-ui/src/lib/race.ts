@@ -162,7 +162,8 @@ export type LeaderRow = {
   lastLap: string;
   consecutives: string;
   consecutivesBase: number;
-  position: number;
+  /** RotorHazard ranks a pilot only once they have a lap; null until then (#76). */
+  position: number | null;
   behind: string;
 };
 
@@ -191,7 +192,7 @@ export function parseLeaderboard(raw: Raw | null | undefined): Leaderboard | nul
     name: str(raw.displayname),
     statusMsg: str(raw.status_msg),
     primary,
-    rows: rows.map((r, i) => ({
+    rows: rows.map((r) => ({
       pilotId: num(r.pilot_id),
       callsign: str(r.callsign),
       team: str(r.team_name),
@@ -202,7 +203,7 @@ export function parseLeaderboard(raw: Raw | null | undefined): Leaderboard | nul
       lastLap: str(r.last_lap),
       consecutives: str(r.consecutives),
       consecutivesBase: num(r.consecutives_base),
-      position: num(r.position, i + 1),
+      position: r.position == null || r.position === '' ? null : Number(r.position),
       behind: str(r.time_behind ?? r.behind)
     })),
     winCondition: meta.win_condition == null ? null : Number(meta.win_condition),
