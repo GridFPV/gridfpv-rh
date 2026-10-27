@@ -185,7 +185,12 @@ def fallback_rhapi(db: FakeDatabase, rhdata: FakeRhData, status=0):
     rhapi._racecontext = types.SimpleNamespace(rhdata=rhdata, pagecache=mock.Mock(), rhui=mock.Mock())
     rhapi.race = types.SimpleNamespace(status=status)
     rhapi.db.pilot_by_id = mock.Mock(side_effect=lambda pid: Row(id=pid, callsign=f"P{pid}"))
-    rhapi.db.heat_by_id = mock.Mock(side_effect=lambda hid: Row(id=hid) if hid == 7 else None)
+    # Heat 7 is in class 3 with pilots 11 and 12 seated: the shape the seeded race has.
+    rhapi.heat_shape = {7: (3, [11, 12])}
+    rhapi.db.heat_by_id = mock.Mock(
+        side_effect=lambda hid: Row(id=hid, class_id=rhapi.heat_shape[hid][0]) if hid in rhapi.heat_shape else None)
+    rhapi.db.slots_by_heat = mock.Mock(
+        side_effect=lambda hid: [Row(pilot_id=p, node_index=i) for i, p in enumerate(rhapi.heat_shape.get(hid, (0, []))[1])])
     return rhapi
 
 
@@ -275,12 +280,46 @@ class FallbackTests(unittest.TestCase):
         with self.assertRaises(races.RaceError):
             races.restore(self.rhapi, deleted_id)
         self.db.metas.clear()
-        self.rhapi.db.heat_by_id = mock.Mock(return_value=None)
+        self.rhapi.heat_shape = {}
         with self.assertRaises(races.RaceError):
             races.restore(self.rhapi, deleted_id)
         self.assertEqual(len(races.load(self.rhapi)), 1)  # the copy survives both refusals
         with self.assertRaises(races.RaceError):
             races.restore(self.rhapi, "nope")
+
+    def test_restore_refuses_a_heat_that_changed_stage_or_pilots(self):
+        # #48: heat ids are reused after a reset; a copy must only go back to the heat it came from.
+        races.delete(self.rhapi, 7, 2)
+        deleted_id = races.load(self.rhapi)[0]["id"]
+        self.assertEqual(races.load(self.rhapi)[0]["pilot_ids"], [11, 12])
+        self.rhapi.heat_shape = {7: (9, [11, 12])}
+        with self.assertRaisesRegex(races.RaceError, "different stage"):
+            races.restore(self.rhapi, deleted_id)
+        self.rhapi.heat_shape = {7: (3, [11, 13])}
+        with self.assertRaisesRegex(races.RaceError, "pilots are not the ones"):
+            races.restore(self.rhapi, deleted_id)
+        self.assertEqual(len(self.db.metas), 0)
+        self.rhapi.heat_shape = {7: (3, [12, 11])}  # same pilots, other seats: fine
+        races.restore(self.rhapi, deleted_id)
+        self.assertEqual(len(self.db.metas), 1)
+
+    def test_copies_are_dropped_on_reset_restore_and_new_event(self):
+        races.delete(self.rhapi, 7, 2)
+        self.assertEqual(len(races.load(self.rhapi)), 1)
+        races.forget_all(self.rhapi, "reset")
+        self.assertEqual(races.load(self.rhapi), [])
+        # The hooks: RotorHazard's database events call forget_all.
+        seed_race(self.db)
+        races.delete(self.rhapi, 7, 2)
+        handlers = {}
+        self.rhapi.events = types.SimpleNamespace(on=lambda evt, fn, **kw: handlers.__setitem__(evt, fn))
+        fake_evt = types.SimpleNamespace(DATABASE_RESET="databaseReset", DATABASE_RESTORE="databaseRestore",
+                                         DATABASE_RECOVER="databaseRecover", DATABASE_INITIALIZE="databaseInitialize")
+        with mock.patch.dict(sys.modules, {"eventmanager": types.SimpleNamespace(Evt=fake_evt)}):
+            races.hook_database_events(self.rhapi)
+        self.assertEqual(set(handlers), {"databaseReset", "databaseRestore", "databaseRecover", "databaseInitialize"})
+        handlers["databaseReset"]({})
+        self.assertEqual(races.load(self.rhapi), [])
 
     def test_forget_drops_a_copy(self):
         races.delete(self.rhapi, 7, 2)
@@ -307,6 +346,8 @@ class NativeTests(unittest.TestCase):
         rhapi.db.deleted_race_conflicts = mock.Mock(return_value=[])
         rhapi.db.race_restore = mock.Mock(return_value=Row(id=43))
         rhapi.db.pilot_by_id = mock.Mock(return_value=Row(id=11, callsign="Ace"))
+        rhapi.db.heat_by_id = mock.Mock(return_value=Row(id=7, class_id=3))
+        rhapi.db.slots_by_heat = mock.Mock(return_value=[Row(pilot_id=11, node_index=1)])
         return rhapi, race
 
     def test_uses_rotorhazards_own_delete_and_restore(self):
@@ -318,7 +359,7 @@ class NativeTests(unittest.TestCase):
         self.assertNotIn(races.OPT_DELETED, rhapi.options)
         listed = races.load(rhapi)
         self.assertEqual(listed, [{"id": "5", "heat_id": 7, "round_id": 2, "class_id": 3, "start_time_formatted": "03:14",
-                                   "deleted_at": "03:15", "callsigns": ["Ace"]}])
+                                   "deleted_at": "03:15", "callsigns": ["Ace"], "pilot_ids": [11]}])
         self.assertEqual(races.restore(rhapi, "5"), {"heat_id": 7, "round_id": 2})
         rhapi.db.race_restore.assert_called_once()
 
@@ -354,6 +395,12 @@ class SocketTests(unittest.TestCase):
             _, payload = rhapi.ui.socket_broadcast.call_args_list[-1][0]
             self.assertEqual((payload["races"], payload["changed"]["action"]), ([], "restored"))
             self.assertEqual(len(db.metas), 1)
+            # A new event (gridfpv_event_clear) drops the copies and says so.
+            rhapi.listeners[gridfpv.EVT_RACE_DELETE]({"heat_id": 7, "round_id": 2})
+            self.assertEqual(len(races.load(rhapi)), 1)
+            rhapi.listeners[gridfpv.EVT_EVENT_CLEAR]({})
+            event, payload = rhapi.ui.socket_broadcast.call_args_list[-1][0]
+            self.assertEqual((event, payload["races"]), (gridfpv.EVT_RACES_DELETED, []))
 
 
 if __name__ == "__main__":

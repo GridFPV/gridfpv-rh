@@ -33,4 +33,40 @@ test.describe('Rounds (rig-driven)', () => {
     expect(beeLaps(await rig.race(heat, 2))).toBe(4);
     await rh.expectResultsToMention('Round 2');
   });
+
+  test('a copy never goes back to a heat that changed, and dies with its event (#48)', async ({
+    rig,
+    rh
+  }) => {
+    test.setTimeout(90_000);
+    const ace = await rig.addPilot({ callsign: 'Ace' });
+    const bee = await rig.addPilot({ callsign: 'Bee' });
+    const cee = await rig.addPilot({ callsign: 'Cee' });
+    const cls = await rig.addClass({ name: 'E2E Stale' });
+    const heat = await rig.addHeat({ name: 'Heat S', classId: cls, pilots: [null, ace, bee] });
+    await rig.setMinLap(1);
+    await rig.raceHeat(heat, { 1: [500, 2000], 2: [600, 2400] });
+    await rig.deleteRace(heat, 1);
+    const kept = (await rig.deletedRaces()).find((d) => d.heat_id === heat)!;
+    expect(kept).toBeTruthy();
+
+    // Seat Cee where Bee was: the heat is no longer the one that flew the race.
+    await rig.seatHeat(heat, [null, ace, cee]);
+    expect(await rig.restoreRaceRefusal(kept.id)).toMatch(/pilots are not the ones who flew it/);
+    expect((await rig.rounds()).find((h) => h.id === heat)?.rounds ?? 0).toBe(0);
+
+    // A new event (reset keeping pilots, then the plugin's event clear): the copy is gone, and a
+    // fresh heat that reuses the id lists nothing.
+    await rig.reset('classes');
+    rig.emit('gridfpv_event_clear');
+    await rig.until('copies dropped', async () => (await rig.deletedRaces()).length === 0);
+    const cls2 = await rig.addClass({ name: 'E2E Fresh' });
+    const heat2 = await rig.addHeat({ name: 'Fresh 1', classId: cls2, pilots: [null, bee] });
+    expect(heat2).toBe(heat); // RotorHazard reuses the id
+    expect(await rig.deletedRaces()).toEqual([]);
+    expect(await rig.restoreRaceRefusal(kept.id)).toMatch(/no longer kept/);
+    expect((await rig.rounds()).find((h) => h.id === heat2)?.rounds ?? 0).toBe(0);
+    // RotorHazard agrees: the only heat is the fresh one, with no race on it.
+    expect(await rh.formatHeatNames()).toEqual(['Fresh 1']);
+  });
 });

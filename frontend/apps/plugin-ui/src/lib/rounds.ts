@@ -15,6 +15,8 @@ export type DeletedRace = {
   startTime: string;
   deletedAt: string;
   callsigns: string[];
+  /** The pilots who flew it; a copy only goes back to a heat with the same pilots (#48). */
+  pilotIds: number[];
 };
 
 export type DeletedRacesPayload = {
@@ -35,7 +37,8 @@ export function applyDeletedRaces(payload: DeletedRacesPayload | null): DeletedR
     classId: num(r.class_id),
     startTime: str(r.start_time_formatted),
     deletedAt: str(r.deleted_at),
-    callsigns: Array.isArray(r.callsigns) ? r.callsigns.map(str) : []
+    callsigns: Array.isArray(r.callsigns) ? r.callsigns.map(str) : [],
+    pilotIds: Array.isArray(r.pilot_ids) ? r.pilot_ids.map((p) => num(p)) : []
   }));
 }
 
@@ -52,6 +55,14 @@ export function deletedRacesFor(list: DeletedRace[], heatIds: number[]): Deleted
 export function restoreBlocker(d: DeletedRace, results: Results, setup: Setup): string | null {
   const heat = setup.heats.find((h) => h.id === d.heatId);
   if (!heat) return 'its heat no longer exists';
+  // Heat ids are reused after a reset: the copy must match the heat as it is now (#48).
+  if (d.classId !== heat.classId) return 'the heat is in a different stage now';
+  const seated = new Set(heat.slots.map((s) => s.pilotId).filter((p) => p > 0));
+  if (
+    d.pilotIds.length &&
+    (d.pilotIds.some((p) => !seated.has(p)) || seated.size !== d.pilotIds.length)
+  )
+    return "the heat's pilots are not the ones who flew it";
   if (raceFor(results, d.heatId, d.round)) return `round ${d.round} has been raced again`;
   return null;
 }

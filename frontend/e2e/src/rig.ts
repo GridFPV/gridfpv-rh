@@ -555,6 +555,18 @@ export class Rig {
     return p.backup ?? null;
   }
 
+  /** Ask the plugin to restore and return RotorHazard's refusal message, or null if it went through. */
+  async restoreRaceRefusal(id: string): Promise<string | null> {
+    const alert = this.next<{ message?: string }>('priority_message', 5000).catch(() => null);
+    const answer = this.next<{ changed?: unknown }>('gridfpv_races_deleted', 5000).catch(
+      () => null
+    );
+    this.emit('gridfpv_race_restore', { id });
+    const [a, b] = await Promise.all([alert, answer]);
+    if (a?.message) return String(a.message);
+    return b?.changed ? null : 'no answer';
+  }
+
   async restoreRace(id: string): Promise<void> {
     const done = this.next('gridfpv_races_deleted');
     this.emit('gridfpv_race_restore', { id });

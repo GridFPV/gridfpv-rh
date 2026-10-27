@@ -101,7 +101,7 @@ def _callsigns(rhapi, pilot_ids) -> list:
 
 # ---- the kept copies, as the UI lists them ----------------------------------------------
 
-def _entry(id_, heat_id, round_id, class_id, started, deleted_at, callsigns) -> dict:
+def _entry(id_, heat_id, round_id, class_id, started, deleted_at, callsigns, pilot_ids=()) -> dict:
     return {
         "id": str(id_),
         "heat_id": int(heat_id),
@@ -110,7 +110,37 @@ def _entry(id_, heat_id, round_id, class_id, started, deleted_at, callsigns) -> 
         "start_time_formatted": started or "",
         "deleted_at": deleted_at or "",
         "callsigns": list(callsigns),
+        "pilot_ids": [int(p) for p in pilot_ids if p],
     }
+
+
+def _heat_shape(rhapi, heat_id):
+    """(class_id, {pilot ids seated}) of a heat as it is now, or None when the heat is gone."""
+    heat = rhapi.db.heat_by_id(int(heat_id))
+    if heat is None:
+        return None
+    pilots = set()
+    try:
+        for slot in rhapi.db.slots_by_heat(int(heat_id)) or []:
+            if getattr(slot, "pilot_id", None):
+                pilots.add(int(slot.pilot_id))
+    except Exception:
+        logger.exception("gridfpv races: could not read heat %s slots", heat_id)
+    return int(getattr(heat, "class_id", 0) or 0), pilots
+
+
+def mismatch(rhapi, heat_id, class_id, pilot_ids) -> str | None:
+    """Why a copy no longer belongs to this heat (#48: heat ids are reused after a reset), or None."""
+    shape = _heat_shape(rhapi, heat_id)
+    if shape is None:
+        return "the heat no longer exists"
+    now_class, now_pilots = shape
+    if int(class_id or 0) != now_class:
+        return "the heat is in a different stage now"
+    wanted = {int(p) for p in pilot_ids if p}
+    if wanted and wanted != now_pilots:
+        return "the heat's pilots are not the ones who flew it"
+    return None
 
 
 def _read_option(rhapi) -> list:
@@ -142,13 +172,40 @@ def load(rhapi) -> list:
             runs = data.get("pilotraces") or data.get("pilot_runs") or data.get("runs") or []
             pilot_ids = [r.get("pilot_id") for r in runs if isinstance(r, dict)]
             out.append(_entry(d.id, d.heat_id, d.round_id, d.class_id, d.start_time_formatted,
-                              d.deleted_time_formatted, _callsigns(rhapi, pilot_ids)))
+                              d.deleted_time_formatted, _callsigns(rhapi, pilot_ids), pilot_ids))
         return out
     return [
         _entry(s["id"], s["race"]["heat_id"], s["race"]["round_id"], s["race"].get("class_id"),
-               s["race"].get("start_time_formatted"), s.get("deleted_at"), s.get("callsigns") or [])
+               s["race"].get("start_time_formatted"), s.get("deleted_at"), s.get("callsigns") or [],
+               [p.get("pilot_id") for p in s.get("pilotraces") or []])
         for s in _read_option(rhapi)
     ]
+
+
+def forget_all(rhapi, why: str = "") -> None:
+    """Drop every kept copy (fallback path): after a reset, a restore or a new event the heats
+    they name are gone and their ids will be reused (#48)."""
+    if is_native(rhapi):
+        return
+    if _read_option(rhapi):
+        logger.info("gridfpv races: dropping kept copies (%s)", why or "database changed")
+    rhapi.db.option_set(OPT_DELETED, "[]")
+
+
+def hook_database_events(rhapi) -> None:
+    """Forget the copies when RotorHazard itself resets or restores the database."""
+    events = getattr(rhapi, "events", None)
+    if events is None or not hasattr(events, "on"):
+        return
+    try:
+        from eventmanager import Evt  # RotorHazard's module; importable in-process only
+    except Exception:  # pragma: no cover - outside RotorHazard
+        return
+    for name in ("DATABASE_RESET", "DATABASE_RESTORE", "DATABASE_RECOVER", "DATABASE_INITIALIZE"):
+        evt = getattr(Evt, name, None)
+        if evt is None:
+            continue
+        events.on(evt, lambda *_a, _why=name, **_k: forget_all(rhapi, _why), name=f"gridfpv_races_{name.lower()}")
 
 
 # ---- delete -----------------------------------------------------------------------------
@@ -240,6 +297,10 @@ def restore(rhapi, deleted_id) -> dict:
         d = rhapi.db.deleted_race_by_id(int(deleted_id))
         if d is None:
             raise RaceError("that deleted race is no longer kept")
+        entry = next((e for e in load(rhapi) if e["id"] == str(d.id)), None)
+        why = mismatch(rhapi, d.heat_id, d.class_id, entry["pilot_ids"] if entry else [])
+        if why:
+            raise RaceError(f"cannot restore: {why}")
         conflicts = rhapi.db.deleted_race_conflicts(d) or []
         if conflicts:
             raise RaceError("cannot restore: " + "; ".join(str(c) for c in conflicts))
@@ -262,8 +323,9 @@ def _fallback_restore(rhapi, deleted_id: str) -> dict:
         raise RaceError("that deleted race is no longer kept")
     race = snap["race"]
     heat_id, round_id = int(race["heat_id"]), int(race["round_id"])
-    if rhapi.db.heat_by_id(heat_id) is None:
-        raise RaceError("cannot restore: the heat no longer exists")
+    why = mismatch(rhapi, heat_id, race.get("class_id"), [p.get("pilot_id") for p in snap.get("pilotraces") or []])
+    if why:
+        raise RaceError(f"cannot restore: {why}")
     if Database.SavedRaceMeta.query.filter_by(heat_id=heat_id, round_id=round_id).first() is not None:
         raise RaceError(f"cannot restore: round {round_id} of that heat has been raced again")
     try:

@@ -274,13 +274,19 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
             return
         rhapi.ui.socket_broadcast(EVT_EVENT, out)
 
-    def on_event_clear(*_args, **_kwargs):
-        rhapi.ui.socket_broadcast(EVT_EVENT, event.clear_extras(rhapi))
-
     # Saved races (#36): delete keeps a copy, restore puts it back. RotorHazard's own path
     # on RHAPI 1.12+, the plugin's snapshot path on 4.4.0; see races.py.
     def _races_payload(**extra):
         return {"races": races.load(rhapi), "native": races.is_native(rhapi), **extra}
+
+    def on_event_clear(*_args, **_kwargs):
+        rhapi.ui.socket_broadcast(EVT_EVENT, event.clear_extras(rhapi))
+        # A new event: the kept copies of deleted races belong to the old one (#48).
+        races.forget_all(rhapi, "new event")
+        rhapi.ui.socket_broadcast(EVT_RACES_DELETED, _races_payload())
+
+    # RotorHazard's own reset / restore drop them too (#48).
+    races.hook_database_events(rhapi)
 
     def on_archive(data=None, *_args, **_kwargs):
         name = str((data or {}).get("name") or "")

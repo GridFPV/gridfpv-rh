@@ -9,16 +9,16 @@ import {
 import { emptyResults, type Results } from '../src/lib/results.js';
 import { emptySetup, type Heat, type Setup } from '../src/lib/setup.js';
 
-const heat = (id: number, name: string): Heat =>
+const heat = (id: number, name: string, classId = 3, pilots: number[] = [1, 2]): Heat =>
   ({
     id,
     name,
     displayName: name,
     autoName: '',
-    classId: 1,
+    classId,
     locked: false,
     status: 0,
-    slots: []
+    slots: pilots.map((pilotId, i) => ({ id: i, nodeIndex: i, pilotId, method: 0 }))
   }) as unknown as Heat;
 
 function setupWith(...heats: Heat[]): Setup {
@@ -34,7 +34,8 @@ const payload = {
       class_id: 3,
       start_time_formatted: '03:14',
       deleted_at: '03:15',
-      callsigns: ['Ace', 'Bee']
+      callsigns: ['Ace', 'Bee'],
+      pilot_ids: [1, 2]
     },
     {
       id: '5',
@@ -59,7 +60,8 @@ describe('applyDeletedRaces', () => {
       classId: 3,
       startTime: '03:14',
       deletedAt: '03:15',
-      callsigns: ['Ace', 'Bee']
+      callsigns: ['Ace', 'Bee'],
+      pilotIds: [1, 2]
     });
     expect(list[1].callsigns).toEqual([]);
     expect(applyDeletedRaces(null)).toEqual([]);
@@ -78,6 +80,15 @@ describe('restoreBlocker', () => {
   const d = applyDeletedRaces(payload)[0];
   it('allows a restore when the heat exists and the round is free', () => {
     expect(restoreBlocker(d, emptyResults(), setupWith(heat(7, 'Heat A')))).toBeNull();
+  });
+  it('blocks a heat that changed stage or pilots since (#48)', () => {
+    expect(restoreBlocker(d, emptyResults(), setupWith(heat(7, 'Heat A', 9)))).toBe(
+      'the heat is in a different stage now'
+    );
+    expect(restoreBlocker(d, emptyResults(), setupWith(heat(7, 'Heat A', 3, [1, 5])))).toBe(
+      "the heat's pilots are not the ones who flew it"
+    );
+    expect(restoreBlocker(d, emptyResults(), setupWith(heat(7, 'Heat A', 3, [2, 1])))).toBeNull();
   });
   it('blocks when the heat is gone or the round was raced again', () => {
     expect(restoreBlocker(d, emptyResults(), setupWith())).toBe('its heat no longer exists');

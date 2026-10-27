@@ -59,7 +59,10 @@ class EventTests(unittest.TestCase):
         rhapi.listeners[gridfpv.EVT_EVENT_SAVE]({"name": ""})
         rhapi.ui.message_alert.assert_called_once()
         rhapi.listeners[gridfpv.EVT_EVENT_CLEAR]({})
-        self.assertEqual(rhapi.ui.socket_broadcast.call_args_list[-1][0][1]["organizer"], "")
+        # The event broadcast comes first; the deleted-race copies are dropped after it (#48).
+        broadcasts = [c[0] for c in rhapi.ui.socket_broadcast.call_args_list]
+        self.assertEqual(broadcasts[-2][1]["organizer"], "")
+        self.assertEqual(broadcasts[-1], (gridfpv.EVT_RACES_DELETED, {"races": [], "native": False}))
 
 
 if __name__ == "__main__":
