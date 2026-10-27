@@ -40,24 +40,32 @@
   async function write(band: string | null, channel: number | null, frequency: number) {
     busy = true;
     try {
-      onresult(await setChannel(seat.index, band, channel, frequency));
+      const r = await setChannel(seat.index, band, channel, frequency);
+      onresult(r);
+      return r;
     } finally {
       busy = false;
     }
   }
 
-  function onPick(e: Event) {
-    const v = (e.currentTarget as HTMLSelectElement).value;
+  async function onPick(e: Event) {
+    const el = e.currentTarget as HTMLSelectElement;
+    const v = el.value;
     if (v === 'custom') {
       editingCustom = true;
       customMhz = seat.frequency ? String(seat.frequency) : '';
       return;
     }
     editingCustom = false;
-    if (v === 'off') return void write(null, null, 0);
-    const [band, ch] = v.split(':');
-    const freq = frequencyFor(band, Number(ch));
-    if (freq) void write(band, Number(ch), freq);
+    let r: WriteResult | undefined;
+    if (v === 'off') r = await write(null, null, 0);
+    else {
+      const [band, ch] = v.split(':');
+      const freq = frequencyFor(band, Number(ch));
+      if (freq) r = await write(band, Number(ch), freq);
+    }
+    // A refused or unconfirmed write leaves RotorHazard where it was; show that again (#87).
+    if (r && !r.ok) el.value = current;
   }
 
   const customValid = $derived.by(() => {

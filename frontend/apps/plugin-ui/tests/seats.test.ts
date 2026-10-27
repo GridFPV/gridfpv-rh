@@ -8,8 +8,10 @@ import {
   applyNodeTuning,
   emptySeat,
   ensureSeats,
+  raceLockReason,
   seatStatus
 } from '../src/lib/seats.js';
+import { RACE_STATUS } from '../src/lib/race.js';
 
 describe('seat reducers', () => {
   it('grows the seat list to fit whatever RotorHazard sends, never shrinks it', () => {
@@ -101,5 +103,18 @@ describe('seatTag / seatLabel', () => {
     expect(seatLabel({ band: 'F', channel: 2, frequency: 5760 })).toBe('F2 · 5760');
     expect(seatLabel({ band: null, channel: null, frequency: 5661 })).toBe('5661 MHz');
     expect(seatLabel({ band: null, channel: null, frequency: 0 })).toBe('Off');
+  });
+});
+
+describe('raceLockReason (#87)', () => {
+  it('locks channel and profile writes only while a race is staged or running', () => {
+    expect(raceLockReason(RACE_STATUS.READY)).toBeNull();
+    expect(raceLockReason(RACE_STATUS.DONE)).toBeNull();
+    expect(raceLockReason(RACE_STATUS.STAGING)).toMatch(/^Not written: a race is staged\./);
+    expect(raceLockReason(RACE_STATUS.RACING)).toMatch(/^Not written: a race is running\./);
+  });
+  it('says what is still allowed', () => {
+    for (const st of [RACE_STATUS.STAGING, RACE_STATUS.RACING])
+      expect(raceLockReason(st)).toMatch(/Thresholds still write live\.$/);
   });
 });

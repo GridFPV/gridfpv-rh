@@ -14,9 +14,12 @@
 
   let {
     seat,
+    raceOn = false,
     onresult
   }: {
     seat: Seat;
+    /** A race is staged or running: the channel is locked, thresholds still write live (#87). */
+    raceOn?: boolean;
     onresult: (r: WriteResult) => void;
   } = $props();
 
@@ -123,7 +126,14 @@
       <span class="num">Seat {seat.index + 1}</span>
       <span class="chan">{channelLabel(tag?.band, tag?.channel, seat.frequency)}</span>
     </div>
-    <Badge tone={STATUS[status].tone} dot={status === 'crossing'}>{STATUS[status].label}</Badge>
+    <div class="badges">
+      {#if raceOn}
+        <span title="Channel locked while the race is on; thresholds still write live">
+          <Badge tone="warn">Race on</Badge>
+        </span>
+      {/if}
+      <Badge tone={STATUS[status].tone} dot={status === 'crossing'}>{STATUS[status].label}</Badge>
+    </div>
   </div>
 
   <div class="bar" title="Live RSSI {seat.rssi}">
@@ -192,6 +202,11 @@
 </Card>
 
 <style>
+  .badges {
+    display: flex;
+    gap: var(--gf-space-1);
+    align-items: center;
+  }
   .head {
     display: flex;
     justify-content: space-between;

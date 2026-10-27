@@ -47,3 +47,15 @@ describe('SeatCard enter/exit (#77)', () => {
     expect(setLevels).toHaveBeenCalledWith(1, 70, 50);
   });
 });
+
+describe('SeatCard while a race is on (#87)', () => {
+  it('shows "Race on" and keeps the threshold boxes editable', () => {
+    const { container, getByText } = render(SeatCard, { seat, raceOn: true, onresult: vi.fn() });
+    expect(getByText('Race on')).toBeTruthy();
+    expect(inputs(container).map((i) => i.disabled)).toEqual([false, false]);
+  });
+  it('shows no such badge otherwise', () => {
+    const { queryByText } = render(SeatCard, { seat, onresult: vi.fn() });
+    expect(queryByText('Race on')).toBeNull();
+  });
+});

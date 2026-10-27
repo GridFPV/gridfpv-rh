@@ -8,8 +8,12 @@
   import SeatTune from './SeatTune.svelte';
   import { rh, type WriteResult } from '../lib/rh.svelte.js';
   import { go, route } from '../lib/router.svelte.js';
+  import { raceLockReason } from '../lib/seats.js';
 
   const timer = rh();
+  // While a race is staged or running, channel and profile writes are refused (#87); the
+  // store refuses them too, this just says so up front.
+  const lockReason = $derived(raceLockReason(timer.race.status));
 
   // /grid/seats/N opens the tuning modal over this page, so the link survives a refresh
   // and closing it is just navigating back to /grid/seats.
@@ -42,7 +46,15 @@
     </p>
   </header>
 
-  <ProfileBar profiles={timer.profiles} {onresult} />
+  {#if lockReason}
+    <Banner tone="warn">
+      A race is {timer.race.status === 3 ? 'staged' : 'running'}: channel and profile changes are
+      refused until it stops, so RotorHazard does not retune a seat mid-race. Enter and exit
+      thresholds still write live.
+    </Banner>
+  {/if}
+
+  <ProfileBar profiles={timer.profiles} {lockReason} {onresult} />
 
   {#if timer.seats.length}
     <ChannelGrid seats={timer.seats} {onresult} />
@@ -57,7 +69,7 @@
   {:else}
     <div class="grid">
       {#each timer.seats as seat (seat.index)}
-        <SeatCard {seat} {onresult} />
+        <SeatCard {seat} raceOn={lockReason != null} {onresult} />
       {/each}
     </div>
   {/if}

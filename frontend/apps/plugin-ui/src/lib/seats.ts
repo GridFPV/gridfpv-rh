@@ -12,6 +12,8 @@
  *                                 profile_description }
  */
 
+import { RACE_STATUS } from './race.js';
+
 export type Seat = {
   index: number;
   /** From the active profile (what we asked for). */
@@ -167,6 +169,20 @@ export function applyNodeTuning(payload: {
 }
 
 /** A seat's tuning status for the card's pill. */
+/**
+ * Why Seats refuses a channel or profile change right now, or null when it may go ahead (#87).
+ * RotorHazard itself takes `set_frequency` / `set_profile` / `add_profile` / `delete_profile`
+ * at any time and retunes the node on the spot, mid-race; a staged or running race would lose
+ * the seat's passes. Threshold edits are not locked: they are live tuning.
+ */
+export function raceLockReason(status: number): string | null {
+  if (status === RACE_STATUS.STAGING)
+    return 'Not written: a race is staged. RotorHazard would retune the seat as it starts; stop the race first. Thresholds still write live.';
+  if (status === RACE_STATUS.RACING)
+    return 'Not written: a race is running. RotorHazard would retune the seat mid-race; stop (then save or discard) first. Thresholds still write live.';
+  return null;
+}
+
 export type SeatStatus = 'off' | 'untuned' | 'idle' | 'crossing';
 
 export function seatStatus(seat: Seat): SeatStatus {

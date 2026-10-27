@@ -17,7 +17,8 @@ import {
   applyNodeData,
   applyNodeTuning,
   type Profiles,
-  type Seat
+  type Seat,
+  raceLockReason
 } from './seats.js';
 import type { Crossing } from './crossings.js';
 import { fromWire, type Preset, type PresetSeat, type WirePreset } from './presets.js';
@@ -688,6 +689,8 @@ export function setChannel(
   channel: number | null,
   frequency: number
 ): Promise<WriteResult> {
+  const locked = raceLockReason(state.race.status);
+  if (locked) return Promise.resolve({ ok: false, message: locked });
   socket?.emit('set_frequency', { node: seat, band, channel, frequency });
   reloadAfter(() => loadData('frequency_data'));
   return awaitState(`Seat ${seat + 1} channel`, () => state.seats[seat]?.frequency === frequency);
@@ -707,6 +710,8 @@ export async function setLevels(seat: number, enter: number, exit: number): Prom
 
 /** Make a profile the active one; RotorHazard re-tunes every seat from it. */
 export function setProfile(id: number): Promise<WriteResult> {
+  const locked = raceLockReason(state.race.status);
+  if (locked) return Promise.resolve({ ok: false, message: locked });
   socket?.emit('set_profile', { profile: id });
   reloadAfter(() => loadData('node_tuning', 'frequency_data', 'enter_and_exit_at_levels'));
   return awaitState('Profile switch', () => state.profiles.currentId === id);
@@ -714,6 +719,8 @@ export function setProfile(id: number): Promise<WriteResult> {
 
 /** RotorHazard's "add" duplicates the active profile and switches to the copy. */
 export function addProfile(): Promise<WriteResult> {
+  const locked = raceLockReason(state.race.status);
+  if (locked) return Promise.resolve({ ok: false, message: locked });
   const before = state.profiles.list.length;
   socket?.emit('add_profile');
   reloadAfter(() => loadData('node_tuning'));
@@ -732,6 +739,8 @@ export function alterProfile(name: string, description: string): Promise<WriteRe
 
 /** Delete the active profile (RotorHazard falls back to its first one). */
 export function deleteProfile(): Promise<WriteResult> {
+  const locked = raceLockReason(state.race.status);
+  if (locked) return Promise.resolve({ ok: false, message: locked });
   const id = state.profiles.currentId;
   socket?.emit('delete_profile');
   reloadAfter(() => loadData('node_tuning', 'frequency_data', 'enter_and_exit_at_levels'));

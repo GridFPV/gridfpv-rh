@@ -18,7 +18,16 @@
   } from '../lib/rh.svelte.js';
   import type { Profiles } from '../lib/seats.js';
 
-  let { profiles, onresult }: { profiles: Profiles; onresult: (r: WriteResult) => void } = $props();
+  let {
+    profiles,
+    lockReason = null,
+    onresult
+  }: {
+    profiles: Profiles;
+    /** Set while a race is staged or running: New, Switch and Delete are refused with it (#87). */
+    lockReason?: string | null;
+    onresult: (r: WriteResult) => void;
+  } = $props();
 
   let busy = $state(false);
 
@@ -33,9 +42,13 @@
     }
   }
 
-  function onSwitch(e: Event) {
-    const id = Number((e.currentTarget as HTMLSelectElement).value);
-    if (id !== profiles.currentId) void run(() => setProfile(id));
+  async function onSwitch(e: Event) {
+    const el = e.currentTarget as HTMLSelectElement;
+    const id = Number(el.value);
+    if (id === profiles.currentId) return;
+    const r = await run(() => setProfile(id));
+    // Refused (race on) or unconfirmed: RotorHazard is still on the old profile; show it.
+    if (!r.ok) el.value = String(profiles.currentId ?? '');
   }
 
   // ---- edit (name / description) ----
@@ -153,6 +166,7 @@
       variant="secondary"
       disabled={busy}
       onclick={() => {
+        if (lockReason) return onresult({ ok: false, message: lockReason });
         newName = '';
         newOpen = true;
       }}
@@ -162,7 +176,8 @@
     <Button
       variant="danger"
       disabled={busy || profiles.list.length <= 1}
-      onclick={() => (confirmDelete = true)}
+      onclick={() =>
+        lockReason ? onresult({ ok: false, message: lockReason }) : (confirmDelete = true)}
     >
       Delete
     </Button>

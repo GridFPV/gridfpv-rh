@@ -168,3 +168,20 @@ with a few passes on seat 2 and save it.
 
 RotorHazard's Marshal and Results pages were not needed for any step except to agree: pass.
 
+
+## T5 — Seats, race-day safe
+
+A tuning session with RotorHazard's own Settings page opened only to agree. Numbers in
+brackets are the issues the step proves.
+
+Setup: the rig, one browser on `/grid/seats`; a second browser on RotorHazard's Settings
+page (Frequency Setup and Sensor Tuning panels open) only for the "agrees" checks. One
+pilot, Ace, on seat 1 (the seat with a real signal), a heat with Ace in it loaded on Run.
+
+1. [ ] **Race on.** Start the race from Run, come back to Seats: a banner says channel and
+       profile changes are refused until the race stops, every card says "Race on". Pick
+       another channel on seat 2, click New, pick another profile, click Delete: each is
+       refused with the reason and the controls snap back; RotorHazard's Frequency Setup
+       and profile dropdown are unchanged. Type a new enter/exit on seat 2: written, shown
+       on RotorHazard's Sensor Tuning. Stop and discard on Run: the banner goes, the same
+       channel change is confirmed and RotorHazard shows it (#87).
