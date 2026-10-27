@@ -16,7 +16,8 @@ import {
   roundColumns,
   seatChips,
   stageState,
-  nextUpText
+  nextUpText,
+  planClassWrites
 } from '../src/lib/stages.js';
 import {
   emptySetup,
@@ -133,6 +134,32 @@ describe('nextUpText: what RotorHazard loaded after a save', () => {
       'Next: Main A in Round 2 of Mains.'
     );
     expect(nextUpText(setup, 1, { heatId: 0, nextRound: 0 })).toMatch(/^Next: nothing loaded/);
+  });
+});
+
+describe("planClassWrites: RotorHazard's write order and the empty grouped stage", () => {
+  it('sends plain fields, then the round type, then the advance, each with its readback', () => {
+    const plan = planClassWrites(
+      { name: 'Mains', rounds: 2, roundType: 1, heatAdvanceType: 0 },
+      0,
+      2
+    );
+    expect(plan.refuse).toBeUndefined();
+    expect(plan.writes.map((w) => w.payload)).toEqual([
+      { class_name: 'Mains', rounds: 2 },
+      { round_type: 1 },
+      { heat_advance_type: 0 }
+    ]);
+    const c = { ...cls(2), name: 'Mains', roundType: 1, heatAdvanceType: 0 };
+    expect(plan.writes.every((w) => w.check(c))).toBe(true);
+    expect(plan.writes[2].check({ ...c, heatAdvanceType: 1 })).toBe(false);
+  });
+  it('refuses what RotorHazard 4.4.0 cannot take on an empty grouped stage', () => {
+    expect(planClassWrites({ roundType: 1 }, 0, 0).refuse).toMatch(/switch an empty stage/);
+    expect(planClassWrites({ rounds: 3 }, 1, 0).refuse).toMatch(/rounds on an empty grouped/);
+    expect(planClassWrites({ rounds: 3 }, 0, 0).refuse).toBeUndefined(); // races per heat
+    expect(planClassWrites({ heatAdvanceType: 0 }, 1, 0).refuse).toBeUndefined();
+    expect(planClassWrites({ roundType: 1 }, 1, 0).refuse).toBeUndefined(); // already grouped
   });
 });
 

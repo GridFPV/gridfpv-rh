@@ -169,6 +169,27 @@ def initialize(rhapi):
         except Exception as ex:  # noqa: BLE001
             nack("block_backups", ex)
 
+    # How many exceptions RotorHazard has logged since start (logger.exception anywhere, so
+    # catchLogExcWithDBWrapper's "Exception via ..." among them): a test can show that a write
+    # it made did not raise inside RotorHazard.
+    import logging
+
+    class _ExceptionCounter(logging.Handler):
+        def __init__(self):
+            super().__init__(level=logging.ERROR)
+            self.count = 0
+
+        def emit(self, record):
+            if record.exc_info:
+                self.count += 1
+
+    exceptions = _ExceptionCounter()
+    logging.getLogger().addHandler(exceptions)
+
+    def on_exceptions(_data=None):
+        ack("exceptions", count=exceptions.count)
+
+    rhapi.ui.socket_listen("gridfpv_mock_exceptions", on_exceptions)
     rhapi.ui.socket_listen("gridfpv_mock_block_backups", on_block_backups)
     rhapi.ui.socket_listen("gridfpv_mock_tune", on_tune)
     rhapi.ui.socket_listen("gridfpv_mock_set_rssi", on_set_rssi)

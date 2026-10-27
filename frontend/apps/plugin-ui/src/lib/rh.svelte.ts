@@ -57,7 +57,7 @@ import {
   type RaceStatus,
   type SyncSample
 } from './race.js';
-import { needsSeeding } from './stages.js';
+import { needsSeeding, planClassWrites } from './stages.js';
 import type { Timing } from './timing.js';
 import { applyDeletedRaces, type DeletedRace, type DeletedRacesPayload } from './rounds.js';
 import type { PointsMethod } from './points.js';
@@ -854,36 +854,34 @@ export type ClassFields = {
   attributes?: Record<string, string>;
 };
 
-export function alterClass(id: number, fields: ClassFields): Promise<WriteResult> {
-  for (const [name, value] of Object.entries(fields.attributes ?? {})) {
-    socket?.emit('alter_race_class', { class_id: id, class_attr: name, value });
+export async function alterClass(id: number, fields: ClassFields): Promise<WriteResult> {
+  const findClass = () => state.setup.classes.find((x) => x.id === id);
+  const current = findClass();
+  const heats = state.setup.heats.filter((h) => h.classId === id).length;
+  const plan = planClassWrites(fields, current?.roundType ?? ROUND_TYPE.RACES_PER_HEAT, heats);
+  if (plan.refuse) return { ok: false, message: plan.refuse };
+  const attributes = Object.entries(fields.attributes ?? {});
+  if (attributes.length) {
+    for (const [name, value] of attributes)
+      socket?.emit('alter_race_class', { class_id: id, class_attr: name, value });
+    reloadAfter(() => loadData('class_data'));
+    const r = await awaitState('Class', () => {
+      const c = findClass();
+      return c != null && attributes.every(([k, v]) => String(c.attributes[k] ?? '') === v);
+    });
+    if (!r.ok) return r;
   }
-  const payload: Record<string, unknown> = { class_id: id };
-  if (fields.name !== undefined) payload.class_name = fields.name;
-  if (fields.description !== undefined) payload.class_description = fields.description;
-  if (fields.formatId !== undefined) payload.class_format = fields.formatId;
-  if (fields.winCondition !== undefined) payload.win_condition = fields.winCondition;
-  if (fields.rounds !== undefined) payload.rounds = fields.rounds;
-  if (fields.heatAdvanceType !== undefined) payload.heat_advance_type = fields.heatAdvanceType;
-  if (fields.roundType !== undefined) payload.round_type = fields.roundType;
-  if (Object.keys(payload).length > 1) socket?.emit('alter_race_class', payload);
-  reloadAfter(() => loadData('class_data'));
-  return awaitState('Class', () => {
-    const c = state.setup.classes.find((x) => x.id === id);
-    if (!c) return false;
-    return (
-      Object.entries(fields.attributes ?? {}).every(
-        ([k, v]) => String(c.attributes[k] ?? '') === v
-      ) &&
-      (fields.name === undefined || c.name === fields.name) &&
-      (fields.description === undefined || c.description === fields.description) &&
-      (fields.formatId === undefined || c.formatId === fields.formatId) &&
-      (fields.winCondition === undefined || c.winCondition === fields.winCondition) &&
-      (fields.rounds === undefined || c.rounds === fields.rounds) &&
-      (fields.heatAdvanceType === undefined || c.heatAdvanceType === fields.heatAdvanceType) &&
-      (fields.roundType === undefined || c.roundType === fields.roundType)
-    );
-  });
+  // One write at a time, in RotorHazard's order, each read back before the next.
+  for (const w of plan.writes) {
+    socket?.emit('alter_race_class', { class_id: id, ...w.payload });
+    reloadAfter(() => loadData('class_data'));
+    const r = await awaitState('Class', () => {
+      const c = findClass();
+      return c != null && w.check(c);
+    });
+    if (!r.ok) return r;
+  }
+  return { ok: true };
 }
 
 /** A stage in one step: a class with its settings and, optionally, empty heats. */

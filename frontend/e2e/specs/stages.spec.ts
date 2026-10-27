@@ -338,6 +338,59 @@ test.describe('Stages', () => {
     expect(Number((await rig.classData()).find((c) => c.id === cls.id)?.round_type)).toBe(1);
   });
 
+  test("a grouped stage's settings are written in RotorHazard's order: it confirms each, no exception, advance as chosen", async ({
+    page,
+    rig
+  }) => {
+    test.setTimeout(90_000);
+    const before = await rig.exceptions();
+    await page.goto('/grid/stages');
+    await page.getByRole('button', { name: 'Add stage' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Name').fill('E2E Grouped Empty');
+    await dialog.getByLabel('Rounds', { exact: true }).fill('2');
+    await dialog.getByLabel('Heats').fill('0');
+    await page.getByText(/Grouped rounds/).click();
+    await page.getByRole('button', { name: 'Create' }).click();
+    await expect(page.getByRole('heading', { name: 'E2E Grouped Empty' })).toBeVisible();
+    const cls = (await rig.classes()).find((c) => c.name === 'E2E Grouped Empty')!;
+    const data = async () => (await rig.classData()).find((c) => c.id === cls.id)!;
+    // RotorHazard agrees: grouped, 2 rounds, and one heat (it cannot hold an empty grouped stage).
+    expect(Number((await data()).round_type)).toBe(1);
+    expect(Number((await data()).rounds)).toBe(2);
+    const heats = (await rig.heats()).filter((h) => h.class_id === cls.id);
+    expect(heats).toHaveLength(1);
+
+    // "After a race" → None, written on its own after the round type: it stays None.
+    const card = page.locator('.gf-card', { hasText: 'E2E Grouped Empty' }).first();
+    await card
+      .locator('label.field', { hasText: 'After a race' })
+      .locator('select')
+      .selectOption('0');
+    await expect(page.getByText('RotorHazard confirmed the change.')).toBeVisible();
+    expect(Number((await data()).heat_advance_type)).toBe(0);
+    expect(Number((await data()).round_type)).toBe(1);
+
+    // Rounds on the stage once its only heat is gone: refused up front, RotorHazard untouched.
+    await rig.deleteHeat(heats[0].heat_id);
+    await expect(card.getByText(/No heats/).first()).toBeVisible({ timeout: 15_000 });
+    const rounds = card.getByLabel('Rounds', { exact: true });
+    await rounds.fill('3');
+    await rounds.press('Tab');
+    await expect(page.getByText(/Add a heat first/)).toBeVisible();
+    expect(Number((await data()).rounds)).toBe(2);
+    // RotorHazard agrees: nothing it logged was an exception. The same write sent raw, past
+    // Grid's refusal, is the exception the counter exists for (RotorHazard 4.4.0's
+    // raceclass_prime_groups IndexError), so the oracle is shown to see one.
+    expect(await rig.exceptions()).toBe(before);
+    rig.emit('alter_race_class', { class_id: cls.id, rounds: 3 });
+    await rig.until(
+      'RotorHazard logged the exception',
+      async () => (await rig.exceptions()) > before
+    );
+    expect(Number((await data()).rounds)).toBe(2); // and dropped the write
+  });
+
   test('a refused delete says why at once: a race is on the timer (#53)', async ({
     page,
     rig,

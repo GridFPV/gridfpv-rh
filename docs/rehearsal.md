@@ -63,6 +63,11 @@ Grid), pilots added in Grid.
 12. [ ] **Help, offline**: with the laptop's internet off, open `/grid/help` and the ? on
         Event, Pilots, Teams, Formats and Stages: every page renders, the checklists too.
 
+13. [ ] **Grouped stage settings**: add a stage with Grouped rounds, 2 rounds and 0 heats: it
+        gets one heat (RotorHazard cannot hold an empty grouped stage). Set *After a race* to
+        None: RotorHazard confirms and keeps None. Delete that heat, then change Rounds: Grid
+        refuses with "Add a heat first…" and RotorHazard's log shows no exception.
+
 RotorHazard's Format page was not needed for any step: pass.
 
 ## T3 — Run, race-day complete

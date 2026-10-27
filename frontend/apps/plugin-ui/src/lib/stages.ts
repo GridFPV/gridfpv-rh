@@ -369,3 +369,82 @@ export function nextUpText(
   if (heat.id === lastHeatId) return `Next: ${heat.displayName} again, round ${round}${of}.`;
   return `Next: ${heat.displayName}, round ${round}${of}.`;
 }
+
+/** One alter_race_class write and what the readback must show afterwards. */
+export type ClassWrite = {
+  payload: Record<string, unknown>;
+  check: (c: RaceClass) => boolean;
+};
+export type ClassWriteFields = {
+  name?: string;
+  description?: string;
+  formatId?: number;
+  winCondition?: string;
+  rounds?: number;
+  heatAdvanceType?: number;
+  roundType?: number;
+};
+
+/**
+ * The writes for a class change, in RotorHazard's own order (what its Classes panel sends,
+ * one field per message): the plain fields together, then the round type, then the heat
+ * advance on its own, because RHData.alter_raceClass turns advance "none" into "next heat"
+ * when the round type becomes grouped. Two cases RotorHazard 4.4.0 cannot take are refused
+ * up front instead of raising in its log and timing out here: switching an empty stage to
+ * grouped rounds, and setting rounds on an empty grouped stage (raceclass_prime_groups,
+ * IndexError on group_heats[-1]).
+ */
+export function planClassWrites(
+  fields: ClassWriteFields,
+  currentRoundType: number,
+  heatCount: number
+): { refuse?: string; writes: ClassWrite[] } {
+  const roundType = fields.roundType ?? currentRoundType;
+  if (heatCount === 0 && roundType === ROUND_TYPE.GROUPED) {
+    if (fields.roundType !== undefined && fields.roundType !== currentRoundType)
+      return {
+        refuse: 'Add a heat first: RotorHazard cannot switch an empty stage to grouped rounds.',
+        writes: []
+      };
+    if (fields.rounds !== undefined)
+      return {
+        refuse: 'Add a heat first: RotorHazard cannot set rounds on an empty grouped stage.',
+        writes: []
+      };
+  }
+  const writes: ClassWrite[] = [];
+  const plain: Record<string, unknown> = {};
+  const checks: Array<(c: RaceClass) => boolean> = [];
+  if (fields.name !== undefined) {
+    plain.class_name = fields.name;
+    checks.push((c) => c.name === fields.name);
+  }
+  if (fields.description !== undefined) {
+    plain.class_description = fields.description;
+    checks.push((c) => c.description === fields.description);
+  }
+  if (fields.formatId !== undefined) {
+    plain.class_format = fields.formatId;
+    checks.push((c) => c.formatId === fields.formatId);
+  }
+  if (fields.winCondition !== undefined) {
+    plain.win_condition = fields.winCondition;
+    checks.push((c) => c.winCondition === fields.winCondition);
+  }
+  if (fields.rounds !== undefined) {
+    plain.rounds = fields.rounds;
+    checks.push((c) => c.rounds === fields.rounds);
+  }
+  if (checks.length) writes.push({ payload: plain, check: (c) => checks.every((k) => k(c)) });
+  if (fields.roundType !== undefined)
+    writes.push({
+      payload: { round_type: fields.roundType },
+      check: (c) => c.roundType === fields.roundType
+    });
+  if (fields.heatAdvanceType !== undefined)
+    writes.push({
+      payload: { heat_advance_type: fields.heatAdvanceType },
+      check: (c) => c.heatAdvanceType === fields.heatAdvanceType
+    });
+  return { writes };
+}

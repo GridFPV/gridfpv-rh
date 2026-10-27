@@ -712,6 +712,24 @@ export class Rig {
     if (ack.ok === false) throw new Error(`rig: block backups failed: ${ack.error}`);
   }
 
+  /** Exceptions RotorHazard has logged since it started (the mock plugin counts logger.exception). */
+  async exceptions(): Promise<number> {
+    const done = this.next<{ action?: string; ok?: boolean; count?: number; error?: string }>(
+      'gridfpv_mock_ack'
+    );
+    this.emit('gridfpv_mock_exceptions');
+    const ack = await done;
+    if (ack.ok === false) throw new Error(`rig: exceptions failed: ${ack.error}`);
+    return Number(ack.count ?? 0);
+  }
+
+  async deleteHeat(heatId: number): Promise<void> {
+    this.emit('delete_heat', { heat: heatId });
+    await this.until(`heat ${heatId} gone`, async () =>
+      (await this.heats()).every((h) => h.heat_id !== heatId)
+    );
+  }
+
   /** HTTP status of a JSON API path (RotorHazard answers 500 for a round that does not exist). */
   async apiStatus(path: string): Promise<number> {
     const res = await fetch(this.url + path, { headers: { Authorization: this.authHeader } });
