@@ -7,9 +7,20 @@ import type { Rig } from '../src/rig.js';
  * Audio cues (#38): QA's comparison harness, as the acceptance test. The page's Web Audio
  * and speech are stubbed into a ledger (src/audio-stub.js, from the QA worktree); one race
  * per fixture is driven through the rig exactly as when RotorHazard's own ledger was
- * recorded; ours must hold every tone (same Hz, type, duration, time within ±50 ms) and
- * every utterance (same text, within ±200 ms), and nothing extra. RotorHazard's own Run
- * page runs beside ours in the same browser and its live ledger is the agrees step.
+ * recorded. RotorHazard's own Run page runs beside ours in the same browser and its live
+ * ledger is the primary oracle: every cue of its must be ours (same Hz, type, duration, text;
+ * timer tones within ±50 ms, queued leader/winner tones ±150 ms, speech ±200 ms), nothing
+ * extra. The recorded fixture is the shape check: the clock-driven tones (staging, start,
+ * final seconds, expiry) must land within ±50 ms of the recording, and everything a server
+ * event causes (first-pass tones, lap callouts, leader and winner tones) must come in the
+ * recording's order with the recording's content. Those event-driven cues carry the rig's
+ * pass-delivery latency, the server's own processing and RotorHazard's 100 ms heartbeat
+ * phase, none of which the recording can pin from one run to the next (CI run 40468033240:
+ * 315 ms on a slow runner, with the live page in agreement).
+ *
+ * t = 0 in every ledger is RotorHazard's start tone (880 Hz, 700 ms), not the moment the
+ * test process received the RACING broadcast: that receipt is late by the runner's network
+ * and scheduling latency (51 ms in the same CI run), which the page's cues never see.
  */
 type Cue = {
   kind: 'tone' | 'speech' | 'mp3';
@@ -118,16 +129,28 @@ const fmt = (c: Cue) =>
     ? `${String(c.t).padStart(6)} tone ${c.frequency} Hz ${c.type} ${c.duration_ms ?? '?'} ms g=${c.gain}`
     : `${String(c.t).padStart(6)} say "${c.text}" r=${c.rate}`;
 
+/** RotorHazard's start (and expiry) tone: the clock's 880 Hz, 700 ms triangle. */
+const isStartTone = (c: Cue) =>
+  c.kind === 'tone' && c.frequency === 880 && c.type === 'triangle' && (c.duration_ms ?? 0) >= 600;
+/** Clock-driven: the 440 Hz staging/final-second ticks and the 880 Hz start/expiry tone. */
+const clockDriven = (c: Cue) =>
+  c.kind === 'tone' && c.type === 'triangle' && (c.frequency === 440 || c.frequency === 880);
+/** Re-zero a ledger on its first start tone (falls back to the given zero when there is none). */
+function anchored(cues: Cue[], fallback: number): Cue[] {
+  const start = [...cues].sort((a, b) => a.t - b.t).find(isStartTone);
+  const zero = start ? start.t : fallback;
+  return cues.map((c) => ({ ...c, t: Math.round(c.t - zero) }));
+}
+
 /** Match ours against the reference: every reference cue found within tolerance, nothing left over. */
 function compare(reference: Cue[], ours: Cue[]): string[] {
   const problems: string[] = [];
   const used = new Set<number>();
   for (const ref of reference) {
-    // Timer-anchored tones (staging, start, final seconds, expiry, first-pass) must land
-    // within ±50 ms. The leader and winner tones (1200/1800 Hz square) are played by
-    // RotorHazard from its speech queue, on the first heartbeat after the previous callout
-    // has ended, so their time carries one heartbeat of phase (≈100 ms) in RotorHazard's own
-    // page from run to run; they get ±150 ms. Speech ±200 ms.
+    // Clock-driven and first-pass tones must land within ±50 ms. The leader and winner tones
+    // (1200/1800 Hz square) are played by RotorHazard from its speech queue, on the first
+    // heartbeat after the previous callout has ended, so their time carries one heartbeat of
+    // phase (100 ms) in RotorHazard's own page from run to run; they get ±150 ms. Speech ±200 ms.
     const queued =
       ref.kind === 'tone' &&
       ref.type === 'square' &&
@@ -157,6 +180,30 @@ function compare(reference: Cue[], ours: Cue[]): string[] {
   ours.forEach((c, i) => {
     if (!used.has(i)) problems.push(`extra: ${fmt(c)}`);
   });
+  return problems;
+}
+
+/**
+ * Match ours against the recording: clock-driven tones by time (±50 ms), every other cue by
+ * order and content, in one sequence.
+ */
+function compareRecording(reference: Cue[], ours: Cue[]): string[] {
+  const problems = compare(reference.filter(clockDriven), ours.filter(clockDriven));
+  const byTime = (a: Cue, b: Cue) => a.t - b.t;
+  const refSeq = reference.filter((c) => !clockDriven(c)).sort(byTime);
+  const ourSeq = ours.filter((c) => !clockDriven(c)).sort(byTime);
+  for (let i = 0; i < Math.max(refSeq.length, ourSeq.length); i++) {
+    const ref = refSeq[i];
+    const c = ourSeq[i];
+    if (ref && c && same(ref, c)) {
+      if (ref.kind === 'tone' && Math.abs((c.duration_ms ?? 0) - (ref.duration_ms ?? 0)) > 50)
+        problems.push(`duration off: ${fmt(ref)} vs ${fmt(c)}`);
+      continue;
+    }
+    problems.push(
+      `sequence ${i + 1}: recording ${ref ? fmt(ref) : '(nothing)'}, ours ${c ? fmt(c) : '(nothing)'}`
+    );
+  }
   return problems;
 }
 
@@ -214,19 +261,22 @@ for (const fx of fixtures) {
     else await rig.stop();
     await new Promise((r) => setTimeout(r, 2500)); // let the speech queues drain
     const ledger = async (page: typeof ours.page) =>
-      ((await page.evaluate(() => (window as unknown as { __cues: Cue[] }).__cues)) ?? []).map(
-        (c) => ({
-          ...c,
-          t: Math.round(c.t - t0)
-        })
-      );
-    const oursCues = await ledger(ours.page);
-    const theirsCues = await ledger(theirs.page);
+      (await page.evaluate(() => (window as unknown as { __cues: Cue[] }).__cues)) ?? [];
+    const rawOurs = await ledger(ours.page);
+    const rawTheirs = await ledger(theirs.page);
     await rig.discard();
     await theirs.ctx.close();
     await ours.ctx.close();
 
-    const problems = compare(fx.rotorhazard_cues, oursCues);
+    // Both pages' ledgers share one clock; zero both on RotorHazard's own start tone.
+    const start = [...rawTheirs].sort((a, b) => a.t - b.t).find(isStartTone);
+    const zero = start ? start.t : t0;
+    const rezero = (cues: Cue[]) => cues.map((c) => ({ ...c, t: Math.round(c.t - zero) }));
+    const oursCues = rezero(rawOurs);
+    const theirsCues = rezero(rawTheirs);
+    const recording = anchored(fx.rotorhazard_cues, 0);
+
+    const problems = compareRecording(recording, oursCues);
     // RotorHazard agrees, live: its own page made the same cues in this run (same tolerance).
     const live = compare(theirsCues, oursCues);
     console.log(
