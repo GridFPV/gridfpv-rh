@@ -1,12 +1,15 @@
 # Run
 
 Race day in one screen. RotorHazard does the timing; this page drives it and shows what it
-sees, with sound, so its own Run page can stay closed.
+sees, with sound, so its own Run page can stay closed. Top to bottom: the heat on the
+timer, the race controls, the seat cards, the leaderboard and the last race.
 
 ## On the timer
 
 Pick the heat in the box at the top. The board on the Stages page says which heat is next,
 and the picker follows RotorHazard: after a save it moves to the heat RotorHazard loaded.
+Every heat is listed, as in RotorHazard's own picker; a grouped stage's raced heats say
+"(raced)" and can be loaded again.
 "Practice — no heat" times whoever is on a seat; RotorHazard never saves practice laps, so
 Save is greyed and Stop then Discard clears them.
 
@@ -45,7 +48,9 @@ the header picks the format RotorHazard times with. A stage with a format fixes 
 
 One card per seat with a frequency. During a race each shows the pilot's position (from
 RotorHazard's leaderboard), laps flown, last and best lap, "crossing" while the quad is
-over the gate and "finished" once the pilot is done. Every lap is a chip: click one to
+over the gate and "finished" once the pilot is done. "Best" is RotorHazard's fastest full
+lap for the seat (its current_laps marks it, skipping the first lap); its live leaderboard
+column may call a first lap Fastest, so the two can differ by design. Every lap is a chip: click one to
 delete it (RotorHazard renumbers the rest; it asks first), click a deleted one to restore
 it. **+ Lap** registers a pass on that seat now, exactly as RotorHazard's own + Lap button
 does, for a crossing the gate missed. **tune** opens that seat's tuning page.
@@ -82,6 +87,6 @@ Type a line under the sound row and press **Send message**: every connected page
 it, RotorHazard's own included, as RotorHazard's Send Message panel does. Tick **Pop-up
 alert** for one that stays until dismissed.
 
-A message sent from RotorHazard, or from here, shows as a banner. A plain one goes by itself after about
-8 seconds; one marked "interrupt" stays until you dismiss it. Either goes when another heat
-is picked or a new race is staged.
+A message sent from RotorHazard, or from here, shows as a banner. A plain one goes by
+itself after about 8 seconds; a pop-up alert stays until you dismiss it. Either goes when
+another heat is picked or a new race is staged.

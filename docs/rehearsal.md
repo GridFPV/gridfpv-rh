@@ -72,57 +72,60 @@ RotorHazard's Format page was not needed for any step: pass.
 
 ## T3 — Run, race-day complete
 
-A practice session with sound on and RotorHazard's own Run page closed. Items are added
-as they land; the full run-through (pick heat, stage, tones, laps called out, clock, stop,
-save, next heat as the board says) is written at the end of the tier.
+A practice session with sound on and RotorHazard's own Run page closed. Each step names
+what Grid shows and what RotorHazard (its API, or its own page opened only to check)
+agrees on. Numbers in brackets are the issues the step proves.
 
-- [ ] **Messages.** From a second browser on RotorHazard's Run page, send a plain message:
-      it shows on Grid's Run page and goes by itself after about 8 seconds. Send one with
-      "interrupt" ticked: it stays until you dismiss it or pick another heat (#71).
-- [ ] **Off seat.** Put a pilot on a seat whose frequency is Off (Seats page). Pick that
-      heat on Run: the header and the seat card both say the pilot will not be timed. Fix the
-      frequency or move the pilot; the warning goes (#70).
-- [ ] **Practice.** Pick "Practice — no heat". The header says RotorHazard does not save
-      practice laps and Save is greyed. Start, fly a lap or two, Stop, Discard (#50).
-- [ ] **Leaderboard.** While Ready there is no leaderboard card; once a race has laps the
-      card appears, listing seats that have a pilot or laps, never an empty seat by its
-      frequency (#47).
-- [ ] **Volume floor.** In RotorHazard's own Settings, drag the Tone volume slider to its
-      bottom (its stored value is 0.01 with float noise); reload Grid's Run page: no beeps at
-      all, the same as RotorHazard's page. Drag it up a notch: beeps again (#74).
-- [ ] **MP3 tones.** Tick "Use MP3 tones" in RotorHazard's Settings and reload Grid's Run
-      page: staging and final-second ticks are RotorHazard's stage.mp3, start and expiry its
-      buzzer.mp3, at the tone volume; the leader and winner cues are its leader.mp3 and
-      winner.mp3 (#75).
-- [ ] **Reload mid-race.** Start a race, reload Grid's Run page while it runs and click once:
-      the final-second ticks, the expiry tone and later lap callouts still come, and nothing
-      is replayed. Reload during staging: the start tone still comes (#73).
-- [ ] **Heat advance.** Save a race: the picker moves to the heat RotorHazard loaded and the
-      Last race card says "Next: …" (the same heat again, the next heat, the next grouped
-      round, or nothing). The Stages board marks the same race "next". Try a stage set to
-      Next heat and one set to Next round.
-- [ ] **Seat status.** While racing, each seat card shows position, lap count, last and best
-      lap, and "crossing" while the quad is over the gate; "finished" once the pilot is done.
-- [ ] **Manual lap.** While racing, press **+ Lap** on a seat card: a lap chip lands for that
-      seat, with the node tone if "beep on manual lap" is set in the audio settings;
-      RotorHazard's Marshal page shows the pass. **tune** on a card opens that seat's tuning.
-- [ ] **Race settings strip.** Under the heat picker: profile, minimum lap and short-lap rule,
-      and the format on the timer, as RotorHazard's Race Management panel shows them; the
-      links land on Seats, Event and Formats; **edit** opens the format dialog.
-- [ ] **Scheduled start.** In practice pick a format in the header's Race format box
-      (RotorHazard's Run page shows the same). Schedule 0:30, hear "Next race begins in
-      30 seconds", Cancel start; schedule 0:10, hear 10 and 5 seconds, and RotorHazard
-      stages the race by itself. Stop and Discard.
-- [ ] **Sound settings.** Open Sound settings… on Run: set Race clock to Never, tick Use MP3
-      tones, drop Tone volume to 0, Play the test line. Open RotorHazard's Run page in the
-      same browser: its Audio Control panel shows the same. Export, then Import the file;
-      Set audio settings to defaults; RotorHazard's panel agrees each time.
-- [ ] **Display and callouts.** In the same dialog tick Lap order reversed and Time since
-      start: after a race the chips come newest first with "@m:ss.sss"; RotorHazard's Run
-      page shows the same preferences ticked. Add a callout "Pilots to the line", press ▶:
-      every page speaks it; RotorHazard's Callouts panel lists it after a reload.
-- [ ] **Send message.** Type "Pilots to the line" and Send message: the banner shows here and
-      on RotorHazard's Run page; with Pop-up alert ticked it stays until dismissed on both.
+Setup: the rig (`make rig-up`, `make build`), one browser on `/grid/run`, speakers on; a
+second browser kept on RotorHazard's own Run page only for the "agrees" checks. Pilots
+Ace, Bee, Cal; a per-heat stage "Quali" (2 rounds, advance Next heat) with heats Q1 (Ace
+seat 2, Bee seat 3) and Q2 (Bee seat 2, Ace seat 3); a grouped stage "Mains" (2 rounds,
+advance Next round) with one heat.
+
+1. [ ] **Sound on.** Open `/grid/run`, click once: the banner goes. Open Sound settings…:
+       set Race clock to Always and Pilot lap time to Always, Play the test line (hear it),
+       Export, then Import the file, Set audio settings to defaults; RotorHazard's own Run
+       page (same browser) shows the same Audio Control panel values each time (#38).
+2. [ ] **Race settings strip.** Under the heat picker: profile, minimum lap and short-lap
+       rule, format on the timer; the links land on Seats, Event, Formats; **edit** opens
+       the format dialog (close it).
+3. [ ] **Practice.** With "Practice — no heat" the header says RotorHazard does not save
+       practice laps and Save is greyed; pick "First to 3 Laps" in the Race format box
+       (RotorHazard's page shows the same). Start, fly a lap, Stop, Discard (#50).
+4. [ ] **Off seat.** Put Cal on a seat whose frequency is Off (Seats page) in Q1: the header
+       and the seat card say Cal will not be timed; move Cal off the heat; the warning goes
+       (#70).
+5. [ ] **Pick Q1.** The picker loads it on RotorHazard; "Round 1 of 2 · Quali" in the
+       header; no Leaderboard card while Ready (#47).
+6. [ ] **Scheduled start.** Schedule 0:30: "Starts in 0:29", hear "Next race begins in 30
+       seconds"; Cancel start; RotorHazard's scheduled flag follows. Schedule 0:10: hear 10
+       and 5 seconds, RotorHazard stages the race by itself.
+7. [ ] **Tones and clock.** Staging tones, the start tone, the big clock counting as
+       RotorHazard's; laps called out as they land ("Ace, lap 1, …"); "10 seconds", the
+       final-second beeps, the expiry tone (#38, #72).
+8. [ ] **Seat status and manual lap.** During the race each card shows position, laps,
+       last and best, "crossing" over the gate; press **+ Lap** on Bee: a chip lands with
+       the node tone if "beep on manual lap" is set; click a lap chip to delete it, the
+       deleted chip to restore it (#49). Cal's card (if seated, no laps) shows "—" (#76).
+9. [ ] **Reload mid-race.** Reload the page while racing, click once: cues resume, nothing
+       replayed (#73).
+10. [ ] **Stop, Save, next heat.** Stop, Save: "Race saved."; the Last race card says
+        "Next: Q2, round 1 of 2." and the picker shows Q2; the Stages board marks Q2 next;
+        RotorHazard's current heat is Q2. Race Q2 and Save: "Next: Q1, round 2 of 2."
+11. [ ] **Grouped stage.** Pick the Mains heat (heat plan if seeded: Confirm, #69). Race and
+        Save: "Next: <heat> in Round 2 of Mains." and RotorHazard made the round-2 copy
+        (#58).
+12. [ ] **Messages.** Send "Pilots to the line": the banner shows here and on RotorHazard's
+        page and goes by itself after about 8 seconds; with Pop-up alert it stays until
+        dismissed on both; picking another heat clears it (#71).
+13. [ ] **Display and callouts.** Tick Lap order reversed and Time since start: chips newest
+        first with "@m:ss.sss"; add a callout and press ▶: every page speaks it;
+        RotorHazard's Callouts panel lists it.
+14. [ ] **Volume floor and MP3.** Tone volume to 0: no beeps at all; tick Use MP3 tones:
+        RotorHazard's stage.mp3 / buzzer.mp3 play instead (#74, #75). Set audio settings to
+        defaults.
+
+RotorHazard's Run page was not needed for any step except to agree: pass.
 
 ## T4 — Marshal and Results parity
 
