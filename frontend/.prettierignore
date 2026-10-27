@@ -5,3 +5,4 @@ package-lock.json
 test-results
 playwright-report
 e2e/rehearsal-out/
+e2e/fixtures/
