@@ -43,6 +43,15 @@ describe("result boards (RotorHazard's Results page as data)", () => {
     expect(bee.total).toBe('—');
     expect(bee.points).toBe('7');
     expect(b.byRaceTime[0].fastestSource).toBe('Heat 1 / Round 2');
+    // #83: RotorHazard appends the round only when truthy (a grouped heat's round is 0).
+    expect(
+      boardsOf({
+        ...lb('by_race_time'),
+        by_race_time: [
+          row('Ace', 1, { fastest_lap_source: { displayname: 'Round 2 / G1', round: 0 } })
+        ]
+      }).byRaceTime[0].fastestSource
+    ).toBe('Round 2 / G1');
     expect(b.byConsecutives[1].position).toBeNull();
   });
   it('groups heats under their classes with rounds in order, keeps unclassified heats and the event totals', () => {
@@ -71,8 +80,11 @@ describe("result boards (RotorHazard's Results page as data)", () => {
           name: 'Quali',
           leaderboard: lb('by_consecutives'),
           ranking: {
-            meta: { method_label: 'Best 3 Consecutive' },
-            ranking: [{ pilot_id: 3, callsign: 'Ace', position: 1 }]
+            meta: {
+              method_label: 'Best 3 Consecutive',
+              rank_fields: [{ name: 'heat', label: 'Heat' }]
+            },
+            ranking: [{ pilot_id: 3, callsign: 'Ace', position: 1, heat: 'Q2' }]
           }
         }
       },
@@ -83,7 +95,9 @@ describe("result boards (RotorHazard's Results page as data)", () => {
     ]);
     expect(r.classes[0].ranking).toEqual({
       methodLabel: 'Best 3 Consecutive',
-      rows: [{ pilot_id: 3, callsign: 'Ace', position: 1 }]
+      fields: [{ name: 'heat', label: 'Heat' }],
+      teamRacing: false,
+      rows: [{ pilot_id: 3, callsign: 'Ace', position: 1, heat: 'Q2', team: '' }]
     });
     expect(r.classes[0].heats[0].rounds.map((x) => x.round)).toEqual([1, 2]);
     expect(r.unclassified.map((h) => h.displayName)).toEqual(['Loose']);

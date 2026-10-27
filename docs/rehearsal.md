@@ -129,4 +129,42 @@ RotorHazard's Run page was not needed for any step except to agree: pass.
 
 ## T4 — Marshal and Results parity
 
-To be written when T4 starts.
+A marshalling session after a race, with RotorHazard's own Marshal and Results pages opened
+only to agree. Numbers in brackets are the issues the step proves.
+
+Setup: the rig, pilots Ace (seat 1, the seat with a real signal recording) and Bee (seat 2),
+a stage "Marshal" with heats M1 (Ace seat 1, Bee seat 2) and M2 (same seats); race M1 once
+with a few passes on seat 2 and save it.
+
+1. [ ] **Load the race.** Open `/grid/marshal`: the latest race is picked; choose Ace. The
+       trace shows the recording, the ticks the passes the timer recorded, the table the laps
+       to the millisecond with "timer" as their source.
+2. [ ] **Recalculate.** Type the same enter and exit into the boxes: the laps are found
+       again from the recording, now "recalc" (the count can differ from what the timer
+       scored live; that is RotorHazard's recalculation too). Raise enter above some
+       crossing peaks: those laps vanish; put it back. Lower exit below the dip between the
+       first two crossings: they merge into one; put it back. RotorHazard's Marshal page,
+       same thresholds, shows the same laps lap for lap at every step (#56).
+3. [ ] **Options.** On Event set Ignore crossings before to 5 s and Minimum lap to 2 s,
+       Discard; recalculate: the early and short laps are deleted here, while RotorHazard's
+       page (reading both as 0) deletes none. Save laps: RotorHazard's `/api/race` holds
+       what this page showed. Put the options back (#56).
+4. [ ] **Laps.** Click a lap to delete it, click again to restore it. Manual lap 7.5, Add
+       lap: a "manual" lap at 0:07.500 with the lap times re-measured. Delete one lap, Clean
+       deleted laps: it is gone from the list. Save laps: RotorHazard's saved race has the
+       manual lap at exactly 7500 with source manual and no flagged lap.
+5. [ ] **Thresholds.** Load from seat: the seat's enter/exit fill the boxes. Use these
+       thresholds on the seat: the Seats page shows them on seat 1.
+6. [ ] **Reassign.** Move to heat M2, Reassign: the race is listed under M2 (round 1) on the
+       Stages board and on RotorHazard's Results page; M1 has no round.
+7. [ ] **Results.** Open `/grid/results`: the stage's summary (race totals, fastest laps,
+       fastest consecutive laps), the heat summary and round 1 under M2, the event totals.
+       RotorHazard's Results page shows the same boards, cell for cell: rank, pilot, laps,
+       total, average, fastest, consecutives.
+8. [ ] **Stopped race.** On Run, pick M1 again, start, fly a few passes, stop (do not save);
+       on Marshal pick "Stopped race, not saved yet", delete a lap, Save laps; back on Run
+       the lap is gone before the race is saved. (RotorHazard offers this only for a heat,
+       never for a practice race; Grid says so.)
+
+RotorHazard's Marshal and Results pages were not needed for any step except to agree: pass.
+

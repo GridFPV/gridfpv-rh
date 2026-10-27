@@ -30,8 +30,15 @@
   {#each list as h (h.heatId)}
     <Collapsible title={h.displayName} open={false}>
       <section class="heat" aria-label={h.displayName}>
-        <h4>Heat summary</h4>
-        <LeaderboardTable rows={primaryRows(h.summary)} meta={h.summary.meta} kind="heat" starts />
+        {#if h.rounds.length > 1}
+          <h4>Heat summary</h4>
+          <LeaderboardTable
+            rows={primaryRows(h.summary)}
+            meta={h.summary.meta}
+            kind="heat"
+            starts
+          />
+        {/if}
         {#each h.rounds as r (r.round)}
           <h4 class="round">Round {r.round} <span class="muted">({r.startTime})</span></h4>
           <div data-round={r.round}>
@@ -56,22 +63,31 @@
     <Card title={c.name}>
       <section class="stage" aria-label={c.name}>
         {#if c.ranking}
-          <h3>Class summary <span class="muted">— {c.ranking.methodLabel}</span></h3>
-          <table class="ranking leaderboard">
-            <thead
-              ><tr><th class="pos"><span class="sr">Rank</span></th><th class="pilot">Pilot</th></tr
-              ></thead
-            >
+          <h3>Class ranking <span class="muted">— {c.ranking.methodLabel}</span></h3>
+          <table class="ranking leaderboard" aria-label="Class ranking">
+            <thead>
+              <tr>
+                <th class="pos"><span class="sr">Rank</span></th>
+                <th class="pilot">Pilot</th>
+                {#if c.ranking.teamRacing}<th class="team">Team</th>{/if}
+                {#each c.ranking.fields as f (f.name)}<th class={f.name}>{f.label}</th>{/each}
+              </tr>
+            </thead>
             <tbody>
-              {#each c.ranking.rows as r, i (i)}
-                <tr><td class="pos">{r.position ?? '—'}</td><td class="pilot">{r.callsign}</td></tr>
+              {#each c.ranking.rows as row, i (i)}
+                <tr>
+                  <td class="pos">{row.position ?? '—'}</td>
+                  <td class="pilot">{row.callsign}</td>
+                  {#if c.ranking.teamRacing}<td class="team">{row.team}</td>{/if}
+                  {#each c.ranking.fields as f (f.name)}<td class={f.name}>{row[f.name] ?? ''}</td
+                    >{/each}
+                </tr>
               {/each}
             </tbody>
           </table>
-        {:else}
-          <h3>Class summary</h3>
-          {@render three(c.summary, true)}
         {/if}
+        <h3>Class summary</h3>
+        {@render three(c.summary, true)}
         <h3>Heats</h3>
         {@render heats(c.heats)}
       </section>

@@ -20,7 +20,8 @@
     rh,
     setLevels,
     type WriteResult,
-    reassignRace
+    reassignRace,
+    refreshLevels
   } from '../lib/rh.svelte.js';
   import {
     lapTicks,
@@ -194,6 +195,29 @@
     exit = l.exit;
     laps = l.stored;
     dirty = false;
+    stale = null;
+  }
+  /**
+   * Another tab saved this race (#82): RotorHazard rebuilds results after every save and
+   * marshal commit, and the store counts those. With no edits here the race is loaded
+   * again; with edits, a notice says so and Save waits for a reload, so stale laps are
+   * never written back over the newer ones.
+   */
+  let stale: Date | null = $state(null);
+  let seenVersion = untrack(() => timer.resultsVersion);
+  $effect(() => {
+    const v = timer.resultsVersion;
+    if (v === seenVersion) return;
+    seenVersion = v;
+    untrack(() => {
+      if (busy || !loaded || loaded.kind !== 'saved') return; // our own save, or nothing loaded
+      if (dirty) stale = new Date();
+      else load();
+    });
+  });
+  function reloadRace() {
+    stale = null;
+    load();
   }
 
   const format = $derived.by(() => {
@@ -262,7 +286,11 @@
     dirty = true;
   }
   /** "Load from Node": the seat's current enter/exit become the marshal thresholds. */
-  function loadFromSeat() {
+  async function loadFromSeat() {
+    // RotorHazard does not broadcast a seat's threshold change to other pages, so ask for
+    // the levels afresh before copying them (a marshal may have retuned on Seats meanwhile).
+    const r = await run(() => refreshLevels(), '');
+    if (!r.ok) return;
     const seat = loaded ? timer.seats[loaded.node] : undefined;
     if (!seat || seat.enter == null || seat.exit == null) {
       notice = { tone: 'danger', text: 'This seat has no thresholds to load.' };
@@ -270,6 +298,12 @@
     }
     recalc(seat.enter, seat.exit);
     if (exit !== seat.exit) recalc(seat.enter, seat.exit);
+    notice = {
+      tone: 'success',
+      text: hasTrace
+        ? `Seat ${seat.index + 1}'s thresholds loaded and the laps recalculated.`
+        : `Seat ${seat.index + 1}'s thresholds loaded; no recording here, so the laps stay as they are.`
+    };
   }
   /** "Reassign Heat": move this saved race under another heat; RotorHazard keeps the round. */
   let reassignTo = $state('');
@@ -332,6 +366,7 @@
       'Laps saved; RotorHazard rebuilt the results.'
     );
     if (r.ok) {
+      seenVersion = timer.resultsVersion;
       dirty = false;
       loaded = { ...l, stored: laps, enter, exit };
       if (l.kind === 'current') void requestMarshalCurrent();
@@ -355,6 +390,12 @@
 <section class="page">
   {#if notice}
     <Banner tone={notice.tone} ondismiss={() => (notice = null)}>{notice.text}</Banner>
+  {/if}
+  {#if stale}
+    <Banner tone="warn"
+      >This race was saved elsewhere at {stale.toLocaleTimeString()}; reload before saving.
+      <button type="button" class="linkish" onclick={reloadRace}>Reload</button></Banner
+    >
   {/if}
   <Card>
     <div class="pickrow">
@@ -391,6 +432,12 @@
           {/if}
         </Select>
       </label>
+      {#if source === 'current' && !timer.race.heatId}
+        <span class="muted" role="note"
+          >RotorHazard offers a stopped race for marshalling only when a heat is loaded; a practice
+          race can be discarded, not marshalled.</span
+        >
+      {/if}
       {#if !raceList.length && !currentAvailable}
         <span class="muted"
           >No saved races yet. Race first on <a href={href('run')} onclick={link}>Run</a>.</span
@@ -535,7 +582,12 @@
           disabled={busy || (loaded.enter === enter && loaded.exit === exit)}
           onclick={applyToSeat}>Use these thresholds on the seat</Button
         >
-        <Button variant="primary" disabled={!dirty || busy} onclick={save}>Save laps</Button>
+        <Button
+          variant="primary"
+          disabled={!dirty || busy || stale != null}
+          title={stale ? 'Saved elsewhere since you loaded it: reload first' : undefined}
+          onclick={save}>Save laps</Button
+        >
       </div>
     </Card>
   {:else if loading}
@@ -544,6 +596,15 @@
 </section>
 
 <style>
+  .linkish {
+    background: none;
+    border: 0;
+    padding: 0 0 0 var(--gf-space-1);
+    color: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+    font: inherit;
+  }
   .tools {
     display: flex;
     flex-wrap: wrap;

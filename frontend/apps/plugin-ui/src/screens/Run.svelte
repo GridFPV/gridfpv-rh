@@ -106,8 +106,9 @@
     isAceStage(c) && !!stageTally(c as never, heatsInClass(setup, c.id), timer.results).ace;
   /**
    * Every heat of the stage, as RotorHazard's own picker lists them: a grouped stage's raced
-   * heats (RotorHazard deactivates them after their round) stay listed, marked "(raced)",
-   * so a director can load one again; only a decided Chase the Ace hides its heats.
+   * heats (RotorHazard deactivates them after their round and refuses to stage an inactive
+   * heat, #80) stay listed but disabled, with the reason; a decided Chase the Ace hides its
+   * heats.
    */
   const stageHeats = (classId: number) =>
     heatsInClass(setup, classId).filter(
@@ -439,8 +440,10 @@
               {@const hs = stageHeats(c.id)}
               {#if hs.length}
                 <optgroup label={c.displayName}>
-                  {#each hs as h (h.id)}<option value={String(h.id)}
-                      >{h.displayName}{h.active ? '' : ' (raced)'}</option
+                  {#each hs as h (h.id)}<option value={String(h.id)} disabled={!h.active}
+                      >{h.displayName}{h.active
+                        ? ''
+                        : ' — raced; RotorHazard keeps grouped heats inactive, re-fly it as a new round from the Stages board'}</option
                     >{/each}
                 </optgroup>
               {/if}

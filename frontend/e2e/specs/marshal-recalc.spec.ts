@@ -158,6 +158,8 @@ test("marshal recalculation: RotorHazard's page lap for lap where it is right, t
 }) => {
   test.setTimeout(420_000);
   // ---- one saved race with a real trace on seat 1 ----
+  // Seat 1's thresholds survive the rig's resets; pin them so the emulated signal crosses.
+  await rig.setSeatLevels(0, 90, 80);
   const ace = await rig.addPilot({ callsign: 'Ace' });
   const bee = await rig.addPilot({ callsign: 'Bee' });
   const std = (await rig.formats()).find((f) => /2:00 Standard/.test(f.name))!;

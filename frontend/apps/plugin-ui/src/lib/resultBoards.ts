@@ -47,7 +47,10 @@ export type Boards = {
 };
 export type RankingBoard = {
   methodLabel: string;
-  rows: Array<Raw & { position: number | null; callsign: string }>;
+  /** The method's own columns after rank and pilot (rotorhazard.js build_ranking), #84. */
+  fields: Array<{ name: string; label: string }>;
+  teamRacing: boolean;
+  rows: Array<Raw & { position: number | null; callsign: string; team: string }>;
 };
 export type RoundBoards = { round: number; startTime: string; boards: Boards };
 export type HeatBoards = {
@@ -77,7 +80,8 @@ function sourceText(v: unknown): string {
   const s = v as Raw | null | undefined;
   if (!s) return 'None';
   const name = str(s.displayname);
-  const round = s.round == null ? '' : `Round ${num(s.round)}`;
+  // RotorHazard appends the round only when it is truthy (#83); a grouped heat's round 0 is not.
+  const round = num(s.round) > 0 ? `Round ${num(s.round)}` : '';
   return [name, round].filter(Boolean).join(' / ');
 }
 function rowOf(r: Raw): BoardRow {
@@ -126,13 +130,24 @@ export function primaryRows(b: Boards): BoardRow[] {
 }
 function rankingOf(r: Raw | null | undefined): RankingBoard | null {
   if (!r) return null;
+  const meta = (r.meta as Raw | undefined) ?? {};
   const rows = ((r.ranking as Raw[] | undefined) ?? []).map((x) => ({
     ...x,
     position: x.position == null ? null : Number(x.position),
-    callsign: str(x.callsign)
+    callsign: str(x.callsign),
+    team: str(x.team_name)
   }));
   if (!rows.length) return null;
-  return { methodLabel: str((r.meta as Raw | undefined)?.method_label), rows };
+  const fields = ((meta.rank_fields as Raw[] | undefined) ?? []).map((f) => ({
+    name: str(f.name),
+    label: str(f.label)
+  }));
+  return {
+    methodLabel: str(meta.method_label),
+    fields,
+    teamRacing: num(meta.team_racing_mode) === 1,
+    rows
+  };
 }
 function heatOf(key: string, h: Raw): HeatBoards {
   const rounds = ((h.rounds as Raw[] | undefined) ?? []).map((r) => ({

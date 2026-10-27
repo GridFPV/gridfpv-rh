@@ -177,6 +177,8 @@ const state = $state({
   autoSeedReport: null as { confirmed: string[]; waiting: number; at: number } | null,
   autoSeeding: false,
   resultsVersion: 0,
+  /** Bumped on every enter_and_exit_at_levels answer, for a seat-threshold readback. */
+  levelsVersion: 0,
   liveVersion: 0
 });
 
@@ -390,6 +392,7 @@ export function connect(): Socket {
   });
   socket.on('enter_and_exit_at_levels', (p: Parameters<typeof applyLevels>[1]) => {
     state.seats = applyLevels(state.seats, p);
+    state.levelsVersion++;
     checkWaiters();
   });
   socket.on('heartbeat', (p: Parameters<typeof applyHeartbeat>[1]) => {
@@ -1709,6 +1712,13 @@ export function sendMessage(text: string, interrupt: boolean): Promise<WriteResu
     () =>
       state.message != null && state.message.text === text && state.message.interrupt === interrupt
   );
+}
+
+/** Ask RotorHazard for every seat's enter/exit again (it does not broadcast a change). */
+export function refreshLevels(): Promise<WriteResult> {
+  const before = state.levelsVersion;
+  loadData('enter_and_exit_at_levels');
+  return awaitState('Seat thresholds', () => state.levelsVersion > before);
 }
 
 /** RotorHazard's "Schedule Race": the timer stages the race itself in m:ss from now. */

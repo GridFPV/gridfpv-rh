@@ -233,7 +233,7 @@ test.describe('Run', () => {
     expect(await alert).toMatchObject({ message: 'Red flag', interrupt: true });
   });
 
-  test("a grouped stage's raced heat stays in the picker and can be loaded again", async ({
+  test("a grouped stage's raced heat is listed but not loadable: RotorHazard keeps it inactive (#80)", async ({
     page,
     rig
   }) => {
@@ -250,11 +250,12 @@ test.describe('Run', () => {
     expect((await rig.status()).current_heat).toBe(copy.heat_id);
     await page.goto('/grid/run');
     const picker = page.getByRole('combobox').first();
-    await expect(picker.locator('option', { hasText: 'Main A (raced)' })).toHaveCount(1);
-    await picker.selectOption(String(m1));
-    await expect(picker).toHaveValue(String(m1));
-    // RotorHazard agrees: the raced heat is the current one again, as from its own picker.
-    await rig.until('raced heat loaded', async () => (await rig.status()).current_heat === m1);
+    const raced = picker.locator(`option[value="${m1}"]`);
+    await expect(raced).toHaveCount(1);
+    await expect(raced).toBeDisabled();
+    await expect(raced).toHaveText(/Main A — raced; RotorHazard keeps grouped heats inactive/);
+    // RotorHazard agrees: it would refuse to stage an inactive heat; its current heat is unchanged.
+    expect((await rig.status()).current_heat).toBe(copy.heat_id);
   });
 
   test("RotorHazard's messages: a plain one fades after 8 s, an interrupt stays until dismissed or the heat changes (#71)", async ({

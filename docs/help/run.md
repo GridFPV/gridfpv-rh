@@ -8,8 +8,9 @@ timer, the race controls, the seat cards, the leaderboard and the last race.
 
 Pick the heat in the box at the top. The board on the Stages page says which heat is next,
 and the picker follows RotorHazard: after a save it moves to the heat RotorHazard loaded.
-Every heat is listed, as in RotorHazard's own picker; a grouped stage's raced heats say
-"(raced)" and can be loaded again.
+Every heat is listed, as in RotorHazard's own picker; a grouped stage's raced heats are
+greyed with the reason: RotorHazard keeps them inactive and will not stage one, so re-fly
+it as a new round from the Stages board.
 "Practice — no heat" times whoever is on a seat; RotorHazard never saves practice laps, so
 Save is greyed and Stop then Discard clears them.
 

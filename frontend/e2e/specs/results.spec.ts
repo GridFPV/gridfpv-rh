@@ -35,6 +35,8 @@ test("Results: a marshalled race shows on ours as on RotorHazard's Results page,
   rig
 }) => {
   test.setTimeout(180_000);
+  // Seat 1's thresholds survive the rig's resets; pin them so the emulated signal crosses.
+  await rig.setSeatLevels(0, 90, 80);
   const ace = await rig.addPilot({ callsign: 'Ace' });
   const bee = await rig.addPilot({ callsign: 'Bee' });
   const cls = await rig.addClass({ name: 'E2E Results', rounds: 2 });

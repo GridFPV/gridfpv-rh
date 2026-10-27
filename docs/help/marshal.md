@@ -35,5 +35,6 @@ the results and the Results and Stages pages follow. **Move to heat** with **Rea
 moves the whole saved race (its round and every pilot's run) under another heat, as
 RotorHazard's Reassign Heat does; a grouped stage's raced heats cannot take it.
 
-A race that was just stopped and not yet saved can be marshalled too: pick "the stopped
-race" at the top; saving replaces the laps on the timer before you save the race on Run.
+A race that was just stopped and not yet saved can be marshalled too: pick "Stopped race,
+not saved yet" at the top; saving replaces the laps on the timer before you save the race
+on Run. RotorHazard offers that only for a heat, not for a practice race.

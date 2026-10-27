@@ -32,6 +32,63 @@ test.describe('Marshal', () => {
     expect(seat?.laps.map((l) => l.deleted)).toEqual([false, true, false]);
   });
 
+  test("a second Marshal tab on the same race cannot write stale laps back after another tab's save (#82)", async ({
+    browser,
+    page,
+    rig
+  }) => {
+    test.setTimeout(90_000);
+    const ace = await rig.addPilot({ callsign: 'Ace' });
+    const heat = await rig.addHeat({ name: 'Heat A', pilots: [null, ace] });
+    await rig.setMinLap(1);
+    await rig.setHeat(heat);
+    await rig.start();
+    await rig.fly({ 1: [500, 2000, 3500, 5000] });
+    await rig.stop();
+    await rig.save();
+    const open = async (p: typeof page) => {
+      await p.goto('/grid/marshal');
+      const race = p.getByRole('combobox', { name: /^Race/ });
+      await expect(race.locator('option')).not.toHaveCount(0);
+      await race.selectOption({ index: 0 });
+      const who = p.getByRole('combobox', { name: /^Pilot/ });
+      await who.selectOption(
+        (await who.locator('option', { hasText: 'Ace' }).getAttribute('value')) ?? ''
+      );
+      const rows = p.locator('table.laps tbody tr', { has: p.locator('td:nth-child(5)') });
+      await expect(rows).toHaveCount(4);
+      return rows;
+    };
+    const other = await browser.newContext({
+      httpCredentials: { username: 'admin', password: 'rotorhazard' }
+    });
+    const b = await other.newPage();
+    const rowsA = await open(page);
+    const rowsB = await open(b);
+    // B edits (deletes lap 3) but does not save; A deletes lap 2 and saves.
+    await rowsB.nth(2).click();
+    await expect(rowsB.nth(2)).toHaveClass(/deleted/);
+    await rowsA.nth(1).click();
+    await page.getByRole('button', { name: 'Save laps' }).click();
+    await expect(page.getByText('Laps saved; RotorHazard rebuilt the results.')).toBeVisible();
+    // B: the notice, Save disabled; its stale edit cannot go back over A's.
+    await expect(b.getByText(/This race was saved elsewhere at/)).toBeVisible();
+    await expect(b.getByRole('button', { name: 'Save laps' })).toBeDisabled();
+    await b.getByRole('button', { name: 'Reload' }).click();
+    await expect(b.getByText(/saved elsewhere/)).toHaveCount(0);
+    await expect(rowsB.nth(1)).toHaveClass(/deleted/); // A's deletion
+    await expect(rowsB.nth(2)).not.toHaveClass(/deleted/); // B's unsaved edit is gone
+    await other.close();
+    // RotorHazard agrees: A's laps are the saved ones.
+    const saved = await rig.race(heat, 1);
+    expect(saved.nodes.find((n) => n.node_index === 1)?.laps.map((l) => l.deleted)).toEqual([
+      false,
+      true,
+      false,
+      false
+    ]);
+  });
+
   test("RotorHazard's marshal tools, ours: manual lap by time, clean deleted laps, load from seat, reassign heat", async ({
     page,
     rig,
