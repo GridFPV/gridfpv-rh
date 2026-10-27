@@ -4,6 +4,7 @@
    * words, Edit → dialog → Save, New (RotorHazard creates a format by copying one), Delete.
    * Formats persist across events; a class points at one.
    */
+  import HelpLink from '../components/HelpLink.svelte';
   import { Badge, Banner, Button, Card } from '@gridfpv/components';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import FormatDialog from '../components/FormatDialog.svelte';
@@ -100,6 +101,7 @@
   <header class="pagehead">
     <div>
       <h1>Race formats</h1>
+      <HelpLink page="formats" />
       <p class="lede">
         How one race is run: the clock, how the winner is decided, the start sequence. A class
         points at a format; formats carry over between events.

@@ -15,6 +15,8 @@
   import Marshal from './screens/Marshal.svelte';
   import Overlays from './screens/Overlays.svelte';
   import RaceOverlay from './screens/RaceOverlay.svelte';
+  import Help from './screens/Help.svelte';
+  import { SCREENS } from './lib/screens.js';
   import { parseOverlayRoute } from './lib/overlay.js';
 
   let { autoconnect = true }: { autoconnect?: boolean } = $props();
@@ -45,16 +47,8 @@
   const overlay = $derived(parseOverlayRoute(current));
   const tuneMatch = $derived(/^seats\/(\d+)$/.exec(current));
   const NAV = [
-    { path: '', label: 'Home' },
-    { path: 'event', label: 'Event' },
-    { path: 'seats', label: 'Seats' },
-    { path: 'pilots', label: 'Pilots' },
-    { path: 'teams', label: 'Teams' },
-    { path: 'stages', label: 'Stages' },
-    { path: 'formats', label: 'Formats' },
-    { path: 'run', label: 'Run' },
-    { path: 'marshal', label: 'Marshal' },
-    { path: 'overlays', label: 'Overlays' }
+    ...SCREENS.map(({ path, label }) => ({ path, label })),
+    { path: 'help', label: 'Help' }
   ];
   const active = (path: string) =>
     path === '' ? current === '' : current === path || current.startsWith(path + '/');
@@ -117,6 +111,8 @@
         <Marshal />
       {:else if current === 'overlays'}
         <Overlays />
+      {:else if current === 'help' || current.startsWith('help/')}
+        <Help slug={current.slice('help/'.length)} />
       {:else}
         <p class="muted">
           Nothing at <code>/grid/{current}</code>. <a href={href('')} onclick={link}>Home</a>.

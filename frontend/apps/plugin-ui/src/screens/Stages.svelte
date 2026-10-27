@@ -6,6 +6,7 @@
    * class settings above it (selects write on change with readback). Click a heat row to
    * seat it. "Add stage" creates a class and its heats from a template in one step.
    */
+  import HelpLink from '../components/HelpLink.svelte';
   import { Badge, Banner, Button, Card, Dialog, Input, Select } from '@gridfpv/components';
   import AddStageDialog from '../components/AddStageDialog.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
@@ -468,6 +469,7 @@
   <header class="pagehead">
     <div>
       <h1>Stages</h1>
+      <HelpLink page="stages" />
       <p class="lede">
         The day in order: each stage runs its heats for a number of rounds. Click a heat to seat it.
       </p>

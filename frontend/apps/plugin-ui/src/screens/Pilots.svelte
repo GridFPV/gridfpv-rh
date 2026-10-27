@@ -1,5 +1,6 @@
 <script lang="ts">
   /** Pilots (#9): the roster, with Edit → dialog → Save, New, and Delete. */
+  import HelpLink from '../components/HelpLink.svelte';
   import { Badge, Banner, Button, Card, Dialog } from '@gridfpv/components';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import PilotDialog from '../components/PilotDialog.svelte';
@@ -191,6 +192,7 @@
   <header class="pagehead">
     <div>
       <h1>Pilots</h1>
+      <HelpLink page="pilots" />
       <p class="lede">
         {pilots.length} pilot{pilots.length === 1 ? '' : 's'}. Callsign is what the announcer says.
         Teams are named on the <a href={href('teams')} onclick={link}>Teams</a> page.

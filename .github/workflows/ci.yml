@@ -23,6 +23,7 @@ jobs:
       - run: make lint
       - run: make check
       - run: make test
+      - run: make check-offline
       - run: make zip
       # The rule (#28): every control on RotorHazard's admin pages is classified in rh-coverage.tsv.
       - run: make coverage

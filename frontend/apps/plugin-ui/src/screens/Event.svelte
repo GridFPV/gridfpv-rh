@@ -6,6 +6,7 @@
    * classes, keep pilots unless told otherwise, and always keep formats, profiles, teams
    * and presets. Archives are RotorHazard's backup files, listed with restore and delete.
    */
+  import HelpLink from '../components/HelpLink.svelte';
   import { Badge, Banner, Button, Card, Dialog, Input, Select } from '@gridfpv/components';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import {
@@ -306,6 +307,7 @@
   <header class="pagehead">
     <div>
       <h1>{ev.name || 'Event'}</h1>
+      <HelpLink page="event" />
       {#if ev.description}<p class="lede">{ev.description}</p>{/if}
     </div>
     <div class="actions">

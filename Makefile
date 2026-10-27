@@ -20,7 +20,7 @@ RH_VERSION  ?= 4.4.0
 RH_SRC      := dev/rh-src/$(RH_VERSION)
 
 .PHONY: help setup build check lint format test py-test zip zip-overlay deploy deploy-overlay clean ci \
-        rig-up rig-down rig-restart rig-logs dev e2e e2e-install e2e-docker coverage coverage-scrape rig-main-up rig-main-down e2e-main
+        rig-up rig-down rig-restart rig-logs dev e2e e2e-install e2e-docker coverage coverage-scrape rig-main-up rig-main-down e2e-main check-offline
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
@@ -69,6 +69,9 @@ $(RH_SRC)/.ok: ## RotorHazard's source at the pinned tag (gitignored; for the co
 	rm -rf $(RH_SRC) && git clone --quiet --depth 1 --branch v$(RH_VERSION) https://github.com/RotorHazard/RotorHazard $(RH_SRC)
 	touch $@
 
+check-offline: build ## The built SPA loads nothing from the network (#41)
+	python3 -I dev/check_offline.py $(STATIC_DIR)
+
 coverage: $(RH_SRC)/.ok ## Check rh-coverage.tsv classifies every control on RotorHazard's admin pages (#28)
 	python3 -I dev/tests/test_rh_controls.py
 	python3 -I dev/rh_controls.py check $(RH_SRC) rh-coverage.tsv
@@ -98,7 +101,7 @@ zip-overlay: build ## Package the overlay-only RaceGOW plugin (same UI, branding
 	rm -rf $(DIST_DIR)/stage
 	@echo "packaged $(OVERLAY_ZIP):" && python3 -m zipfile -l $(OVERLAY_ZIP)
 
-ci: setup lint check test build zip zip-overlay coverage ## Everything CI runs without a rig (the rig jobs: `make rig-up e2e`, `make rig-main-up e2e-main`)
+ci: setup lint check test build check-offline zip zip-overlay coverage ## Everything CI runs without a rig (the rig jobs: `make rig-up e2e`, `make rig-main-up e2e-main`)
 
 clean: ## Remove build output, the venv and node_modules
 	rm -rf $(STATIC_DIR) $(DIST_DIR) $(VENV) frontend/node_modules frontend/*/*/node_modules frontend/*/*/dist

@@ -60,6 +60,9 @@ Grid), pilots added in Grid.
         RotorHazard's Format page, Data management, lists the archive, and its Classes and
         Heats panel is empty.
 
+12. [ ] **Help, offline**: with the laptop's internet off, open `/grid/help` and the ? on
+        Event, Pilots, Teams, Formats and Stages: every page renders, the checklists too.
+
 RotorHazard's Format page was not needed for any step: pass.
 
 ## T3 — Run, race-day complete

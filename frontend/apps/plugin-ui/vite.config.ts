@@ -14,6 +14,8 @@ export default defineConfig({
     emptyOutDir: true
   },
   server: {
+    // The help pages are docs/help/*.md at the repo root, outside this app (#41).
+    fs: { allow: [fileURLToPath(new URL('../../..', import.meta.url))] },
     // `make dev`: the page comes from Vite with hot reload, socket.io from the rig.
     proxy: {
       '/socket.io': { target: RH, ws: true, changeOrigin: true }

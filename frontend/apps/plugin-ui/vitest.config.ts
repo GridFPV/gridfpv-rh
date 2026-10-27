@@ -7,6 +7,8 @@ export default defineConfig({
   // Plain Svelte 5 + plain CSS: skip the preprocessor inside the Vitest worker (it trips on
   // a partial Vite environment). Production builds still preprocess via svelte.config.js.
   plugins: [svelte({ preprocess: [] }), svelteTesting()],
+  // The help pages are docs/help/*.md at the repo root, outside this app (#41).
+  server: { fs: { allow: [fileURLToPath(new URL('../../..', import.meta.url))] } },
   resolve: {
     // Tests run against the component library's source so they need no prior build.
     alias: {

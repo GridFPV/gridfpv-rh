@@ -1,5 +1,6 @@
 <script lang="ts">
   /** The Seats page: profile bar on top, one card per seat (#7). */
+  import HelpLink from '../components/HelpLink.svelte';
   import { Banner, Dialog } from '@gridfpv/components';
   import ChannelGrid from '../components/ChannelGrid.svelte';
   import ProfileBar from '../components/ProfileBar.svelte';
@@ -32,6 +33,7 @@
 <section class="page">
   <header class="pagehead">
     <h1>Seats</h1>
+    <HelpLink page="seats" />
     <p class="lede">
       Channels and thresholds for every seat in the active profile. Changes write straight to
       RotorHazard and are confirmed by reading them back.

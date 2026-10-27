@@ -5,6 +5,7 @@
    * list), so there is one value and both UIs agree. Rename moves the pilots; delete
    * leaves them with no team.
    */
+  import HelpLink from '../components/HelpLink.svelte';
   import { Badge, Banner, Button, Card, Dialog, Input } from '@gridfpv/components';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import { deleteTeam, rh, saveTeam, type Team, type WriteResult } from '../lib/rh.svelte.js';
@@ -150,6 +151,7 @@
   <header class="pagehead">
     <div>
       <h1>Teams</h1>
+      <HelpLink page="teams" />
       <p class="lede">
         Team names show up in RotorHazard too: its pilot page offers this list, and its results
         print the name.
