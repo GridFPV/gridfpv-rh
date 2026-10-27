@@ -67,9 +67,13 @@ RotorHazard's Format page was not needed for any step: pass.
 
 ## T3 — Run, race-day complete
 
-To be written when T3 starts: a practice session with sound on, RotorHazard's Run page
-closed: pick heat, stage, tones, laps called out, clock counts, stop, save, next heat
-offered as the board says.
+A practice session with sound on and RotorHazard's own Run page closed. Items are added
+as they land; the full run-through (pick heat, stage, tones, laps called out, clock, stop,
+save, next heat as the board says) is written at the end of the tier.
+
+- [ ] **Messages.** From a second browser on RotorHazard's Run page, send a plain message:
+      it shows on Grid's Run page and goes by itself after about 8 seconds. Send one with
+      "interrupt" ticked: it stays until you dismiss it or pick another heat (#71).
 
 ## T4 — Marshal and Results parity
 

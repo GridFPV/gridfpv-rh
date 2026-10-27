@@ -227,6 +227,29 @@
   // ---- RotorHazard's own messages ----
   const message = $derived(timer.message && now - 0 ? timer.message : null);
   let dismissedAt = $state(0);
+  // RotorHazard's own page fades its message popups: a plain message goes after 8 s; an
+  // interrupt stays until dismissed. Any message is about the heat it was sent during, so a
+  // new heat or a new staging clears it (#71).
+  $effect(() => {
+    const m = message;
+    if (!m || m.interrupt) return;
+    const id = window.setTimeout(() => (dismissedAt = Math.max(dismissedAt, m.at)), 8000);
+    return () => window.clearTimeout(id);
+  });
+  let messageHeat: number | undefined;
+  let messageStatus: number | undefined;
+  $effect(() => {
+    const heatNow = race.heatId;
+    const statusNow = status;
+    const heatChanged = messageHeat !== undefined && heatNow !== messageHeat;
+    const staged =
+      messageStatus !== undefined &&
+      statusNow === RACE_STATUS.STAGING &&
+      messageStatus !== RACE_STATUS.STAGING;
+    messageHeat = heatNow;
+    messageStatus = statusNow;
+    if (heatChanged || staged) dismissedAt = Date.now();
+  });
 </script>
 
 <section class="page">

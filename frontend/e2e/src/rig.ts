@@ -232,6 +232,13 @@ export class Rig {
     ).fdata;
   }
 
+  /** RotorHazard's "send message" (its Run page's Director tools): a `priority_message` broadcast. */
+  async sendMessage(message: string, interrupt = false): Promise<void> {
+    const seen = this.next<{ message: string }>('priority_message', 10_000);
+    this.emit('broadcast_message', { message, interrupt });
+    await seen;
+  }
+
   async options(): Promise<Record<string, string | null>> {
     return (await this.api<{ options: Record<string, string | null> }>('/api/options')).options;
   }

@@ -1,6 +1,32 @@
 import { expect, test } from '../src/fixtures.js';
 
 test.describe('Run', () => {
+  test("RotorHazard's messages: a plain one fades after 8 s, an interrupt stays until dismissed or the heat changes (#71)", async ({
+    page,
+    rig
+  }) => {
+    test.setTimeout(90_000);
+    await page.goto('/grid/run');
+    await expect(page.getByText('Practice: whoever is on a seat')).toBeVisible();
+    await rig.sendMessage('Pilots to the line');
+    const plain = page.getByText('Pilots to the line');
+    await expect(plain).toBeVisible();
+    await expect(plain).toBeHidden({ timeout: 12_000 });
+
+    await rig.sendMessage('Red flag', true);
+    const red = page.getByText('Red flag');
+    await expect(red).toBeVisible();
+    await page.waitForTimeout(9_000);
+    await expect(red).toBeVisible();
+    // A new heat is a new context: the message goes with the old one.
+    const ace = await rig.addPilot({ callsign: 'Ace' });
+    const heat = await rig.addHeat({ name: 'Heat M', pilots: [null, ace] });
+    await page.getByRole('combobox').first().selectOption(String(heat));
+    await expect(red).toBeHidden();
+    // RotorHazard agrees: the heat is loaded, and its message was the one we showed.
+    expect((await rig.status()).current_heat).toBe(heat);
+  });
+
   test("picking a seeded heat shows RotorHazard's heat plan; Confirm loads it (#69)", async ({
     page,
     rig,
