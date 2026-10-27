@@ -45,6 +45,21 @@
 
   const activePilots = $derived(setup.pilots.filter((p) => p.active).length);
 
+  /**
+   * A format that already ranks by consecutive laps needs no rank method: RotorHazard's
+   * default (the format's win condition) is the "fastest consecutive" ranking (#46, #66).
+   */
+  function rankFor(t: StageTemplate, f: { winCondition: number } | undefined): string {
+    if (t.id === 'qualifying' && f?.winCondition === WIN_CONDITION.FASTEST_CONSECUTIVE) return '';
+    return rankMethods.some((m) => m.name === t.rank) ? t.rank : '';
+  }
+  /** Changing the format re-derives the ranking the template would pick for it. */
+  function onFormatChange() {
+    rank = rankFor(
+      template,
+      setup.formats.find((x) => String(x.id) === formatId)
+    );
+  }
   function pick(t: StageTemplate) {
     template = t;
     name = t.id === 'blank' ? '' : t.label;
@@ -52,14 +67,7 @@
     formatId = f ? String(f.id) : '';
     unlimited = t.rounds === 0;
     rounds = String(t.rounds || 3);
-    // A format that already ranks by consecutive laps needs no rank method: RotorHazard's
-    // default (the format's win condition) is the "fastest consecutive" ranking (#46).
-    rank =
-      t.id === 'qualifying' && f?.winCondition === WIN_CONDITION.FASTEST_CONSECUTIVE
-        ? ''
-        : rankMethods.some((m) => m.name === t.rank)
-          ? t.rank
-          : '';
+    rank = rankFor(t, f);
     heats = String(t.heats === 'pilots' ? heatsForPilots(activePilots, seatCount) : t.heats);
     grouped = t.grouped;
   }
@@ -133,7 +141,7 @@
       >
       <label class="field grow">
         <span>Format</span>
-        <Select bind:value={formatId}>
+        <Select bind:value={formatId} onchange={onFormatChange}>
           {#each setup.formats as f (f.id)}<option value={String(f.id)}>{f.name}</option>{/each}
         </Select>
       </label>

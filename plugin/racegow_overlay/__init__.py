@@ -17,7 +17,7 @@ from flask import Blueprint, abort, redirect, send_from_directory
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_VERSION = "0.3.3"
+PLUGIN_VERSION = "0.4.0"
 URL_PREFIX = "/grid"
 OVERLAY_PATH = URL_PREFIX + "/live/race"
 HERE = os.path.dirname(os.path.abspath(__file__))

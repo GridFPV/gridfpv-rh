@@ -111,6 +111,21 @@
     line-height: 1.5;
     max-width: 70ch;
   }
+  .doc :global(ul.checklist) {
+    list-style: none;
+    padding-left: 0;
+  }
+  .doc :global(ul.checklist li) {
+    display: flex;
+    gap: var(--gf-space-2);
+    align-items: baseline;
+    margin: var(--gf-space-1) 0;
+  }
+  .doc :global(ul.checklist .num) {
+    color: var(--gf-text-muted);
+    min-width: 2.2em;
+    font-variant-numeric: tabular-nums;
+  }
   .doc :global(code) {
     font-family: var(--gf-font-mono, monospace);
     background: var(--gf-surface-sunken);

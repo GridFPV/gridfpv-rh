@@ -175,7 +175,13 @@ export class Rig {
   // ---- readback -----------------------------------------------------------------------
 
   async api<T>(path: string): Promise<T> {
-    const res = await fetch(this.url + path, { headers: { Authorization: this.authHeader } });
+    // RotorHazard answers 500 for a moment while it rebuilds results after a change or a
+    // restart (calc_leaderboard in flight); ask again before giving up.
+    let res = await fetch(this.url + path, { headers: { Authorization: this.authHeader } });
+    for (let attempt = 0; res.status >= 500 && attempt < 8; attempt++) {
+      await sleep(500);
+      res = await fetch(this.url + path, { headers: { Authorization: this.authHeader } });
+    }
     if (!res.ok && res.status !== 201) throw new Error(`rig: ${path} → ${res.status}`);
     return (await res.json()) as T;
   }

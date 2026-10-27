@@ -3,7 +3,7 @@
  * docs/rehearsal.md, bundled at build time so the same text reads on GitHub and on the
  * timer, with nothing fetched at runtime.
  */
-import { titleOf } from './markdown.js';
+import { checklistSections, titleOf } from './markdown.js';
 import { SCREENS } from './screens.js';
 
 const pages = import.meta.glob('../../../../../docs/help/*.md', {
@@ -40,7 +40,9 @@ export const HELP_PAGES: HelpPage[] = Object.entries(pages)
 export const CHECKLISTS: HelpPage = {
   slug: 'checklists',
   title: 'Race-day checklists',
-  markdown: Object.values(checklists)[0] ?? '# Race-day checklists\n\nNot bundled.'
+  markdown: checklistSections(
+    Object.values(checklists)[0] ?? '# Race-day checklists\n\nNot bundled.'
+  )
 };
 
 export function helpPage(slug: string): HelpPage | undefined {

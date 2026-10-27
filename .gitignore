@@ -27,3 +27,4 @@ __pycache__/
 
 # RotorHazard source at the pinned tag, fetched by `make coverage`
 /dev/rh-src/
+/frontend/e2e/rehearsal-out/

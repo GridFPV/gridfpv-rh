@@ -287,8 +287,9 @@ export const STAGE_TEMPLATES: StageTemplate[] = [
   {
     id: 'qualifying',
     label: 'Qualifying',
-    description: 'Every heat flies the same number of rounds; ranked by best rounds.',
-    formatMatch: /standard/i,
+    description:
+      'Every heat flies the same number of rounds; ranked by the format (fastest consecutive laps).',
+    formatMatch: /consecutive|qualif/i,
     rounds: 3,
     rank: 'Laps_Time__Best_X_Rounds',
     heats: 'pilots',

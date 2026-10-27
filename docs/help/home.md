@@ -21,5 +21,6 @@ with no internet at the field.
 ## RotorHazard agrees
 
 RotorHazard's own pages (Format, Run, Marshal, Results) stay reachable at their usual
-addresses and always show what GridFPV wrote. If a page here cannot set something
-RotorHazard can, it says so and links there.
+addresses and always show what GridFPV wrote. Settings GridFPV does not cover yet (its
+advanced settings, LEDs, plugins, audio) are still set on RotorHazard's own pages; they
+come to GridFPV tier by tier.

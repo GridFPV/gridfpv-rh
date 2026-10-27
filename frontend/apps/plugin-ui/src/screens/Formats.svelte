@@ -100,8 +100,7 @@
 <section class="page">
   <header class="pagehead">
     <div>
-      <h1>Race formats</h1>
-      <HelpLink page="formats" />
+      <h1>Race formats<HelpLink page="formats" /></h1>
       <p class="lede">
         How one race is run: the clock, how the winner is decided, the start sequence. A class
         points at a format; formats carry over between events.

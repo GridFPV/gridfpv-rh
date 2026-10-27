@@ -306,8 +306,7 @@
 <section class="page">
   <header class="pagehead">
     <div>
-      <h1>{ev.name || 'Event'}</h1>
-      <HelpLink page="event" />
+      <h1>{ev.name || 'Event'}<HelpLink page="event" /></h1>
       {#if ev.description}<p class="lede">{ev.description}</p>{/if}
     </div>
     <div class="actions">

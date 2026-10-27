@@ -101,7 +101,9 @@ export type Capture = CaptureSummary & {
 
 export type WriteResult = { ok: boolean; message?: string };
 
-const READBACK_MS = 2500;
+// RotorHazard re-emits whole tables (pilot_data, heat_data) after a write and gets slower as
+// the event grows; a readback that takes a few seconds is still a readback.
+const READBACK_MS = 6000;
 
 let socket: Socket | null = null;
 

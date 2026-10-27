@@ -57,8 +57,8 @@ Grid), pilots added in Grid.
         Edit dialog refuses the "/" and says why; use "Club Night 10-27". Archive and start a
         new event from Grid; the banner names the archive file; pilots survive: *Add from
         roster* on the Pilots page offers every pilot from earlier events, ticked;
-        RotorHazard's Format page, Data management, lists the archive, and its Classes and
-        Heats panel is empty.
+        RotorHazard's `list_backups` answer (the rig helper, or its Format page after a
+        reload) lists the archive, and its Classes and Heats panel is empty.
 
 12. [ ] **Help, offline**: with the laptop's internet off, open `/grid/help` and the ? on
         Event, Pilots, Teams, Formats and Stages: every page renders, the checklists too.

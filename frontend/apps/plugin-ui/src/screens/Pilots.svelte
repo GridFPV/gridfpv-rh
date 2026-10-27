@@ -191,8 +191,7 @@
 <section class="page">
   <header class="pagehead">
     <div>
-      <h1>Pilots</h1>
-      <HelpLink page="pilots" />
+      <h1>Pilots<HelpLink page="pilots" /></h1>
       <p class="lede">
         {pilots.length} pilot{pilots.length === 1 ? '' : 's'}. Callsign is what the announcer says.
         Teams are named on the <a href={href('teams')} onclick={link}>Teams</a> page.

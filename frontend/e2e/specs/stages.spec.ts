@@ -17,10 +17,19 @@ test.describe('Stages', () => {
     await page.getByRole('button', { name: 'Create' }).click();
 
     await expect(page.getByRole('heading', { name: 'E2E Qualifying' })).toBeVisible();
-    // The empty ranking choice says what RotorHazard does with it (#46).
+    // The empty ranking choice says what RotorHazard does with it (#46), and the Qualifying
+    // template leaves it there when its format ranks by consecutive laps (#66).
     await expect(page.getByLabel('Ranked by').locator('option').first()).toHaveText(
       /^By the format's win condition \(/
     );
+    const qual = (await rig.classes()).find((c) => c.name === 'E2E Qualifying') as {
+      format_id?: number;
+      win_condition?: string;
+    };
+    const qualFormat = (await rig.formats()).find((f) => f.id === qual.format_id) as {
+      win_condition?: number;
+    };
+    if (qualFormat?.win_condition === 4) expect(qual.win_condition ?? '').toBe('');
     const rows = page.locator('tr.heat');
     await expect(rows).toHaveCount(2);
 

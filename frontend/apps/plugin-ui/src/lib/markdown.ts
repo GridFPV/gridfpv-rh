@@ -26,18 +26,40 @@ export function inline(text: string): string {
   return t;
 }
 
+/** The checkbox and number were built here (safe); the rest of the item is Markdown text. */
+function inlineKeepingCheckbox(item: string): string {
+  const m =
+    /^(<input type="checkbox" disabled(?: checked)? \/> <span class="num">[^<]*<\/span> )([\s\S]*)$/.exec(
+      item
+    );
+  return m ? m[1] + inline(m[2]) : inline(item);
+}
+
+/**
+ * Only the sections of a document that hold checklist items (a tier with no checklist yet,
+ * or "no rehearsal", is left out), keeping the intro before the first section.
+ */
+export function checklistSections(src: string): string {
+  const parts = src.replace(/\r\n?/g, '\n').split(/^(?=## )/m);
+  return parts.filter((part, i) => i === 0 || /^\s*\d+[a-z]?\.\s+\[( |x|X)\]/m.test(part)).join('');
+}
+
 export function renderMarkdown(src: string): string {
   const lines = src.replace(/\r\n?/g, '\n').split('\n');
   const out: string[] = [];
   let para: string[] = [];
-  let list: { kind: 'ul' | 'ol'; items: string[] } | null = null;
+  let list: { kind: 'ul' | 'ol' | 'checklist'; items: string[] } | null = null;
 
   const flushPara = () => {
     if (para.length) out.push(`<p>${inline(para.join(' '))}</p>`);
     para = [];
   };
   const flushList = () => {
-    if (list)
+    if (list?.kind === 'checklist')
+      out.push(
+        `<ul class="checklist">${list.items.map((i) => `<li>${inlineKeepingCheckbox(i)}</li>`).join('')}</ul>`
+      );
+    else if (list)
       out.push(
         `<${list.kind}>${list.items.map((i) => `<li>${inline(i)}</li>`).join('')}</${list.kind}>`
       );
@@ -51,6 +73,20 @@ export function renderMarkdown(src: string): string {
       flushPara();
       flushList();
       out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`);
+      continue;
+    }
+    // A checklist item keeps its own number (8b stays 8b) and renders a real checkbox.
+    const check = /^\s*(\d+[a-z]?)\.\s+\[( |x|X)\]\s+(.*)$/.exec(line);
+    if (check) {
+      flushPara();
+      if (!list || list.kind !== 'checklist') {
+        flushList();
+        list = { kind: 'checklist', items: [] };
+      }
+      const done = check[2] !== ' ';
+      list.items.push(
+        `<input type="checkbox" disabled${done ? ' checked' : ''} /> <span class="num">${check[1]}.</span> ${check[3]}`
+      );
       continue;
     }
     const li = /^\s*(?:[-*]|(\d+)\.)\s+(.*)$/.exec(line);
