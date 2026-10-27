@@ -60,3 +60,13 @@ html[data-overlay] body {
 html[data-overlay] body::before {
   display: none;
 }
+
+/* A page title with its help link beside it (#41). */
+.titleline {
+  display: flex;
+  align-items: center;
+  gap: var(--gf-space-2);
+}
+.titleline h1 {
+  margin-bottom: 0;
+}

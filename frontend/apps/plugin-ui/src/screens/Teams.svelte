@@ -150,7 +150,10 @@
 <section class="page">
   <header class="pagehead">
     <div>
-      <h1>Teams<HelpLink page="teams" /></h1>
+      <div class="titleline">
+        <h1>Teams</h1>
+        <HelpLink page="teams" />
+      </div>
       <p class="lede">
         Team names show up in RotorHazard too: its pilot page offers this list, and its results
         print the name.

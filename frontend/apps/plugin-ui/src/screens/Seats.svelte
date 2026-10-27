@@ -32,7 +32,10 @@
 
 <section class="page">
   <header class="pagehead">
-    <h1>Seats<HelpLink page="seats" /></h1>
+    <div class="titleline">
+      <h1>Seats</h1>
+      <HelpLink page="seats" />
+    </div>
     <p class="lede">
       Channels and thresholds for every seat in the active profile. Changes write straight to
       RotorHazard and are confirmed by reading them back.

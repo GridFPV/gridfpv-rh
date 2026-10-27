@@ -468,7 +468,10 @@
 <section class="page">
   <header class="pagehead">
     <div>
-      <h1>Stages<HelpLink page="stages" /></h1>
+      <div class="titleline">
+        <h1>Stages</h1>
+        <HelpLink page="stages" />
+      </div>
       <p class="lede">
         The day in order: each stage runs its heats for a number of rounds. Click a heat to seat it.
       </p>
