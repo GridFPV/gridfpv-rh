@@ -150,6 +150,8 @@ const state = $state({
   sync: { samples: [] as SyncSample[], differential: null as number | null },
   /** RotorHazard's last broadcast message (priority_message). */
   message: null as { text: string; interrupt: boolean; at: number } | null,
+  /** RotorHazard's phrase languages (`language` event), for the audio settings' voice language. */
+  languages: [] as Array<{ id: string; name: string }>,
   /** RotorHazard's scheduled start (race_scheduled): `at` is its monotonic clock, seconds. */
   schedule: { scheduled: false, at: null as number | null },
   lastSaved: null as { raceId: number; heatId: number; classId: number; at: number } | null,
@@ -293,6 +295,7 @@ function loadData(...types: string[]) {
 /** After a reset or restore every list may have changed; ask for all of it again. */
 function reloadEverything() {
   socket?.emit('get_race_scheduled');
+  loadData('language');
   loadData(
     'frequency_data',
     'enter_and_exit_at_levels',
@@ -513,6 +516,9 @@ export function connect(): Socket {
   });
   socket.on('clear_priority_messages', () => {
     state.message = null;
+  });
+  socket.on('language', (p: { languages?: Array<{ id: string; name: string }> }) => {
+    state.languages = (p.languages ?? []).map((l) => ({ id: String(l.id), name: String(l.name) }));
   });
   socket.on('race_scheduled', (p: { scheduled?: boolean; scheduled_at?: number | null }) => {
     state.schedule = {

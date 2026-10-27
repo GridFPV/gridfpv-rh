@@ -93,6 +93,69 @@ test.describe('Run', () => {
     await rig.discard();
   });
 
+  test("Sound settings written here are what RotorHazard's own Run page reads (same rotorhazard.* keys)", async ({
+    page,
+    rig
+  }) => {
+    test.setTimeout(90_000);
+    await page.goto('/grid/run');
+    await page.getByRole('button', { name: 'Sound settings…' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('heading', { name: 'Sound settings' })).toBeVisible();
+    const field = (key: string) => dialog.locator(`[data-key="${key}"]`).locator('select, input');
+    await field('voice_race_timer').selectOption('0');
+    await field('use_mp3_tones').check();
+    await field('tone_volume').fill('0');
+    await field('voice_rate').fill('1.5');
+    // Export: RotorHazard's own file format.
+    const download = page.waitForEvent('download');
+    await dialog.getByRole('button', { name: 'Export audio settings' }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(/^rhAudioSettings_\d{8}_\d{6}\.cfg$/);
+    const text = await (await import('node:fs/promises')).readFile(await file.path(), 'utf8');
+    expect(text).toContain('rotorhazard.voice_race_timer=0');
+    expect(text).toContain('rotorhazard.use_mp3_tones=true');
+    expect(text).toContain('rotorhazard.voice_rate=1.5');
+    // Import: a file in that format changes the settings; unknown keys are reported.
+    await dialog.getByLabel('Audio settings file to import').setInputFiles({
+      name: 'in.cfg',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('# test\nrotorhazard.voice_pitch=0.8\nrotorhazard.nope=1\n')
+    });
+    await dialog.getByRole('button', { name: 'Import audio settings' }).click();
+    await expect(
+      page.getByText('Imported 1 audio setting. Ignored: rotorhazard.nope.')
+    ).toBeVisible();
+    await expect(field('voice_pitch')).toHaveValue('0.8');
+    await page.keyboard.press('Escape');
+
+    // RotorHazard agrees: its own Run page, in this browser, reads the same settings.
+    const rhSetting = async (key: string) => {
+      const theirs = await page.context().newPage();
+      await theirs.goto(rig.url + '/run');
+      await theirs.waitForTimeout(1500);
+      const v = await theirs.evaluate(
+        (k) => (window as unknown as { rotorhazard: Record<string, unknown> }).rotorhazard[k],
+        key
+      );
+      await theirs.close();
+      return v;
+    };
+    expect(await rhSetting('voice_race_timer')).toBe(0);
+    expect(await rhSetting('use_mp3_tones')).toBe(true);
+    expect(Number(await rhSetting('tone_volume'))).toBeCloseTo(0.01, 6);
+    expect(await rhSetting('voice_rate')).toBe(1.5);
+    expect(await rhSetting('voice_pitch')).toBe(0.8);
+
+    // Defaults: back to RotorHazard's, on its page too.
+    await page.getByRole('button', { name: 'Sound settings…' }).click();
+    await dialog.getByRole('button', { name: 'Set audio settings to defaults' }).click();
+    await dialog.getByRole('button', { name: 'Reset' }).click();
+    await expect(page.getByText('Audio settings back to RotorHazard defaults.')).toBeVisible();
+    await expect(field('voice_race_timer')).toHaveValue('2');
+    expect(await rhSetting('voice_rate')).toBe(1.25);
+  });
+
   test("RotorHazard's messages: a plain one fades after 8 s, an interrupt stays until dismissed or the heat changes (#71)", async ({
     page,
     rig

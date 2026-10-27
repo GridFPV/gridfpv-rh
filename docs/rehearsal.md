@@ -113,6 +113,10 @@ save, next heat as the board says) is written at the end of the tier.
       (RotorHazard's Run page shows the same). Schedule 0:30, hear "Next race begins in
       30 seconds", Cancel start; schedule 0:10, hear 10 and 5 seconds, and RotorHazard
       stages the race by itself. Stop and Discard.
+- [ ] **Sound settings.** Open Sound settings… on Run: set Race clock to Never, tick Use MP3
+      tones, drop Tone volume to 0, Play the test line. Open RotorHazard's Run page in the
+      same browser: its Audio Control panel shows the same. Export, then Import the file;
+      Set audio settings to defaults; RotorHazard's panel agrees each time.
 
 ## T4 — Marshal and Results parity
 

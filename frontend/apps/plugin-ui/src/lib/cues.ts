@@ -278,6 +278,10 @@ export class CueEngine {
   unlock() {
     this.doSpeak(' ');
   }
+  /** settings.html's voice test: spoken at once with the current voice settings. */
+  sayNow(text: string) {
+    this.doSpeak(text);
+  }
 
   // ---- socket events (run.html) ----
 

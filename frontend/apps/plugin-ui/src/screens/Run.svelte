@@ -8,7 +8,7 @@
    * The clock runs locally against RotorHazard's monotonic clock (sampled on connect and
    * at every staging), the way RotorHazard's own page does, so both agree.
    */
-  import { Badge, Banner, Button, Card, Input, Select } from '@gridfpv/components';
+  import { Badge, Banner, Button, Card, Dialog, Input, Select } from '@gridfpv/components';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import RaceClock from '../components/RaceClock.svelte';
   import HeatPlanDialog from '../components/HeatPlanDialog.svelte';
@@ -16,7 +16,17 @@
   import RaceSettingsStrip from '../components/RaceSettingsStrip.svelte';
   import { MIN_LAP_BEHAVIOR_LABELS } from '../lib/timing.js';
   import { planRows } from '../lib/heatplan.js';
-  import { audioState, cueManualLap, startCues } from '../lib/audio.svelte.js';
+  import {
+    applyAudioSettings,
+    audioState,
+    cueManualLap,
+    exportAudioSettingsFile,
+    importAudioSettingsFile,
+    resetAudioSettings,
+    speakTest,
+    startCues
+  } from '../lib/audio.svelte.js';
+  import AudioSettingsPanel from '../components/AudioSettingsPanel.svelte';
   import { seatTag } from '../lib/channels.js';
   import {
     cancelHeatPlan,
@@ -300,6 +310,8 @@
     MIN_LAP_BEHAVIOR_LABELS[timer.timing.minLapBehavior as 0 | 1] ?? ''
   );
   let editFormat: RaceFormat | null = $state(null);
+  /** RotorHazard's Audio Control panel, as a dialog from the header. */
+  let soundOpen = $state(false);
 
   // ---- RotorHazard's own messages ----
   const message = $derived(timer.message && now - 0 ? timer.message : null);
@@ -332,9 +344,14 @@
 <section class="page">
   {#if !audio.unlocked}
     <Banner tone="info"
-      >Click anywhere once to enable sound: staging tones, start, lap callouts.</Banner
+      >Click anywhere once to enable sound: staging tones, start, lap callouts.
+      <button type="button" class="linkish">Enable sound</button></Banner
     >
   {/if}
+  <p class="soundrow">
+    <button type="button" class="linkish" onclick={() => (soundOpen = true)}>Sound settings…</button
+    >
+  </p>
   {#if offSeat.length && status === RACE_STATUS.READY}
     <Banner tone="warn">
       {#each offSeat as w (w.seat)}<span class="offline">{w.text}</span>{/each}
@@ -569,6 +586,26 @@
     {/if}
   </div>
 
+  <Dialog bind:open={soundOpen} title="Sound settings" size="wide">
+    <AudioSettingsPanel
+      settings={audio.settings}
+      voices={audio.voices}
+      languages={timer.languages}
+      onchange={applyAudioSettings}
+      ontest={speakTest}
+      onexport={exportAudioSettingsFile}
+      onimport={(file) => {
+        void importAudioSettingsFile(file).then((r) =>
+          onresult(r.ok ? { ok: true } : { ok: false, message: r.message }, r.message)
+        );
+      }}
+      ondefaults={() => {
+        resetAudioSettings();
+        onresult({ ok: true }, 'Audio settings back to RotorHazard defaults.');
+      }}
+    />
+  </Dialog>
+
   {#if editFormat}
     <FormatDialog
       open={true}
@@ -727,6 +764,10 @@
   .scheduled {
     flex-basis: 100%;
     font-weight: 600;
+  }
+  .soundrow {
+    margin: 0;
+    font-size: var(--gf-font-size-sm);
   }
   .tune {
     font-size: var(--gf-font-size-xs);

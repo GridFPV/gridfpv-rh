@@ -57,6 +57,17 @@ RotorHazard's own Run page would: staging tones, the start, lap callouts, the fi
 beeps, "10 seconds", the leader and winner cues, using RotorHazard's audio settings for this
 browser. A page opened or reloaded mid-race picks the race up where it is.
 
+## Sound settings
+
+**Sound settings…** opens RotorHazard's Audio Control panel, here: the voice and its
+language, a test line to play, which callouts to speak (callsign, lap number, lap time,
+race clock, team totals, winner, laps after a pilot is done, split timer, race leader), the
+voice volume, rate and pitch, the tone and indicator-beep volumes, the beeps (first pass,
+crossings, manual lap, leader lap, winner, cluster connect) and MP3 tones. These are
+RotorHazard's own per-browser settings: the same keys its page reads, so both play the
+same. **Export** writes RotorHazard's settings file, **Import** reads one, **Set audio
+settings to defaults** puts everything back.
+
 ## Messages
 
 A message sent from RotorHazard shows as a banner. A plain one goes by itself after about

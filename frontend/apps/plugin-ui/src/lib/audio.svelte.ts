@@ -11,19 +11,91 @@ import {
   AUDIO_DEFAULTS,
   CueEngine,
   readAudioSettings,
+  type AudioSettings,
   type Mp3Cue,
   type Tone,
   type Utterance
 } from './cues.js';
 import { untrack } from 'svelte';
 import { onSocket, rh } from './rh.svelte.js';
+import {
+  exportAudioSettings,
+  exportFileName,
+  importAudioSettings,
+  saveAudioSettings
+} from './audioSettings.js';
 import { RACE_STATUS } from './race.js';
 
 type Ctx = AudioContext;
 
-const audio = $state({ unlocked: false, enabled: true });
+const audio = $state({
+  unlocked: false,
+  enabled: true,
+  /** RotorHazard's audio settings for this browser, as the engine plays them. */
+  settings: AUDIO_DEFAULTS as AudioSettings,
+  /** Speech voices this browser offers (they can arrive after load). */
+  voices: [] as string[]
+});
 export function audioState() {
   return audio;
+}
+
+function listVoices() {
+  const synth = window.speechSynthesis;
+  if (!synth) return;
+  audio.voices = synth.getVoices().map((v) => v.name);
+}
+
+/** Write the settings as RotorHazard's saveData does, and play by them from now on. */
+export function applyAudioSettings(next: AudioSettings) {
+  saveAudioSettings(safeStorage(), next);
+  audio.settings = next;
+  if (engine) engine.settings = next;
+}
+/** settings.html's "Play": the test text at once, with the current voice settings. */
+export function speakTest(text: string) {
+  if (engine) engine.sayNow(text);
+  else
+    speakNow({
+      text,
+      rate: audio.settings.voice_rate,
+      pitch: audio.settings.voice_pitch,
+      volume: audio.settings.voice_volume,
+      voice: audio.settings.voice_language
+    });
+}
+/** RotorHazard's "Export Audio Settings": the same text file it writes, downloaded. */
+export function exportAudioSettingsFile() {
+  const date = new Date();
+  const blob = new Blob([exportAudioSettings(audio.settings, date)], {
+    type: 'text/plain;charset=utf-8'
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = exportFileName(date);
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+/** RotorHazard's "Import Audio Settings": its file format, unknown keys reported. */
+export async function importAudioSettingsFile(
+  file: File
+): Promise<{ ok: boolean; message: string }> {
+  const text = await file.text();
+  const r = importAudioSettings(text, audio.settings);
+  if (!r.found) return { ok: false, message: 'No audio settings found in that file.' };
+  applyAudioSettings(r.settings);
+  return {
+    ok: true,
+    message:
+      `Imported ${r.found} audio setting${r.found === 1 ? '' : 's'}.` +
+      (r.unknown.length ? ` Ignored: ${r.unknown.join(', ')}.` : '')
+  };
+}
+/** RotorHazard's "Set Audio Settings to Defaults". */
+export function resetAudioSettings() {
+  applyAudioSettings({ ...AUDIO_DEFAULTS });
 }
 
 let ctx: Ctx | null = null;
@@ -115,6 +187,10 @@ export function startCues(): () => void {
   if (engine) return stopCues;
   const timer = rh();
   const settings = readAudioSettings(safeStorage());
+  audio.settings = settings;
+  listVoices();
+  window.speechSynthesis?.addEventListener?.('voiceschanged', listVoices);
+  stops.push(() => window.speechSynthesis?.removeEventListener?.('voiceschanged', listVoices));
   engine = new CueEngine(
     {
       tone: playTone,
@@ -133,7 +209,10 @@ export function startCues(): () => void {
 
   // RotorHazard's settings are per browser: another tab (or its own page) may change them.
   const onStorage = (ev: StorageEvent) => {
-    if (ev.key?.startsWith('rotorhazard.')) e.settings = readAudioSettings(safeStorage());
+    if (ev.key?.startsWith('rotorhazard.')) {
+      e.settings = readAudioSettings(safeStorage());
+      audio.settings = e.settings;
+    }
   };
   window.addEventListener('storage', onStorage);
   stops.push(() => window.removeEventListener('storage', onStorage));
