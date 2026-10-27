@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AUDIO_DEFAULTS,
   CueEngine,
+  MIN_LOG_VOL_LIM,
   readAudioSettings,
   type Tone,
   type Utterance
@@ -239,6 +240,18 @@ describe('CueEngine rules', () => {
     h.tl.advance(40_000, h.tick);
     expect(h.tones).toEqual([]);
     expect(h.said).toEqual([]);
+  });
+  it("treats RotorHazard's slider floor as silence: 0.010000000000000004 plays nothing, 0.011 plays (#74)", () => {
+    expect(MIN_LOG_VOL_LIM).toBe(0.01 + 0.01 / 1000);
+    const floor = 0.010000000000000004; // what rotorhazard.js stores at the slider's minimum
+    const quiet = harness({ ...position, tone_volume: floor, indicator_beep_volume: floor });
+    quiet.engine.beep(100, 440, floor, 'triangle');
+    quiet.engine.firstPassRegistered({ node_index: 1 });
+    quiet.tl.advance(500, quiet.tick);
+    expect(quiet.tones).toEqual([]);
+    const low = harness({ ...position, tone_volume: 0.011 });
+    low.engine.beep(100, 440, 0.011, 'triangle');
+    expect(low.tones).toHaveLength(1);
   });
   it('reads RotorHazard settings from localStorage with its JSON values and defaults', () => {
     const store = new Map<string, string>([

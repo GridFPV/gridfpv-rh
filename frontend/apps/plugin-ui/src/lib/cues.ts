@@ -112,8 +112,13 @@ export function readAudioSettings(
   return out;
 }
 
-/** rotorhazard.js MIN_LOG_VOL_LIM: below this a volume is silence. */
-const MIN_LOG_VOL_LIM = 0.01;
+/**
+ * rotorhazard.js: MIN_LOG_VOLUME is the floor of its log volume sliders (what the slider
+ * stores at its minimum is 0.01 with float noise, e.g. 0.010000000000000004), and anything
+ * not above MIN_LOG_VOL_LIM = MIN_LOG_VOLUME + MIN_LOG_VOLUME/1000 is silence (#74).
+ */
+const MIN_LOG_VOLUME = 0.01;
+export const MIN_LOG_VOL_LIM = MIN_LOG_VOLUME + MIN_LOG_VOLUME / 1000.0;
 const NODE_TONE = [440, 466.2, 493.9, 523.3, 554.4, 587.3, 622.3, 659.3];
 const LEADER_FLAG = '\u0001';
 const WINNER_FLAG = '\u0002';

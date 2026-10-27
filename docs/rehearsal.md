@@ -82,6 +82,9 @@ save, next heat as the board says) is written at the end of the tier.
 - [ ] **Leaderboard.** While Ready there is no leaderboard card; once a race has laps the
       card appears, listing seats that have a pilot or laps, never an empty seat by its
       frequency (#47).
+- [ ] **Volume floor.** In RotorHazard's own Settings, drag the Tone volume slider to its
+      bottom (its stored value is 0.01 with float noise); reload Grid's Run page: no beeps at
+      all, the same as RotorHazard's page. Drag it up a notch: beeps again (#74).
 
 ## T4 — Marshal and Results parity
 
