@@ -44,9 +44,9 @@ test.describe('Event', () => {
     await rig.setMinLap(1);
     await rig.raceHeat(heat, { 1: [500, 2000] });
     expect((await rig.rounds()).find((h) => h.id === heat)?.rounds).toBe(1);
-    // A leftover from an earlier run would make RotorHazard pick a timestamp name instead.
-    if ((await rig.backups()).includes('Club Night 10-27.db'))
-      await rig.deleteBackup('Club Night 10-27.db');
+    // Leftovers from an earlier run would shift the counter.
+    for (const f of await rig.backups())
+      if (/^Club Night 10-27( \(\d+\))?\.db$/.test(f)) await rig.deleteBackup(f);
     const before = await rig.backups();
 
     await page.goto('/grid/event');
@@ -66,7 +66,21 @@ test.describe('Event', () => {
     expect(await rig.classes()).toEqual([]);
     expect((await rig.options()).eventName).toBe('Next Night');
     expect(await rh.eventName()).toBe('Next Night');
+
+    // The same name again gets a counter, not RotorHazard's bare timestamp (#54).
+    await rig.setOption('eventName', 'Club Night 10/27');
+    await page.goto('/grid/event');
+    await page.getByRole('button', { name: 'New event' }).click();
+    await page.getByRole('dialog').getByLabel('Name').fill('Third Night');
+    await page.getByRole('dialog').getByRole('button', { name: 'Archive and start' }).click();
+    await expect(
+      page.getByText(
+        'New event started. The previous one is archived as "Club Night 10-27 (2).db".'
+      )
+    ).toBeVisible({ timeout: 20_000 });
+    expect(await rig.backups()).toEqual(expect.arrayContaining(['Club Night 10-27 (2).db']));
     await rig.deleteBackup('Club Night 10-27.db');
+    await rig.deleteBackup('Club Night 10-27 (2).db');
   });
 
   test('New event does not reset when the archive cannot be made (#43)', async ({

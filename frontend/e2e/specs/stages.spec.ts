@@ -98,6 +98,18 @@ test.describe('Stages', () => {
     await expect(standings).toContainText('1 Ace');
     expect((await standings.textContent()) ?? '').not.toBe(standingsBefore);
 
+    // The safety copy is listed apart on the Event page, without Restore (#54).
+    await page.goto('/grid/event');
+    const summary = page.locator('details.safety summary');
+    await expect(summary).toContainText(/\d+ safety cop(y|ies) taken before\s+race deletes/);
+    await expect(page.getByLabel('Event archives').getByText(/before a race delete/)).toHaveCount(
+      0
+    );
+    await summary.click();
+    const safety = page.getByLabel('Safety copies');
+    await expect(safety).toContainText('before a race delete · E2E event');
+    await expect(safety.getByRole('button', { name: 'Restore' })).toHaveCount(0);
+
     // RotorHazard agrees the race is gone: its API, its race list, its Results page, and a backup exists.
     expect((await rig.rounds()).find((h) => h.id === heatA)?.rounds).toBe(1);
     expect(await rig.apiStatus(`/api/race/${heatA}/2`)).toBeGreaterThanOrEqual(400);
@@ -258,6 +270,39 @@ test.describe('Stages', () => {
     const loaded = (await rig.status()).current_heat === heat.heat_id;
     await expect(picker.locator('option', { hasText: heatName })).toHaveCount(loaded ? 1 : 0);
     if (loaded) await expect(page.getByRole('note')).toContainText('Another round here changes');
+  });
+
+  test('a grouped-rounds stage shows the loaded heat as next on its round section (#58)', async ({
+    page,
+    rig
+  }) => {
+    const ace = await rig.addPilot({ callsign: 'Ace' });
+    await page.goto('/grid/stages');
+    await page.getByRole('button', { name: 'Add stage' }).click();
+    await page.getByLabel('Name').fill('E2E Grouped');
+    await page.getByLabel('Heats').fill('1');
+    await page.getByText(/Grouped rounds/).click();
+    await page.getByRole('button', { name: 'Create' }).click();
+    await expect(page.getByRole('heading', { name: 'E2E Grouped' })).toBeVisible();
+    const cls = (await rig.classes()).find((c) => c.name === 'E2E Grouped')!;
+    const heat = (await rig.heats()).find((h) => h.class_id === cls.id)!;
+    await rig.seatHeat(heat.heat_id, [null, ace]);
+    await rig.setHeat(heat.heat_id);
+    const section = page.locator('.roundsection', { hasText: 'Round 1' });
+    await expect(section.getByTitle('Loaded on the timer')).toBeVisible();
+    // After round 1 is flown RotorHazard makes the round-2 heat; loaded, it is next in Round 2.
+    await rig.setMinLap(1);
+    await rig.raceHeat(heat.heat_id, { 1: [500, 2000] });
+    const round2 = await rig.until('round 2 heat', async () =>
+      (await rig.heats()).find((h) => h.class_id === cls.id && h.heat_id !== heat.heat_id)
+    );
+    await rig.setHeat(round2.heat_id);
+    await expect(
+      page.locator('.roundsection', { hasText: 'Round 2' }).getByTitle('Loaded on the timer')
+    ).toBeVisible();
+    // RotorHazard agrees: the heat is the current one and the class runs grouped rounds.
+    expect((await rig.status()).current_heat).toBe(round2.heat_id);
+    expect(Number((await rig.classData()).find((c) => c.id === cls.id)?.round_type)).toBe(1);
   });
 
   test('a refused delete says why at once: a race is on the timer (#53)', async ({

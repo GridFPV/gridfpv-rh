@@ -22,6 +22,7 @@
     type WriteResult
   } from '../lib/rh.svelte.js';
   import { archiveFileName, eventNameProblem } from '../lib/event.js';
+  import { archiveLabel, isArchiveOf, splitArchives } from '../lib/archives.js';
   import {
     CONSECUTIVES_MAX,
     CONSECUTIVES_MIN,
@@ -179,7 +180,8 @@
   // ---- archives ----
   let restoring: string | null = $state(null);
   let deleting: string | null = $state(null);
-  const archiveName = (file: string) => file.replace(/\.db$/, '');
+  const archives = $derived(splitArchives(timer.archives));
+  const thisEventBase = $derived(archiveFileName(ev.name).replace(/\.db$/, ''));
 </script>
 
 <Dialog bind:open={editOpen} title="Edit event">
@@ -279,7 +281,7 @@
     }}
     oncancel={() => (restoring = null)}
   >
-    Replace everything with <strong>{archiveName(restoring)}</strong>? The current event is not
+    Replace everything with <strong>{archiveLabel(restoring)}</strong>? The current event is not
     archived first — use "Archive now" before this if you want to keep it.
   </ConfirmDialog>
 {/if}
@@ -296,7 +298,7 @@
     }}
     oncancel={() => (deleting = null)}
   >
-    Delete the archive <strong>{archiveName(deleting)}</strong>? This cannot be undone.
+    Delete the archive <strong>{archiveLabel(deleting)}</strong>? This cannot be undone.
   </ConfirmDialog>
 {/if}
 
@@ -429,14 +431,14 @@
         onclick={() => run(archiveNow, 'Archived.')}>Archive now</Button
       >
     {/snippet}
-    {#if timer.archives.length === 0}
+    {#if archives.events.length === 0}
       <p class="muted">No archives yet.</p>
     {:else}
-      <ul class="archives">
-        {#each timer.archives as file (file)}
+      <ul class="archives" aria-label="Event archives">
+        {#each archives.events as file (file)}
           <li>
-            <span class="name">{archiveName(file)}</span>
-            {#if file.startsWith(ev.name)}<Badge tone="info">this event</Badge>{/if}
+            <span class="name">{archiveLabel(file)}</span>
+            {#if isArchiveOf(file, thisEventBase)}<Badge tone="info">this event</Badge>{/if}
             <span class="spacer"></span>
             <Button size="sm" variant="ghost" disabled={busy} onclick={() => (restoring = file)}
               >Restore</Button
@@ -447,6 +449,30 @@
           </li>
         {/each}
       </ul>
+    {/if}
+    {#if archives.safety.length}
+      <details class="safety">
+        <summary
+          >{archives.safety.length} safety cop{archives.safety.length === 1 ? 'y' : 'ies'} taken before
+          race deletes</summary
+        >
+        <p class="muted">
+          Grid backs the database up before every race delete. These are the way back if a delete
+          went wrong; restore one from RotorHazard's Format page, Data management, only if you need
+          to.
+        </p>
+        <ul class="archives" aria-label="Safety copies">
+          {#each archives.safety as file (file)}
+            <li>
+              <span class="name">{archiveLabel(file)}</span>
+              <span class="spacer"></span>
+              <Button size="sm" variant="ghost" disabled={busy} onclick={() => (deleting = file)}
+                >Delete</Button
+              >
+            </li>
+          {/each}
+        </ul>
+      </details>
     {/if}
   </Card>
 </section>
@@ -563,6 +589,14 @@
   }
   .archives .name {
     font-variant-numeric: tabular-nums;
+  }
+  .safety {
+    margin-top: var(--gf-space-3);
+  }
+  .safety summary {
+    cursor: pointer;
+    color: var(--gf-text-muted);
+    font-size: var(--gf-font-size-sm);
   }
   .spacer {
     flex: 1;

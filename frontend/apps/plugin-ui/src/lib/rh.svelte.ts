@@ -1337,7 +1337,13 @@ export async function newEvent(
   keepPilots: boolean
 ): Promise<WriteResult & { archive?: string }> {
   const arch = await archiveEvent(state.event.name);
-  if (!arch.ok) return { ok: false, message: `${arch.message}. Nothing was reset.` };
+  if (!arch.ok) {
+    const why = arch.message ?? 'the archive failed';
+    return {
+      ok: false,
+      message: /nothing was reset/i.test(why) ? why : `${why}. Nothing was reset.`
+    };
+  }
   const acks = resetAcks;
   socket?.emit('reset_database', {
     reset_type: keepPilots ? 'classes' : 'all',

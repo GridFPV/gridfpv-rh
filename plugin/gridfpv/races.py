@@ -77,9 +77,17 @@ def race_status(rhapi) -> int:
 
 
 def backup(rhapi) -> str | None:
-    """RotorHazard's own database backup (what its Settings page button does). None if it failed."""
+    """A database backup before a delete, the same copy RotorHazard's Settings page button
+    makes, named 'before-delete_<event>_<time>' so the Event page lists it apart (#54).
+    None if it failed."""
+    from . import archive
+
     try:
-        name = _context(rhapi).rhdata.backup_db_file(True)
+        event_name = rhapi.db.option("eventName", default="") or ""
+    except Exception:
+        event_name = ""
+    try:
+        name = _context(rhapi).rhdata.backup_db_file(True, use_filename=archive.safety_name(event_name))
     except Exception:
         logger.exception("gridfpv races: database backup failed")
         return None

@@ -160,9 +160,10 @@ class FakeRhData:
     def clear_results_all(self):
         self.cleared += 1
 
-    def backup_db_file(self, copy_flag):
+    def backup_db_file(self, copy_flag, use_filename=None):
         self.backups += 1
-        return "/opt/RotorHazard/src/server/database/backup/database_20261027_031500.db"
+        self.backup_name = use_filename
+        return f"/opt/RotorHazard/src/server/db_bkp/{use_filename or 'database_20261027_031500'}.db"
 
 
 def seed_race(db: FakeDatabase, heat_id=7, round_id=2, race_id=42):
@@ -210,8 +211,9 @@ class FallbackTests(unittest.TestCase):
         self.assertFalse(races.is_native(self.rhapi))
 
     def test_delete_keeps_a_copy_removes_every_row_and_backs_up_first(self):
+        self.rhapi.options["eventName"] = "Club Night 10/27"
         out = races.delete(self.rhapi, 7, 2)
-        self.assertEqual(out["backup"], "database_20261027_031500.db")
+        self.assertRegex(out["backup"], r"^before-delete_Club Night 10-27_\d{8}_\d{6}\.db$")
         self.assertEqual(self.rhdata.backups, 1)
         self.assertEqual((self.db.metas, self.db.attrs, self.db.pilotraces, self.db.laps), ([], [], [], []))
         kept = json.loads(self.rhapi.options[races.OPT_DELETED])
@@ -335,7 +337,7 @@ class NativeTests(unittest.TestCase):
         rhdata = mock.Mock()
         race = Row(id=42, heat_id=7, round_id=2)
         rhdata.get_savedRaceMeta_by_heat_round = mock.Mock(return_value=race)
-        rhdata.backup_db_file = mock.Mock(return_value="db/backup/x_1.db")
+        rhdata.backup_db_file = mock.Mock(return_value="db/backup/before-delete_x_1.db")
         rhapi._racecontext = types.SimpleNamespace(rhdata=rhdata, pagecache=mock.Mock(), rhui=mock.Mock())
         deleted = Row(id=5, race_id=42, heat_id=7, round_id=2, class_id=3, start_time_formatted="03:14",
                       deleted_time_formatted="03:15")
@@ -355,7 +357,7 @@ class NativeTests(unittest.TestCase):
         self.assertTrue(races.is_native(rhapi))
         out = races.delete(rhapi, 7, 2)
         rhapi.db.race_delete.assert_called_once_with(race, keep_copy=True)
-        self.assertEqual(out["backup"], "x_1.db")
+        self.assertEqual(out["backup"], "before-delete_x_1.db")
         self.assertNotIn(races.OPT_DELETED, rhapi.options)
         listed = races.load(rhapi)
         self.assertEqual(listed, [{"id": "5", "heat_id": 7, "round_id": 2, "class_id": 3, "start_time_formatted": "03:14",
@@ -394,7 +396,7 @@ class SocketTests(unittest.TestCase):
             event, payload = rhapi.ui.socket_broadcast.call_args_list[-1][0]
             self.assertEqual(event, gridfpv.EVT_RACES_DELETED)
             self.assertEqual(payload["changed"], {"heat_id": 7, "round_id": 2, "action": "deleted"})
-            self.assertEqual(payload["backup"], "database_20261027_031500.db")
+            self.assertTrue(payload["backup"].startswith("before-delete_"))
             self.assertEqual(len(payload["races"]), 1)
             rhapi.listeners[gridfpv.EVT_RACE_DELETE]({"heat_id": 7, "round_id": 2})  # gone already
             rhapi.ui.message_alert.assert_called_once()

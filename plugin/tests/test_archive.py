@@ -26,6 +26,22 @@ class SafeNameTests(unittest.TestCase):
         self.assertEqual(len(archive.safe_name("x" * 200)), 80)
 
 
+class NamingTests(unittest.TestCase):
+    def test_a_taken_name_gets_a_counter_not_a_timestamp(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(archive.unused_name("Night", d), "Night")
+            open(os.path.join(d, "Night.db"), "w").close()
+            self.assertEqual(archive.unused_name("Night", d), "Night (2)")
+            open(os.path.join(d, "Night (2).db"), "w").close()
+            self.assertEqual(archive.unused_name("Night", d), "Night (3)")
+
+    def test_safety_copies_are_prefixed_and_recognisable(self):
+        name = archive.safety_name("Club Night 10/27")
+        self.assertRegex(name, r"^before-delete_Club Night 10-27_\d{8}_\d{6}$")
+        self.assertTrue(archive.is_safety(name + ".db"))
+        self.assertFalse(archive.is_safety("Club Night 10-27.db"))
+
+
 class ArchiveTests(unittest.TestCase):
     def rhapi_with(self, backup):
         rhapi = FakeRhapi()
