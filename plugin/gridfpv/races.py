@@ -169,7 +169,8 @@ def load(rhapi) -> list:
                 data = rhapi.db.deleted_race_data(d) or {}
             except Exception:
                 pass
-            runs = data.get("pilotraces") or data.get("pilot_runs") or data.get("runs") or []
+            # main's get_savedRaceMeta_snapshot: {'race', 'attributes', 'pilotruns': [columns + laps]}
+            runs = data.get("pilotruns") or data.get("pilotraces") or []
             pilot_ids = [r.get("pilot_id") for r in runs if isinstance(r, dict)]
             out.append(_entry(d.id, d.heat_id, d.round_id, d.class_id, d.start_time_formatted,
                               d.deleted_time_formatted, _callsigns(rhapi, pilot_ids), pilot_ids))

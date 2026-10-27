@@ -341,7 +341,7 @@ class NativeTests(unittest.TestCase):
                       deleted_time_formatted="03:15")
         rhapi.db.race_delete = mock.Mock(return_value=True)
         rhapi.db.deleted_races = [deleted]
-        rhapi.db.deleted_race_data = mock.Mock(return_value={"pilotraces": [{"pilot_id": 11}]})
+        rhapi.db.deleted_race_data = mock.Mock(return_value={"pilotruns": [{"pilot_id": 11, "node_index": 1, "laps": []}]})
         rhapi.db.deleted_race_by_id = mock.Mock(side_effect=lambda i: deleted if i == 5 else None)
         rhapi.db.deleted_race_conflicts = mock.Mock(return_value=[])
         rhapi.db.race_restore = mock.Mock(return_value=Row(id=43))
@@ -362,6 +362,13 @@ class NativeTests(unittest.TestCase):
                                    "deleted_at": "03:15", "callsigns": ["Ace"], "pilot_ids": [11]}])
         self.assertEqual(races.restore(rhapi, "5"), {"heat_id": 7, "round_id": 2})
         rhapi.db.race_restore.assert_called_once()
+
+    def test_native_restore_checks_the_heat_shape_too(self):
+        rhapi, _ = self.make()
+        rhapi.db.slots_by_heat = mock.Mock(return_value=[Row(pilot_id=12, node_index=1)])
+        with self.assertRaisesRegex(races.RaceError, "pilots are not the ones"):
+            races.restore(rhapi, 5)
+        rhapi.db.race_restore.assert_not_called()
 
     def test_native_refusals_surface_as_errors(self):
         rhapi, _ = self.make()
