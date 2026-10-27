@@ -15,6 +15,7 @@ import {
   type Tone,
   type Utterance
 } from './cues.js';
+import { untrack } from 'svelte';
 import { onSocket, rh } from './rh.svelte.js';
 import { RACE_STATUS } from './race.js';
 
@@ -125,7 +126,9 @@ export function startCues(): () => void {
     () => performance.now(),
     settings
   );
-  engine.minLapS = timer.timing.minLapMs / 1000;
+  // startCues runs inside a component effect: the state it reads to seed itself must not
+  // re-run that effect (which would replace the engine mid-race and lose its speech queue).
+  engine.minLapS = untrack(() => timer.timing.minLapMs) / 1000;
   const e = engine;
 
   // RotorHazard's settings are per browser: another tab (or its own page) may change them.
@@ -151,22 +154,60 @@ export function startCues(): () => void {
       e.minLapS = timer.timing.minLapMs / 1000;
       e.stageReady(p, timer.sync.differential ?? 0);
     }),
-    onSocket<{ race_status: number }>('race_status', (p) => {
-      if (Number(p.race_status) === RACE_STATUS.READY) e.stop();
-    }),
+    onSocket<Parameters<CueEngine['raceStatus']>[0]>('race_status', (p) =>
+      e.raceStatus(p, timer.sync.differential)
+    ),
+    // Each pi_time sample moves the measured differential; the timer follows it (#73).
+    onSocket('pi_time', () => e.resync(timer.sync.differential)),
     onSocket('stop_timer', () => e.stop()),
     onSocket('heartbeat', () => e.heartbeat()),
-    onSocket<Parameters<CueEngine['phoneticData']>[0]>('phonetic_data', (p) => e.phoneticData(p)),
+    onSocket<Parameters<CueEngine['phoneticData']>[0]>('phonetic_data', (p) => {
+      // Read at the callout, not only at staging: a page opened mid-race (#73) has had no
+      // stage_ready, and the state's minimum lap starts at RotorHazard's default until min_lap
+      // arrives.
+      e.minLapS = timer.timing.minLapMs / 1000;
+      e.phoneticData(p);
+    }),
     onSocket<Parameters<CueEngine['phoneticLeader']>[0]>('phonetic_leader', (p) =>
       e.phoneticLeader(p)
     ),
     onSocket<Parameters<CueEngine['phoneticText']>[0]>('phonetic_text', (p) => e.phoneticText(p)),
     onSocket<{ node_index: number }>('first_pass_registered', (p) => e.firstPassRegistered(p))
   );
-  // Ticking well inside a tenth keeps each tone within a few ms of its tenth (RotorHazard's
-  // page runs its timer at 100 ms; the ledgers are compared at ±50 ms).
-  const tick = window.setInterval(() => e.tick(), 20);
-  stops.push(() => window.clearInterval(tick));
+  // A page opened mid-race (#73): the socket's first race_status may already have come and
+  // gone before this ran; RotorHazard's page would have kicked its timer off from it. Do the
+  // same from the state it left behind.
+  untrack(() => {
+    const r = timer.race;
+    if (r.status === RACE_STATUS.RACING || r.status === RACE_STATUS.STAGING) {
+      e.raceStatus(
+        {
+          race_status: r.status,
+          pi_starts_at_s: r.startsAt ?? undefined,
+          pi_staging_at_s: r.stagingAt ?? undefined,
+          staging_tones: r.stagingTones,
+          unlimited_time: r.unlimitedTime,
+          race_time_sec: r.raceTimeSec
+        },
+        timer.sync.differential
+      );
+    }
+  });
+  // RotorHazard's page steps its timer on each whole tenth (a setTimeout aligned to the race
+  // start); do the same: after every tick, one timeout aimed just past the next boundary, with
+  // a 20 ms interval as the backstop (the ledgers are compared at ±50 ms).
+  let aligned = 0;
+  const tick = () => {
+    e.tick();
+    const ms = e.msToNextTenth();
+    window.clearTimeout(aligned);
+    if (ms != null) aligned = window.setTimeout(tick, ms + 1);
+  };
+  const backstop = window.setInterval(tick, 20);
+  stops.push(() => {
+    window.clearInterval(backstop);
+    window.clearTimeout(aligned);
+  });
   return stopCues;
 }
 

@@ -21,6 +21,8 @@ export type RaceStatus = {
   unlimitedTime: boolean;
   raceTimeSec: number;
   hideStageTimer: boolean;
+  /** Staging tones for this staging (stage_ready); race_status always says 0, as RotorHazard's page sees it. */
+  stagingTones: number;
   /** RotorHazard's monotonic clock, seconds; null before the first staging. */
   startsAt: number | null;
   stagingAt: number | null;
@@ -41,6 +43,7 @@ export function emptyRaceStatus(): RaceStatus {
     unlimitedTime: false,
     raceTimeSec: 0,
     hideStageTimer: false,
+    stagingTones: 0,
     startsAt: null,
     stagingAt: null,
     nextRound: 0
@@ -65,6 +68,7 @@ export function applyRaceStatus(p: Raw, prev?: RaceStatus): RaceStatus {
     unlimitedTime: Boolean(p.unlimited_time),
     raceTimeSec: num(p.race_time_sec),
     hideStageTimer: staged ? prev!.hideStageTimer : Boolean(p.hide_stage_timer),
+    stagingTones: staged ? prev!.stagingTones : num(p.staging_tones),
     startsAt: p.pi_starts_at_s == null ? null : Number(p.pi_starts_at_s),
     stagingAt: p.pi_staging_at_s == null ? null : Number(p.pi_staging_at_s),
     nextRound: num(p.next_round)
@@ -80,6 +84,7 @@ export function applyStageReady(prev: RaceStatus, p: Raw): RaceStatus {
     unlimitedTime: Boolean(p.unlimited_time),
     raceTimeSec: num(p.race_time_sec),
     hideStageTimer: Boolean(p.hide_stage_timer),
+    stagingTones: num(p.staging_tones),
     startsAt: p.pi_starts_at_s == null ? prev.startsAt : Number(p.pi_starts_at_s),
     stagingAt: p.pi_staging_at_s == null ? prev.stagingAt : Number(p.pi_staging_at_s)
   };

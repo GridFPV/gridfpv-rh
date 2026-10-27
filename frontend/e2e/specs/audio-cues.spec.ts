@@ -100,8 +100,9 @@ const fixtures: Fixture[] = [
     }))
 ];
 
-async function formatFor(rig: Rig, scenario: string): Promise<number> {
-  if (scenario === 'timed30') {
+/** A copy of the standard format: `seconds` long, fixed 2 s staging with 3 tones. */
+async function timedFormat(rig: Rig, seconds: number): Promise<number> {
+  {
     const std = (await rig.formats()).find((f) => /2:00 Standard/.test(f.name))!;
     const before = new Set((await rig.formats()).map((f) => f.id));
     rig.emit('add_race_format', { source_format_id: std.id });
@@ -110,8 +111,8 @@ async function formatFor(rig: Rig, scenario: string): Promise<number> {
     );
     rig.emit('alter_race_format', {
       format_id: made.id,
-      format_name: 'E2E 30 s',
-      race_time_sec: 30,
+      format_name: `E2E ${seconds} s`,
+      race_time_sec: seconds,
       lap_grace_sec: 0,
       unlimited_time: 0,
       staging_fixed_tones: 3,
@@ -121,16 +122,19 @@ async function formatFor(rig: Rig, scenario: string): Promise<number> {
       win_condition: 1
     });
     await rig.until(
-      '30 s format',
+      `${seconds} s format`,
       async () =>
         (
           await rig.api<{ formats: Array<{ id: number; race_time_sec: number }> }>(
             '/api/format/all'
           )
-        ).formats.find((f) => f.id === made.id)?.race_time_sec === 30
+        ).formats.find((f) => f.id === made.id)?.race_time_sec === seconds
     );
     return made.id;
   }
+}
+async function formatFor(rig: Rig, scenario: string): Promise<number> {
+  if (scenario === 'timed30') return timedFormat(rig, 30);
   const f = (await rig.formats()).find((x) => /First to 3/.test(x.name))!;
   rig.emit('alter_race_format', {
     format_id: f.id,
@@ -354,3 +358,84 @@ for (const fx of fixtures) {
     void rh;
   });
 }
+
+test("a page reloaded mid-race resumes its cues from race_status, as RotorHazard's does (#73)", async ({
+  browser,
+  rig,
+  rh
+}) => {
+  test.setTimeout(120_000);
+  const ace = await rig.addPilot({ callsign: 'Ace' });
+  const fmtId = await timedFormat(rig, 12);
+  const cls = await rig.addClass({ name: 'E2E Resume', formatId: fmtId });
+  const heat = await rig.addHeat({ name: 'Resume heat', classId: cls, pilots: [null, ace] });
+  await rig.setMinLap(1);
+  await rig.setHeat(heat);
+  const settings = recorded.find((fx) => fx.profile === 'laptime')!.settings;
+
+  const open = async (url: string) => {
+    const ctx = await browser.newContext({
+      httpCredentials: { username: 'admin', password: 'rotorhazard' }
+    });
+    await ctx.addInitScript(STUB);
+    await ctx.addInitScript((s: Record<string, unknown>) => {
+      for (const [k, v] of Object.entries(s))
+        localStorage.setItem('rotorhazard.' + k, JSON.stringify(v));
+    }, settings);
+    const page = await ctx.newPage();
+    await page.goto(url);
+    await page.waitForTimeout(3500);
+    return { ctx, page };
+  };
+  const theirs = await open(rig.url + '/run');
+  const ours = await open(rig.url + '/grid/run');
+  await theirs.page.mouse.click(5, 5);
+  await ours.page.mouse.click(5, 5);
+
+  const racing = new Promise<number>((resolve) => {
+    const onStatus = (msg: { race_status: number }) => {
+      if (msg.race_status === 1) resolve(Date.now());
+      else void rig.next<{ race_status: number }>('race_status', 60_000).then(onStatus);
+    };
+    void rig.next<{ race_status: number }>('race_status', 60_000).then(onStatus);
+  });
+  rig.emit('stage_race');
+  const t0 = await racing;
+  const flying = rig.fly({ 1: [2500, 9000] });
+  // ~4 s in: our page reloads (its ledger starts over), and the director clicks once.
+  await new Promise((r) => setTimeout(r, Math.max(0, 4000 - (Date.now() - t0))));
+  await ours.page.reload();
+  await ours.page.getByText('Click anywhere once to enable sound').waitFor();
+  await ours.page.mouse.click(5, 5);
+  await flying;
+  await rig.until('expired', async () => (await rig.status()).race_status === 2, 20_000);
+  await new Promise((r) => setTimeout(r, 2500));
+  const ledger = async (page: typeof ours.page) =>
+    (await page.evaluate(() => (window as unknown as { __cues: Cue[] }).__cues)) ?? [];
+  const rawOurs = await ledger(ours.page);
+  const rawTheirs = await ledger(theirs.page);
+  await rig.discard();
+  await theirs.ctx.close();
+  await ours.ctx.close();
+
+  const start = [...rawTheirs].sort((a, b) => a.t - b.t).find(isStartTone);
+  const zero = start ? start.t : t0;
+  const rezero = (cues: Cue[]) =>
+    cues
+      .map((c) => ({ ...c, t: Math.round(c.t - zero) }))
+      .filter((c) => !(c.kind === 'speech' && !(c.text ?? '').trim())); // the unlock blank
+  const oursCues = rezero(rawOurs);
+  const theirsCues = rezero(rawTheirs);
+  // RotorHazard's page, from 6 s on: the final-second ticks at 7–11 s, the expiry at 12 s and
+  // the lap called out at ~9 s. Ours, reloaded at ~4 s, must have made the same and no more
+  // (no start tone played again, nothing before it was ready).
+  const after = theirsCues.filter((c) => c.t >= 6000);
+  expect(after.filter(clockDriven).map((c) => c.frequency)).toEqual([440, 440, 440, 440, 440, 880]);
+  const live = compare(after, oursCues);
+  console.log(
+    `[resume] ours ${oursCues.length} cues after the reload, RotorHazard live ${after.length} from 6 s` +
+      (live.length ? '\nvs live RotorHazard:\n' + live.join('\n') : '\nvs live RotorHazard: match')
+  );
+  expect(live).toEqual([]);
+  void rh;
+});

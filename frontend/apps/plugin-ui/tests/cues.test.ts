@@ -301,6 +301,83 @@ describe('CueEngine rules', () => {
     expect(h.mp3s.filter((m) => m.file === 'stage')).toHaveLength(7);
     expect(h.mp3s.filter((m) => m.file === 'buzzer')).toHaveLength(2);
   });
+  it('resumes a running race from the first race_status, once the clock sync arrives, without replaying the start (#73)', () => {
+    const h = harness(laptime);
+    // The page loaded 4 s into a 12 s race that started at pi 100 s: on our clock the start
+    // was at −4 000, so the differential (pi ms − page ms) is 104 000, learnt 600 ms after load.
+    h.engine.raceStatus(
+      {
+        race_status: 1,
+        pi_staging_at_s: 97,
+        pi_starts_at_s: 100,
+        staging_tones: 0,
+        unlimited_time: 0,
+        race_time_sec: 12
+      },
+      null
+    );
+    h.tl.advance(600, h.tick);
+    expect(h.tones).toEqual([]);
+    h.engine.resync(104_000);
+    // A later sample moves the differential by 3 ms: nothing fires twice.
+    h.tl.advance(2_000, h.tick);
+    h.engine.resync(104_003);
+    // A second race_status (RotorHazard re-broadcasts them) does not kick off again.
+    h.engine.raceStatus(
+      {
+        race_status: 1,
+        pi_staging_at_s: 97,
+        pi_starts_at_s: 100,
+        staging_tones: 0,
+        unlimited_time: 0,
+        race_time_sec: 12
+      },
+      104_003
+    );
+    h.tl.advance(10_000, h.tick);
+    const beeps = h.tones.map((t) => `${t.t} ${t.frequency}`);
+    // remaining 5..1 s at page 3 000..7 000 ms, expiry at 8 000; no start tone, no staging,
+    // and no "10 Seconds": that tenth passed before the page loaded.
+    expect(beeps).toEqual(['3000 440', '4000 440', '5000 440', '6000 440', '7000 440', '8000 880']);
+    expect(h.said.map((u) => u.text)).toEqual([]);
+  });
+  it("fires a due tenth before stopping, so the expiry tone survives RotorHazard's stop arriving on the boundary (#38)", () => {
+    const h = harness(laptime);
+    h.engine.stageReady(
+      {
+        pi_staging_at_s: 0,
+        pi_starts_at_s: 2,
+        staging_tones: 0,
+        unlimited_time: 0,
+        race_time_sec: 12
+      },
+      0
+    );
+    h.tl.advance(13_950, h.tick); // the last tick ran at 13 900: tenth 119 (0.1 s left)
+    h.tl.t = 14_001; // the server's stop_timer lands 1 ms after the expiry boundary
+    h.engine.stop();
+    expect(h.tones.filter((t) => t.frequency === 880).map((t) => t.t)).toEqual([2000, 14_001]);
+    h.tl.advance(16_000, h.tick);
+    expect(h.tones.filter((t) => t.frequency === 880)).toHaveLength(2);
+    expect(h.engine.msToNextTenth()).toBeNull();
+  });
+  it('stops on a Ready race_status and does not kick off from a later running one (#73)', () => {
+    const h = harness(laptime);
+    h.engine.raceStatus({ race_status: 0 }, 0);
+    h.engine.raceStatus(
+      {
+        race_status: 1,
+        pi_staging_at_s: 0,
+        pi_starts_at_s: 1,
+        staging_tones: 0,
+        unlimited_time: 0,
+        race_time_sec: 5
+      },
+      0
+    );
+    h.tl.advance(7_000, h.tick);
+    expect(h.tones).toEqual([]);
+  });
   it('reads RotorHazard settings from localStorage with its JSON values and defaults', () => {
     const store = new Map<string, string>([
       ['rotorhazard.voice_rate', '1.5'],

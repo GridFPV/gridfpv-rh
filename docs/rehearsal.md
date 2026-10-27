@@ -89,6 +89,9 @@ save, next heat as the board says) is written at the end of the tier.
       page: staging and final-second ticks are RotorHazard's stage.mp3, start and expiry its
       buzzer.mp3, at the tone volume; the leader and winner cues are its leader.mp3 and
       winner.mp3 (#75).
+- [ ] **Reload mid-race.** Start a race, reload Grid's Run page while it runs and click once:
+      the final-second ticks, the expiry tone and later lap callouts still come, and nothing
+      is replayed. Reload during staging: the start tone still comes (#73).
 
 ## T4 — Marshal and Results parity
 

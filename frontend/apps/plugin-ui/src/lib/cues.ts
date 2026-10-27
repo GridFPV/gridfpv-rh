@@ -153,9 +153,14 @@ export class CueEngine {
   private checkQueue = true;
   private checkCounter = 0;
   private winnerDeclared = false;
-  // the race timer, as RotorHazard's: tenths, staging-relative tenths, what has fired
-  private raceStartMs: number | null = null;
-  private stagingStartMs: number | null = null;
+  // the race timer, as RotorHazard's: tenths, staging-relative tenths, what has fired.
+  // Start times stay in RotorHazard's clock (pi seconds) and are placed on ours through the
+  // differential, which can arrive or move after the race began (a reload mid-race, #73).
+  private piStartS: number | null = null;
+  private piStagingS: number | null = null;
+  private differential: number | null = null;
+  /** RotorHazard's resume_check: the first race_status after load kicks a running race off. */
+  private resumeCheck = true;
   private countUp = false;
   private durationTenths = 0;
   private stagingTones = 0;
@@ -169,6 +174,17 @@ export class CueEngine {
     settings: AudioSettings = AUDIO_DEFAULTS
   ) {
     this.settings = settings;
+  }
+
+  private get raceStartMs(): number | null {
+    return this.piStartS == null || this.differential == null
+      ? null
+      : this.piStartS * 1000 - this.differential;
+  }
+  private get stagingStartMs(): number | null {
+    return this.piStagingS == null || this.differential == null
+      ? null
+      : this.piStagingS * 1000 - this.differential;
   }
 
   // ---- tones (rotorhazard.js play_beep and friends) ----
@@ -270,12 +286,13 @@ export class CueEngine {
       unlimited_time?: boolean | number;
       race_time_sec?: number;
     },
-    differential: number
+    differential: number | null
   ) {
-    // RotorHazard's clock to ours: pi seconds × 1000 minus the measured differential.
-    this.raceStartMs = p.pi_starts_at_s == null ? null : p.pi_starts_at_s * 1000 - differential;
-    this.stagingStartMs =
-      p.pi_staging_at_s == null ? null : p.pi_staging_at_s * 1000 - differential;
+    // RotorHazard's clock to ours: pi seconds × 1000 minus the measured differential, which
+    // is applied at each tick so it can arrive (or move) later.
+    this.piStartS = p.pi_starts_at_s ?? null;
+    this.piStagingS = p.pi_staging_at_s ?? null;
+    this.differential = differential;
     this.countUp = Boolean(p.unlimited_time);
     this.durationTenths = Math.round((p.race_time_sec ?? 0) * 10);
     this.stagingTones = p.staging_tones ?? 0;
@@ -284,9 +301,48 @@ export class CueEngine {
     this.winnerDeclared = false;
     this.running = true;
   }
-  /** The race stopped (or was discarded): the timer stops, nothing more fires. */
+  /**
+   * The race stopped (or was discarded): the timer stops, nothing more fires. A tenth whose
+   * boundary has passed fires first: RotorHazard's own step is scheduled on the boundary and
+   * has run by the time its stop_timer reaches a page, so the expiry tone at the very moment
+   * the server ends the race is not lost to the order of two messages.
+   */
   stop() {
+    if (this.running) this.tick();
     this.running = false;
+  }
+  /** Milliseconds until the next whole tenth of the running race, for a boundary-aligned tick. */
+  msToNextTenth(): number | null {
+    const start = this.raceStartMs;
+    if (!this.running || start == null) return null;
+    const into = (((this.now() - start) % 100) + 100) % 100;
+    return 100 - into;
+  }
+  /**
+   * run.html's race_status handler: the first one after load finds a race staging or running
+   * (a page reloaded mid-race, #73) and kicks it off from the same fields stage_ready carries,
+   * as RotorHazard's resume_check / race_kickoff does; Ready stops the timer.
+   */
+  raceStatus(
+    p: Parameters<CueEngine['stageReady']>[0] & { race_status?: number | string },
+    differential: number | null
+  ) {
+    const status = Number(p.race_status);
+    if (status === 0) this.stop();
+    else if (this.resumeCheck && (status === 1 || status === 3)) this.stageReady(p, differential);
+    this.resumeCheck = false;
+  }
+  /**
+   * The clock sync moved (a new pi_time sample): the start times move with it. Tenths already
+   * fired are not fired again, and tenths a forward jump skipped are not caught up.
+   */
+  resync(differential: number | null) {
+    if (differential === this.differential) return;
+    this.differential = differential;
+    const start = this.raceStartMs;
+    if (this.lastTenth == null || start == null) return;
+    const elapsed = Math.floor((this.now() - start) / 100);
+    this.lastTenth = Math.max(this.lastTenth, elapsed - 1);
   }
 
   phoneticData(msg: PhoneticData) {
@@ -360,10 +416,16 @@ export class CueEngine {
   // ---- the race timer (rotorhazard.js timer callbacks.step), one call per tick ----
 
   tick() {
-    if (!this.running || this.raceStartMs == null) return;
+    const start = this.raceStartMs;
+    if (!this.running || start == null) return;
     const now = this.now();
-    // RotorHazard rounds its tenths (Math.round(time / 100)), so a tenth flips at .x50.
-    const elapsed = Math.round((now - this.raceStartMs) / 100);
+    // RotorHazard's timer (rotorhazard.js timerModel) schedules each step on the whole tenth
+    // (get_next_step aligns setTimeout to local_zero_time modulo 100 ms) and labels it with
+    // Math.round(time / 100); so a tenth fires AT k × 100 ms, a few ms late. Ticking every
+    // 20 ms and taking the floor fires ours in the same 0–20 ms window after the boundary.
+    // (Rounding here fired up to 50 ms before the boundary: QA measured a steady 30–40 ms
+    // lead on every staging tone, #38.)
+    const elapsed = Math.floor((now - start) / 100);
     if (this.lastTenth == null) this.lastTenth = elapsed - 1;
     // Fire every tenth that passed since the last tick, in order, so none is skipped.
     // RotorHazard's time_tenths: negative before the start, elapsed while counting up,
@@ -381,11 +443,11 @@ export class CueEngine {
   private step(tenths: number) {
     const s = this.settings;
     if (tenths < 0) {
-      if (this.stagingStartMs == null) return;
+      const start = this.raceStartMs;
+      const staging = this.stagingStartMs;
+      if (start == null || staging == null) return;
       // staging-relative tenths at this race tenth: race start minus the time left
-      const stagingTenths = Math.round(
-        (this.raceStartMs! + tenths * 100 - this.stagingStartMs) / 100
-      );
+      const stagingTenths = Math.round((start + tenths * 100 - staging) / 100);
       if (
         stagingTenths < this.stagingTones * 10 &&
         stagingTenths >= 0 &&
