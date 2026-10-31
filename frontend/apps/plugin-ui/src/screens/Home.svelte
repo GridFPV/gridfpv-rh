@@ -3,7 +3,6 @@
   import { Badge, Card } from '@gridfpv/components';
   import ModeCard from '../components/ModeCard.svelte';
   import { rh } from '../lib/rh.svelte.js';
-  import { href, link } from '../lib/router.svelte.js';
 
   const timer = rh();
 </script>
@@ -37,30 +36,6 @@
   </Card>
 
   <ModeCard />
-
-  <Card title="Race director" elevation="xs">
-    <p>
-      <a href={href('event')} onclick={link}>Event</a> — the event's details, new event, archives.
-      <a href={href('seats')} onclick={link}>Seats</a> — channels, profiles and tuning.
-      <a href={href('pilots')} onclick={link}>Pilots</a> — the roster.
-      <a href={href('teams')} onclick={link}>Teams</a> — named teams, shown in RotorHazard too.
-      <a href={href('stages')} onclick={link}>Stages</a> — the day's stages, heats and rounds.
-      <a href={href('formats')} onclick={link}>Formats</a> — how a race is run.
-      <a href={href('run')} onclick={link}>Run</a> — race day: start, stop, save, seed as you go.
-      <a href={href('marshal')} onclick={link}>Marshal</a> — fix laps on the signal trace.
-      <a href={href('results')} onclick={link}>Results</a> — every board RotorHazard's Results page
-      shows.
-      <a href={href('overlays')} onclick={link}>Overlays</a> — the OBS pages and their URLs. These
-      need the RotorHazard login. RotorHazard's own pages are still at <a href="/">/</a>.
-    </p>
-  </Card>
-
-  <Card title="Live" elevation="xs">
-    <p>
-      <a href={href('live/race')} onclick={link}>Race overlay</a> — the race clock and laps on a see-through
-      page for OBS. No login.
-    </p>
-  </Card>
 </section>
 
 <style>

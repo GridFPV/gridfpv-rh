@@ -16,7 +16,6 @@
     type WriteResult
   } from '../lib/rh.svelte.js';
   import { MIN_LAP_BEHAVIOR, MIN_LAP_BEHAVIOR_LABELS, type MinLapBehavior } from '../lib/timing.js';
-  import { href, link } from '../lib/router.svelte.js';
   import { archiveLabel } from '../lib/archives.js';
   import {
     currentTrack,
@@ -372,17 +371,6 @@
         {/each}
       </ul>
     {/if}
-  </Card>
-
-  <Card title="Next" elevation="xs">
-    <p>
-      <a href={href('run')} onclick={link}>Run</a> — start a run on the track that is on the timer.
-      <a href={href('marshal')} onclick={link}>Marshal</a> — fix the laps after.
-      <a href={href('results')} onclick={link}>Results</a> — the track's best and every run.
-      <a href={href('seats')} onclick={link}>Seats</a> — tune the seat.
-      <a href={href('overlays')} onclick={link}>Overlays</a> — the video companion for the OBS machine,
-      and the overlay.
-    </p>
   </Card>
 
   <ModeCard />
