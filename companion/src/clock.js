@@ -9,10 +9,7 @@ export const SYNC_SAMPLES = 10;
 /** Add one sample: the timer said `piTimeS` to a request sent at `sentAt`, answered at `gotAt`. */
 export function addSample(samples, piTimeS, sentAt, gotAt) {
   const mid = (sentAt + gotAt) / 2;
-  const next = [
-    ...samples,
-    { differential: piTimeS * 1000 - mid, response: gotAt - sentAt },
-  ];
+  const next = [...samples, { differential: piTimeS * 1000 - mid, response: gotAt - sentAt }];
   // Keep the quickest round trips: they place the sample best.
   return next.sort((a, b) => a.response - b.response).slice(0, SYNC_SAMPLES);
 }

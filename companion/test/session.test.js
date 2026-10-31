@@ -1,11 +1,11 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
-import { promises as fs } from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { Session } from "../src/session.js";
-import { readSidecar, sidecarPathFor } from "../src/sidecar.js";
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { Session } from '../src/session.js';
+import { readSidecar, sidecarPathFor } from '../src/sidecar.js';
 
 /** A race day in a box: fake timer, fake OBS, a render that records what it was asked. */
 function rig({ trashDiscarded = true } = {}) {
@@ -19,7 +19,10 @@ function rig({ trashDiscarded = true } = {}) {
     },
     pilotRace: async (id) => timer.races[id],
     races: {},
-    refreshRaceList: async () => {},
+    asked: 0,
+    refreshRaceList: async () => {
+      timer.asked++;
+    }
   });
   const obs = {
     active: false,
@@ -29,7 +32,7 @@ function rig({ trashDiscarded = true } = {}) {
       return {
         active: this.active,
         paused: false,
-        durationMs: this.active ? clock - this.startedAt : 0,
+        durationMs: this.active ? clock - this.startedAt : 0
       };
     },
     async startRecord() {
@@ -39,7 +42,7 @@ function rig({ trashDiscarded = true } = {}) {
     async stopRecord() {
       this.active = false;
       return this.file;
-    },
+    }
   };
   const renders = [];
   const deps = {
@@ -60,10 +63,10 @@ function rig({ trashDiscarded = true } = {}) {
       return {
         title: `RaceGOW 2 Track 4 Round ${data.round}`,
         lapStamps: [2000, 3600],
-        files: [path.join(path.dirname(data.recording), "render.mp4")],
+        files: [path.join(path.dirname(data.recording), 'render.mp4')]
       };
     },
-    log: () => {},
+    log: () => {}
   };
   const advance = async (ms) => {
     clock += ms;
@@ -79,49 +82,49 @@ function rig({ trashDiscarded = true } = {}) {
     deps,
     renders,
     advance,
-    tick: () => new Promise((r) => setImmediate(r)),
+    tick: () => new Promise((r) => setImmediate(r))
   };
 }
 
-test("staging starts the recording, the start is pinned by elapsed time, the stop writes a sidecar, a saved round renders", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "gridfpv-session-"));
+test('staging starts the recording, the start is pinned by elapsed time, the stop writes a sidecar, a saved round renders', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'gridfpv-session-'));
   const { timer, obs, deps, renders, advance, tick } = rig();
-  obs.file = path.join(dir, "rec.mkv");
-  await fs.writeFile(obs.file, "");
+  obs.file = path.join(dir, 'rec.mkv');
+  await fs.writeFile(obs.file, '');
   const s = new Session(
     { tailSeconds: 3, discardAfterSeconds: 8, trashDiscarded: true },
-    deps,
+    deps
   ).start();
 
   // Staging at local 100000 (timer 600.000 s); start 2.5 s later.
-  timer.emit("stage_ready", {
+  timer.emit('stage_ready', {
     status: 3,
     heatId: 4,
     nextRound: 7,
     startsAt: 602.5,
-    stagingAt: 600.0,
+    stagingAt: 600.0
   });
   await tick();
   assert.equal(obs.active, true);
   await advance(2500);
-  timer.emit("race_status", {
+  timer.emit('race_status', {
     status: 1,
     heatId: 4,
     nextRound: 7,
     startsAt: 602.5,
-    stagingAt: 600.0,
+    stagingAt: 600.0
   });
   await tick();
   assert.equal(s.recording.raceStartMs, 2500);
   assert.equal(s.recording.stagingMs, -2500);
   // Stopped 30 s after the start; the tail keeps recording 3 s.
   await advance(30_000);
-  timer.emit("race_status", {
+  timer.emit('race_status', {
     status: 2,
     heatId: 4,
     nextRound: 7,
     startsAt: 602.5,
-    stagingAt: 600.0,
+    stagingAt: 600.0
   });
   await tick();
   assert.equal(s.recording.endMs, 30_000);
@@ -138,20 +141,22 @@ test("staging starts the recording, the start is pinned by elapsed time, the sto
   timer.raceList = [
     {
       heatId: 4,
-      rounds: [{ round: 7, raceId: 42, pilotraces: [{ pilotraceId: 9 }] }],
-    },
+      rounds: [{ round: 7, raceId: 42, pilotraces: [{ pilotraceId: 9 }] }]
+    }
   ];
-  timer.emit("race_status", { status: 0, heatId: 4, nextRound: 8 });
-  timer.emit("race_list", timer.raceList);
+  timer.emit('race_status', { status: 0, heatId: 4, nextRound: 8 });
+  await advance(300);
+  assert.ok(timer.asked >= 1, 'asked RotorHazard for the saved races after Ready');
+  timer.emit('race_list', timer.raceList);
   await s.renderQueue;
   await tick();
   assert.equal(renders.length, 1);
   assert.equal(renders[0].round, 7);
   const done = await readSidecar(side);
-  assert.equal(done.name, "RaceGOW 2 Track 4 Round 7");
+  assert.equal(done.name, 'RaceGOW 2 Track 4 Round 7');
   assert.equal(done.race_id, 42);
   assert.ok(done.laps_hash);
-  assert.deepEqual(done.rendered.files, [path.join(dir, "render.mp4")]);
+  assert.deepEqual(done.rendered.files, [path.join(dir, 'render.mp4')]);
   // Ready came before the list, so a discard timer was set; it must not fire now.
   await advance(10_000);
   assert.equal(renders.length, 1);
@@ -160,12 +165,7 @@ test("staging starts the recording, the start is pinned by elapsed time, the sto
   // A marshal: results change, the laps differ → one re-render; unchanged laps → none.
   timer.races[9] = {
     pilotraceId: 9,
-    laps: [
-      { stampMs: 500 },
-      { stampMs: 2000 },
-      { stampMs: 3600, deleted: true },
-      { stampMs: 5900 },
-    ],
+    laps: [{ stampMs: 500 }, { stampMs: 2000 }, { stampMs: 3600, deleted: true }, { stampMs: 5900 }]
   };
   await s.checkResults();
   await s.renderQueue;
@@ -173,75 +173,72 @@ test("staging starts the recording, the start is pinned by elapsed time, the sto
   // Now the page reports what the sidecar has (the fake render always says [2000, 3600]).
   timer.races[9] = {
     pilotraceId: 9,
-    laps: [{ stampMs: 500 }, { stampMs: 2000 }, { stampMs: 3600 }],
+    laps: [{ stampMs: 500 }, { stampMs: 2000 }, { stampMs: 3600 }]
   };
   await s.checkResults();
   await s.renderQueue;
   assert.equal(renders.length, 2);
 
   // The round is deleted (#36): the recording, sidecar and render go to trash.
-  await fs.writeFile(path.join(dir, "render.mp4"), "");
+  await fs.writeFile(path.join(dir, 'render.mp4'), '');
   timer.raceList = [{ heatId: 4, rounds: [] }];
-  timer.emit("race_list", timer.raceList);
+  timer.emit('race_list', timer.raceList);
   await s.tasks;
-  assert.deepEqual((await fs.readdir(path.join(dir, "trash"))).sort(), [
-    "rec.mkv",
-    "rec.mkv.gridfpv.json",
-    "render.mp4",
+  assert.deepEqual((await fs.readdir(path.join(dir, 'trash'))).sort(), [
+    'rec.mkv',
+    'rec.mkv.gridfpv.json',
+    'render.mp4'
   ]);
   await fs.rm(dir, { recursive: true });
 });
 
-test("Ready with no new round is a discard: the recording goes to trash (or stays, by setting)", async () => {
+test('Ready with no new round is a discard: the recording goes to trash (or stays, by setting)', async () => {
   for (const trashDiscarded of [true, false]) {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "gridfpv-session-"));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'gridfpv-session-'));
     const { timer, obs, deps, renders, advance, tick } = rig();
-    obs.file = path.join(dir, "rec.mkv");
-    await fs.writeFile(obs.file, "");
-    new Session(
-      { tailSeconds: 1, discardAfterSeconds: 8, trashDiscarded },
-      deps,
-    ).start();
-    timer.emit("race_status", {
+    obs.file = path.join(dir, 'rec.mkv');
+    await fs.writeFile(obs.file, '');
+    new Session({ tailSeconds: 1, discardAfterSeconds: 8, trashDiscarded }, deps).start();
+    timer.emit('race_status', {
       status: 3,
       heatId: 4,
       nextRound: 7,
       startsAt: 601,
-      stagingAt: 600,
+      stagingAt: 600
     });
     await tick();
     await advance(1000);
-    timer.emit("race_status", {
+    timer.emit('race_status', {
       status: 1,
       heatId: 4,
       nextRound: 7,
       startsAt: 601,
-      stagingAt: 600,
+      stagingAt: 600
     });
     await tick();
     await advance(5000);
-    timer.emit("race_status", {
+    timer.emit('race_status', {
       status: 2,
       heatId: 4,
       nextRound: 7,
       startsAt: 601,
-      stagingAt: 600,
+      stagingAt: 600
     });
     await tick();
     await advance(1000);
-    timer.emit("race_status", { status: 0, heatId: 4, nextRound: 7 });
+    timer.emit('race_status', { status: 0, heatId: 4, nextRound: 7 });
     await tick();
     await advance(8000);
     await tick();
     assert.equal(renders.length, 0);
-    const left = (await fs.readdir(dir)).filter((n) => n !== "trash").sort();
+    const left = (await fs.readdir(dir)).filter((n) => n !== 'trash').sort();
     if (trashDiscarded) {
       assert.deepEqual(left, []);
-      assert.deepEqual((await fs.readdir(path.join(dir, "trash"))).sort(), [
-        "rec.mkv",
-        "rec.mkv.gridfpv.json",
+      assert.deepEqual((await fs.readdir(path.join(dir, 'trash'))).sort(), [
+        'rec.mkv',
+        'rec.mkv.gridfpv.json'
       ]);
-    } else assert.deepEqual(left, ["rec.mkv", "rec.mkv.gridfpv.json"]);
+    } else assert.deepEqual(left, ['rec.mkv', 'rec.mkv.gridfpv.json']);
     await fs.rm(dir, { recursive: true });
   }
 });

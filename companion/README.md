@@ -81,6 +81,13 @@ that race time; the clock's tenths and each lap land on the frame they belong to
 
 ## Tests
 
+The real thing, in containers: `make rig-up obs-up` starts RotorHazard and a headless OBS
+(Ubuntu's obs-studio under Xvfb, obs-websocket on :4455, password `gridfpv`, recording a
+colour source to `dev/recordings`), and `make video-test` plays a race day against both — a
+run recorded, saved and rendered; a marshal re-rendered once; a discard trashed — then
+decodes what landed. CI runs it. `make obs-logs` has OBS's log; `make obs-down` stops it.
+
+
 `npm test` runs the state machine and the pure parts in a fake race day. `npm run smoke`
 renders a real run from a timer (defaults to the dev rig at `localhost:5050`) and decodes
 the result; it needs a Chromium and an ffmpeg with `libvpx-vp9` — see the note in

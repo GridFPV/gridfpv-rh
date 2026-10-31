@@ -31,6 +31,12 @@ jobs:
       - run: make rig-up
       - run: make e2e-install
       - run: make e2e
+      # The video companion's race day for real (#96): a headless OBS beside the rig, the
+      # companion recording, rendering, re-rendering after a marshal and trashing a discard.
+      - run: make obs-up
+      - run: make video-test
+      - if: failure()
+        run: docker logs gridfpv-obs-dev 2>&1 | tail -100
       - if: failure()
         run: docker compose -f dev/docker-compose.yml logs --no-color rotorhazard | tail -200
       - if: failure()

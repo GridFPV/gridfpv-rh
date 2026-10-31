@@ -37,3 +37,17 @@ services:
       timeout: 8s
       retries: 6
       start_period: 20s
+
+  # A headless OBS for the video companion's race-day test (#96): `make obs-up`. Only with
+  # the "video" profile, so `make rig-up` never builds it. obs-websocket on :4455, password
+  # "gridfpv"; it records a colour source to ./recordings (x264, 1280x720, mkv).
+  obs:
+    profiles: ["video"]
+    build: ./obs
+    image: gridfpv-obs-dev
+    container_name: gridfpv-obs-dev
+    ports:
+      - "${OBS_PORT:-4455}:4455"
+    volumes:
+      - ./recordings:/recordings
+    shm_size: 512m

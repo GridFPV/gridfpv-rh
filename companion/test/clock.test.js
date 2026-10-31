@@ -1,13 +1,8 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
-import {
-  addSample,
-  differential,
-  localMs,
-  raceStartInRecording,
-} from "../src/clock.js";
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { addSample, differential, localMs, raceStartInRecording } from '../src/clock.js';
 
-test("the differential is the median of samples placed mid round trip, quickest kept", () => {
+test('the differential is the median of samples placed mid round trip, quickest kept', () => {
   let s = [];
   // Timer at 1000.000 s when local is 5000 ms, with round trips of 20 ms (+ one slow outlier).
   s = addSample(s, 1000.0, 4990, 5010); // mid 5000 → diff 995000
@@ -19,12 +14,12 @@ test("the differential is the median of samples placed mid round trip, quickest 
   assert.equal(s.length, 10);
   assert.ok(
     s.every((x) => x.response === 10),
-    "the slow samples were dropped",
+    'the slow samples were dropped'
   );
   assert.equal(differential([]), null);
 });
 
-test("a timer stamp becomes local time, and the start sits in the recording by elapsed time", () => {
+test('a timer stamp becomes local time, and the start sits in the recording by elapsed time', () => {
   const diff = 995000;
   // Race started at timer 1002.5 s → local 7500 ms.
   const startLocal = localMs(1002.5, diff);

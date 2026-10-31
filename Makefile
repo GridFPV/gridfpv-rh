@@ -127,6 +127,22 @@ rig-up: dev/plugins/multigp_toolkit/manifest.json ## Start RotorHazard 4.4.0 (mo
 	$(COMPOSE) up -d --build --wait
 	@echo "RotorHazard: http://localhost:$${RH_PORT:-5050}   GridFPV: http://localhost:$${RH_PORT:-5050}/grid   (admin / rotorhazard)"
 
+obs-up: ## Start a headless OBS for the video companion (obs-websocket :4455, password gridfpv; records to dev/recordings)
+	$(COMPOSE) --profile video up -d --build obs
+
+obs-down: ## Stop the headless OBS
+	$(COMPOSE) --profile video stop obs
+	$(COMPOSE) --profile video rm -f obs
+
+obs-logs: ## Follow the headless OBS's log
+	$(COMPOSE) --profile video logs -f obs
+
+video-test: build ## The companion's race day for real: the rig + the headless OBS + a browser + ffmpeg, all in containers (`make rig-up obs-up` first)
+	docker build -q -t gridfpv-video-runner dev/companion
+	docker run --rm --network host --user $$(id -u):$$(id -g) -e HOME=/tmp \
+	  -e RH_URL="$${RH_URL:-http://localhost:5050}" -e GRIDFPV_OBS="ws://127.0.0.1:$${OBS_PORT:-4455}" -e GRIDFPV_OBS_PASS=gridfpv \
+	  -v "$$(pwd)/companion:/work" -v "$$(pwd)/dev/recordings:/recordings" -w /work gridfpv-video-runner node smoke/race-day.mjs
+
 rig-down: ## Stop the rig
 	$(COMPOSE) down
 

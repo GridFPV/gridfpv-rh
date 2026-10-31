@@ -5,16 +5,11 @@
  * discard, and the recording goes to trash; a changed result re-renders; a deleted round
  * trashes. Everything with a side effect is injected, so the whole loop runs in a test.
  */
-import path from "node:path";
-import { raceStartInRecording } from "./clock.js";
-import {
-  lapsHash,
-  listSidecars,
-  sidecarPathFor,
-  trashRecording,
-  writeSidecar,
-} from "./sidecar.js";
-import { RACE, roundsOf, scoredStamps } from "./timer.js";
+import path from 'node:path';
+import { raceStartInRecording } from './clock.js';
+import { probeDuration } from './render.js';
+import { lapsHash, listSidecars, sidecarPathFor, trashRecording, writeSidecar } from './sidecar.js';
+import { RACE, roundsOf, scoredStamps } from './timer.js';
 
 export class Session {
   /**
@@ -38,18 +33,17 @@ export class Session {
 
   start() {
     const t = this.d.timer;
-    t.on("stage_ready", (r) => this.onStaging(r));
-    t.on("race_status", (r) => this.onRaceStatus(r));
-    t.on("race_list", (list) => this.onRaceList(list));
-    t.on("result_data", () => this.onResults());
-    t.on("races_deleted", () => void this.d.timer.refreshRaceList?.());
+    t.on('stage_ready', (r) => this.onStaging(r));
+    t.on('race_status', (r) => this.onRaceStatus(r));
+    t.on('race_list', (list) => this.onRaceList(list));
+    t.on('result_data', () => this.onResults());
+    t.on('races_deleted', () => void this.d.timer.refreshRaceList?.());
     return this;
   }
 
   /** Load the sidecars already in a folder (a restart mid-season keeps re-rendering them). */
   async adopt(dir) {
-    for (const s of await listSidecars(dir, this.log))
-      this.known.set(s.file, s.data);
+    for (const s of await listSidecars(dir, this.log)) this.known.set(s.file, s.data);
     this.log(`adopted ${this.known.size} sidecar(s) from ${dir}`);
   }
 
@@ -57,9 +51,7 @@ export class Session {
   async onStaging(race) {
     if (race.status !== RACE.STAGING) return;
     if (this.recording) return; // already on it (stage_ready and race_status both say so)
-    const roundsBefore = roundsOf(this.d.timer.raceList, race.heatId).map(
-      (r) => r.round,
-    );
+    const roundsBefore = roundsOf(this.d.timer.raceList, race.heatId).map((r) => r.round);
     this.recording = {
       heatId: race.heatId,
       nextRound: race.nextRound ?? null,
@@ -69,17 +61,14 @@ export class Session {
       raceStartMs: null,
       stagingMs: null,
       endMs: null,
-      startedAt: new Date().toISOString(),
+      startedAt: new Date().toISOString()
     };
     try {
       const st = await this.d.obs.recordStatus();
       if (!st.active) {
         await this.d.obs.startRecord();
         this.log(`recording: started for heat ${race.heatId}`);
-      } else
-        this.log(
-          `recording: already on (${Math.round(st.durationMs / 1000)} s in); using it`,
-        );
+      } else this.log(`recording: already on (${Math.round(st.durationMs / 1000)} s in); using it`);
     } catch (e) {
       this.log(`recording: OBS refused to start: ${e.message}`);
       this.recording = null;
@@ -101,25 +90,34 @@ export class Session {
       const startLocal = this.d.timer.localMs(rec.startsAt);
       rec.endMs = startLocal == null ? null : this.d.now() - startLocal;
       this.log(
-        `race: stopped at ${rec.endMs == null ? "?" : (rec.endMs / 1000).toFixed(1)} s; recording ${this.cfg.tailSeconds} s more`,
+        `race: stopped at ${rec.endMs == null ? '?' : (rec.endMs / 1000).toFixed(1)} s; recording ${this.cfg.tailSeconds} s more`
       );
-      this.d.setTimeout(
-        () => this.finishRecording(rec),
-        this.cfg.tailSeconds * 1000,
-      );
+      this.d.setTimeout(() => this.finishRecording(rec), this.cfg.tailSeconds * 1000);
     }
   }
 
   /** Ready after a stop: saved or discarded. race_list tells which; if it says nothing in time, it was a discard. */
   onReady() {
+    let any = false;
     for (const rec of [this.recording, ...this.pending]) {
       if (!rec || rec.endMs == null || rec.readyAt) continue;
       rec.readyAt = this.d.now();
       rec.discardTimer = this.d.setTimeout(
         () => this.discard(rec),
-        this.cfg.discardAfterSeconds * 1000,
+        this.cfg.discardAfterSeconds * 1000
       );
+      any = true;
     }
+    if (any) this.askRaceList();
+  }
+
+  /**
+   * RotorHazard does not broadcast its saved-race list on a save (Grid's own page asks for it
+   * after saving), so ask — now, and again while the save settles — well inside the discard wait.
+   */
+  askRaceList() {
+    for (const ms of [300, 2000, 4500])
+      this.d.setTimeout(() => this.d.timer.refreshRaceList?.(), ms);
   }
 
   /** Where the start signal sits in the file, from the recording's length against the race's age. */
@@ -127,19 +125,15 @@ export class Session {
     const startLocal = this.d.timer.localMs(rec.startsAt);
     if (startLocal == null)
       return this.log(
-        "race: started, but the timer clock is not synced yet; the start will be pinned at the stop",
+        'race: started, but the timer clock is not synced yet; the start will be pinned at the stop'
       );
     try {
       const st = await this.d.obs.recordStatus();
       const now = this.d.now();
-      if (!st.active)
-        return this.log("race: started, but OBS is not recording");
+      if (!st.active) return this.log('race: started, but OBS is not recording');
       rec.raceStartMs = raceStartInRecording(st.durationMs, now, startLocal);
-      rec.stagingMs =
-        rec.stagingAt == null ? null : (rec.stagingAt - rec.startsAt) * 1000;
-      this.log(
-        `race: start pinned ${(rec.raceStartMs / 1000).toFixed(3)} s into the recording`,
-      );
+      rec.stagingMs = rec.stagingAt == null ? null : (rec.stagingAt - rec.startsAt) * 1000;
+      this.log(`race: start pinned ${(rec.raceStartMs / 1000).toFixed(3)} s into the recording`);
     } catch (e) {
       this.log(`race: could not read the recording length: ${e.message}`);
     }
@@ -151,7 +145,10 @@ export class Session {
       rec.durationMs = st.durationMs;
       const file = await this.d.obs.stopRecord();
       rec.recording = file;
-      this.log(`recording: stopped → ${file}`);
+      // OBS keeps writing for a moment after the length was read: the file's own length wins.
+      const probed = this.cfg.ffmpeg ? await probeDuration(this.cfg, file) : null;
+      if (probed != null) rec.durationMs = probed;
+      this.log(`recording: stopped → ${file} (${((rec.durationMs ?? 0) / 1000).toFixed(1)} s)`);
     } catch (e) {
       this.log(`recording: could not stop: ${e.message}`);
       this.recording = null;
@@ -168,15 +165,16 @@ export class Session {
       staging_ms: rec.stagingMs,
       end_ms: rec.endMs,
       duration_ms: rec.durationMs,
-      recorded_at: rec.startedAt,
+      recorded_at: rec.startedAt
     };
     await writeSidecar(sidecarFile, data);
     rec.sidecarFile = sidecarFile;
     rec.data = data;
     this.pending.push(rec);
     this.recording = null;
-    // The save may already have been listed while the tail ran.
+    // The save may already have been listed while the tail ran — or not asked for yet.
     this.onRaceList(this.d.timer.raceList);
+    this.askRaceList();
   }
 
   // ---- save / discard ----
@@ -192,7 +190,7 @@ export class Session {
       rec.data.race_id = round.raceId;
       this.known.set(rec.sidecarFile, rec.data);
       this.log(
-        `run saved: heat ${rec.heatId} round ${round.round} (race ${round.raceId}) → render`,
+        `run saved: heat ${rec.heatId} round ${round.round} (race ${round.raceId}) → render`
       );
       this.queueRender(rec.sidecarFile, rec.data);
     }
@@ -200,17 +198,15 @@ export class Session {
     for (const [file, data] of [...this.known]) {
       if (data.round == null) continue;
       const still = roundsOf(list, data.heat_id).some(
-        (r) => r.round === data.round && r.raceId === data.race_id,
+        (r) => r.round === data.round && r.raceId === data.race_id
       );
       if (!still) {
         this.known.delete(file);
         if (this.cfg.trashDiscarded)
-          this.tasks = this.tasks.then(() =>
-            this.trash(file, data, "round deleted"),
-          );
+          this.tasks = this.tasks.then(() => this.trash(file, data, 'round deleted'));
         else
           this.log(
-            `round deleted: heat ${data.heat_id} round ${data.round}; recording kept (trashDiscarded is off)`,
+            `round deleted: heat ${data.heat_id} round ${data.round}; recording kept (trashDiscarded is off)`
           );
       }
     }
@@ -224,17 +220,15 @@ export class Session {
     }
     if (!this.pending.includes(rec)) return;
     this.pending = this.pending.filter((x) => x !== rec);
-    if (this.cfg.trashDiscarded)
-      await this.trash(rec.sidecarFile, rec.data, "run discarded");
-    else
-      this.log(`run discarded: ${rec.recording} kept (trashDiscarded is off)`);
+    if (this.cfg.trashDiscarded) await this.trash(rec.sidecarFile, rec.data, 'run discarded');
+    else this.log(`run discarded: ${rec.recording} kept (trashDiscarded is off)`);
   }
 
   async trash(sidecarFile, data, why) {
     try {
       const moved = await trashRecording(sidecarFile, data);
       this.log(
-        `${why}: ${moved.length} file(s) moved to ${path.join(path.dirname(sidecarFile), "trash")}`,
+        `${why}: ${moved.length} file(s) moved to ${path.join(path.dirname(sidecarFile), 'trash')}`
       );
     } catch (e) {
       this.log(`${why}: could not move to trash: ${e.message}`);
@@ -251,15 +245,9 @@ export class Session {
         data.laps_hash = lapsHash(r.lapStamps);
         data.rendered = { at: new Date().toISOString(), files: r.files };
         await writeSidecar(sidecarFile, data);
-        this.log(
-          `rendered: ${r.files.map((f) => path.basename(f)).join(", ")}`,
-        );
+        this.log(`rendered: ${r.files.map((f) => path.basename(f)).join(', ')}`);
       })
-      .catch((e) =>
-        this.log(
-          `render failed for ${path.basename(sidecarFile)}: ${e.message}`,
-        ),
-      );
+      .catch((e) => this.log(`render failed for ${path.basename(sidecarFile)}: ${e.message}`));
     return this.renderQueue;
   }
 
@@ -273,24 +261,19 @@ export class Session {
     for (const [file, data] of [...this.known]) {
       if (data.race_id == null) continue;
       const round = roundsOf(this.d.timer.raceList, data.heat_id).find(
-        (r) => r.raceId === data.race_id,
+        (r) => r.raceId === data.race_id
       );
       if (!round) continue;
       try {
         const prs = [];
-        for (const pr of round.pilotraces)
-          prs.push(await this.d.timer.pilotRace(pr.pilotraceId));
+        for (const pr of round.pilotraces) prs.push(await this.d.timer.pilotRace(pr.pilotraceId));
         const hash = lapsHash(scoredStamps(prs, data.first_lap_counts));
         if (hash !== data.laps_hash) {
-          this.log(
-            `laps changed for heat ${data.heat_id} round ${data.round} → re-render`,
-          );
+          this.log(`laps changed for heat ${data.heat_id} round ${data.round} → re-render`);
           await this.queueRender(file, data);
         }
       } catch (e) {
-        this.log(
-          `could not check heat ${data.heat_id} round ${data.round}: ${e.message}`,
-        );
+        this.log(`could not check heat ${data.heat_id} round ${data.round}: ${e.message}`);
       }
     }
   }
