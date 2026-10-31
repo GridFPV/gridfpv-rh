@@ -5,6 +5,7 @@
   import { connect, rh } from './lib/rh.svelte.js';
   import { href, link, route } from './lib/router.svelte.js';
   import Home from './screens/Home.svelte';
+  import RaceGow from './screens/RaceGow.svelte';
   import Event from './screens/Event.svelte';
   import Seats from './screens/Seats.svelte';
   import Pilots from './screens/Pilots.svelte';
@@ -17,7 +18,7 @@
   import Overlays from './screens/Overlays.svelte';
   import RaceOverlay from './screens/RaceOverlay.svelte';
   import Help from './screens/Help.svelte';
-  import { SCREENS } from './lib/screens.js';
+  import { visibleScreens } from './lib/mode.js';
   import { parseOverlayRoute } from './lib/overlay.js';
 
   let { autoconnect = true }: { autoconnect?: boolean } = $props();
@@ -47,10 +48,11 @@
   /** `/grid/live/...` renders bare — no shell — for OBS. */
   const overlay = $derived(parseOverlayRoute(current));
   const tuneMatch = $derived(/^seats\/(\d+)$/.exec(current));
-  const NAV = [
-    ...SCREENS.map(({ path, label }) => ({ path, label })),
+  // The nav follows the timer's mode (#95); hidden pages stay reachable by URL and from help.
+  const NAV = $derived([
+    ...visibleScreens(timer.mode).map(({ path, label }) => ({ path, label })),
     { path: 'help', label: 'Help' }
-  ];
+  ]);
   const active = (path: string) =>
     path === '' ? current === '' : current === path || current.startsWith(path + '/');
 </script>
@@ -93,7 +95,7 @@
 
     <main>
       {#if current === ''}
-        <Home />
+        {#if timer.mode === 'racegow'}<RaceGow />{:else}<Home />{/if}
       {:else if current === 'event'}
         <Event />
       {:else if current === 'seats' || tuneMatch}

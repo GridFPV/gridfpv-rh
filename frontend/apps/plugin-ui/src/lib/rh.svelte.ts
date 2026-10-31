@@ -8,6 +8,8 @@
  * The SPA is served from inside RotorHazard, so the socket goes to the same origin (in
  * `make dev`, Vite proxies `/socket.io` to the rig).
  */
+import { DEFAULT_MODE, isMode, type Mode } from './mode.js';
+import { applyRaceGow, DEFAULT_RACEGOW, type RaceGowSettings } from './racegow.js';
 import { io, type Socket } from 'socket.io-client';
 import {
   applyConfigUpdate,
@@ -81,6 +83,8 @@ import { raceFor } from './results.js';
 
 export type HelloAck = {
   plugin_version: string;
+  /** The timer's mode (#95), so the first paint has the right nav. */
+  mode?: string;
   rhapi_version: string;
   rh_version: string | null;
   seat_count: number;
@@ -158,6 +162,10 @@ const state = $state({
   teams: [] as Team[],
   /** The event: RotorHazard's name/description options plus the plugin's details. */
   event: { name: '', description: '', date: '', venue: '', organizer: '', notes: '' } as EventInfo,
+  /** The timer's mode (#95): full / simple / racegow, one setting for every client. */
+  mode: DEFAULT_MODE as Mode,
+  /** RaceGOW mode's own settings (#95): season number, the seat flown, the pilot. */
+  racegow: { ...DEFAULT_RACEGOW } as RaceGowSettings,
   /** RotorHazard's database backups (file names), newest last as RotorHazard lists them. */
   archives: [] as string[],
   // ---- the race side (Run / Marshal) ----
@@ -347,6 +355,8 @@ function reloadEverything() {
   socket?.emit('gridfpv_presets_get');
   socket?.emit('gridfpv_teams_get');
   socket?.emit('gridfpv_event_get');
+  socket?.emit('gridfpv_mode_get');
+  socket?.emit('gridfpv_racegow_get');
   socket?.emit('gridfpv_races_deleted_get');
   socket?.emit('gridfpv_roster_get');
   socket?.emit('list_backups');
@@ -401,6 +411,8 @@ export function connect(): Socket {
     socket?.emit('gridfpv_presets_get');
     socket?.emit('gridfpv_teams_get');
     socket?.emit('gridfpv_event_get');
+    socket?.emit('gridfpv_mode_get');
+    socket?.emit('gridfpv_racegow_get');
     socket?.emit('gridfpv_races_deleted_get');
     socket?.emit('gridfpv_roster_get');
     socket?.emit('list_backups');
@@ -410,6 +422,7 @@ export function connect(): Socket {
     state.hello = null;
   });
   socket.on('gridfpv_hello_ack', (ack: HelloAck) => {
+    if (isMode(ack.mode)) state.mode = ack.mode;
     state.hello = ack;
   });
 
@@ -654,6 +667,14 @@ export function connect(): Socket {
       organizer: p.organizer ?? '',
       notes: p.notes ?? ''
     };
+    checkWaiters();
+  });
+  socket.on('gridfpv_mode', (p: { mode?: string }) => {
+    if (isMode(p.mode)) state.mode = p.mode;
+    checkWaiters();
+  });
+  socket.on('gridfpv_racegow', (p: Parameters<typeof applyRaceGow>[0]) => {
+    state.racegow = applyRaceGow(p);
     checkWaiters();
   });
   socket.on('backups_list', (p: { backup_files: string[] | null }) => {
@@ -1395,6 +1416,27 @@ export function saveEvent(fields: Partial<EventInfo>): Promise<WriteResult> {
   socket?.emit('gridfpv_event_save', fields);
   return awaitState('Event', () =>
     (Object.keys(fields) as Array<keyof EventInfo>).every((k) => state.event[k] === fields[k])
+  );
+}
+
+/** The timer's mode (#95). Confirmed when the plugin broadcasts it back. */
+export function setMode(mode: Mode): Promise<WriteResult> {
+  socket?.emit('gridfpv_mode_set', { mode });
+  return awaitState('Mode', () => state.mode === mode);
+}
+
+/** RaceGOW mode's settings (#95): write the fields given, confirmed by the broadcast. */
+export function saveRaceGow(fields: Partial<RaceGowSettings>): Promise<WriteResult> {
+  const { nameTemplate, ...rest } = fields;
+  const payload: Record<string, unknown> = { ...rest };
+  if (nameTemplate !== undefined) payload.name_template = nameTemplate;
+  socket?.emit('gridfpv_racegow_set', payload);
+  return awaitState('RaceGOW settings', () =>
+    (Object.keys(fields) as Array<keyof RaceGowSettings>).every((k) =>
+      k === 'nameTemplate'
+        ? state.racegow.nameTemplate === (nameTemplate || DEFAULT_RACEGOW.nameTemplate)
+        : state.racegow[k] === fields[k]
+    )
   );
 }
 

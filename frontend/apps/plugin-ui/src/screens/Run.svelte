@@ -10,6 +10,8 @@
    */
   import { Badge, Banner, Button, Card, Dialog, Input, Select } from '@gridfpv/components';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
+  import ChannelPicker from '../components/ChannelPicker.svelte';
+  import { flySeat } from '../lib/racegowFlow.js';
   import RaceClock from '../components/RaceClock.svelte';
   import HeatPlanDialog from '../components/HeatPlanDialog.svelte';
   import FormatDialog from '../components/FormatDialog.svelte';
@@ -70,7 +72,7 @@
     RACE_STATUS,
     type LiveLap
   } from '../lib/race.js';
-  import { href, link } from '../lib/router.svelte.js';
+  import { go, href, link } from '../lib/router.svelte.js';
   import {
     classById,
     formatSummary,
@@ -240,6 +242,11 @@
   const offSeatIndexes = $derived(new Set(offSeat.map((w) => w.seat)));
   /** Practice (no heat): RotorHazard never saves those laps, so Save is not offered (#50). */
   const practice = $derived(race.heatId === 0);
+  // ---- RaceGOW mode (#95): one seat, picked here; the others off in the RaceGOW profile ----
+  const racegow = $derived(timer.mode === 'racegow');
+  const racegowSeat = $derived(
+    timer.racegow.seat != null ? timer.seats.find((x) => x.index === timer.racegow.seat) : undefined
+  );
   /**
    * The leaderboard is for a race, not an idle timer's seat list (#47): nothing while Ready,
    * and a seat RotorHazard lists by its frequency only once it has laps (practice).
@@ -292,6 +299,10 @@
   // ---- after a save ----
   const last = $derived(timer.lastRace);
   const lastHeat = $derived(last ? heatById(setup, last.heatId) : undefined);
+  /** RaceGOW: the run's track, for the card title. */
+  const lastTrack = $derived(
+    lastHeat ? setup.classes.find((c) => c.id === lastHeat.classId) : undefined
+  );
   /** What RotorHazard loaded after that save (its heat advance), in words. */
   const nextUp = $derived(
     last ? nextUpText(setup, last.heatId, { heatId: race.heatId, nextRound: race.nextRound }) : ''
@@ -427,6 +438,48 @@
     <Banner tone={message.interrupt ? 'warn' : 'info'} ondismiss={() => (dismissedAt = Date.now())}
       >{message.text}</Banner
     >
+  {/if}
+
+  {#if racegow}
+    <Card
+      title="Seat"
+      subtitle="One seat for racegow. Picking it turns every other seat off in the RaceGOW profile; the club profile is untouched."
+    >
+      <div class="racegowseat">
+        <label class="field">
+          <span>Seat</span>
+          <Select
+            size="sm"
+            value={timer.racegow.seat == null ? '' : String(timer.racegow.seat)}
+            disabled={busy || status !== RACE_STATUS.READY}
+            aria-label="Seat"
+            onchange={(e: Event) =>
+              run(
+                () => flySeat(Number((e.currentTarget as HTMLSelectElement).value)),
+                'Seat set; the other seats are off in the RaceGOW profile.'
+              )}
+          >
+            <option value="" disabled>Pick a seat</option>
+            {#each timer.seats as s (s.index)}
+              <option value={String(s.index)}>Seat {s.index + 1}</option>
+            {/each}
+          </Select>
+        </label>
+        {#if racegowSeat}
+          <div class="field">
+            <span>Channel</span>
+            <ChannelPicker seat={racegowSeat} onresult={(r) => onresult(r, 'Channel set.')} />
+          </div>
+          <a class="tune" href={href(`seats/${racegowSeat.index}`)} onclick={link}>Tune this seat</a
+          >
+        {/if}
+        <span class="muted profilenote" role="status">
+          {timer.profiles.name.trim().toLowerCase() === 'racegow'
+            ? 'RaceGOW profile active.'
+            : 'The RaceGOW profile is made when you pick a seat.'}
+        </span>
+      </div>
+    </Card>
   {/if}
 
   <Card>
@@ -723,21 +776,37 @@
   {/if}
 
   {#if last && status === RACE_STATUS.READY}
-    <Card title="Last race: {lastHeat?.displayName ?? last.name}" subtitle="Round {last.round}">
+    <Card
+      title={racegow
+        ? `Last run: ${lastTrack?.displayName ?? lastHeat?.displayName ?? last.name}`
+        : `Last race: ${lastHeat?.displayName ?? last.name}`}
+      subtitle={racegow ? `Run ${last.round}` : `Round ${last.round}`}
+    >
       {@render board(last.rows, last.primary)}
-      <p class="nextup" role="status">{nextUp}</p>
+      {#if !racegow}<p class="nextup" role="status">{nextUp}</p>{/if}
       <div class="after">
-        <a href={href(`marshal?heat=${last.heatId}&round=${last.round}`)} onclick={link}
-          >Marshal this race</a
-        >
-        <a href={href('stages')} onclick={link}>Stages board</a>
-        <label class="check"
-          ><input
-            type="checkbox"
-            checked={timer.autoSeed}
-            onchange={(e) => setAutoSeed((e.currentTarget as HTMLInputElement).checked)}
-          /> Seed as you go</label
-        >
+        {#if racegow}
+          <!-- Racegow tracks are small: nearly every run gets its laps checked (#95). -->
+          <Button
+            variant="primary"
+            onclick={() => go(`marshal?heat=${last.heatId}&round=${last.round}`)}
+            >Fix the laps</Button
+          >
+        {:else}
+          <a href={href(`marshal?heat=${last.heatId}&round=${last.round}`)} onclick={link}
+            >Marshal this race</a
+          >
+          <a href={href('stages')} onclick={link}>Stages board</a>
+        {/if}
+        {#if !racegow}
+          <label class="check"
+            ><input
+              type="checkbox"
+              checked={timer.autoSeed}
+              onchange={(e) => setAutoSeed((e.currentTarget as HTMLInputElement).checked)}
+            /> Seed as you go</label
+          >
+        {/if}
         {#if pending}
           <Button
             size="sm"
@@ -902,6 +971,25 @@
   }
   .soundrow {
     margin: 0;
+    font-size: var(--gf-font-size-sm);
+  }
+  .racegowseat {
+    display: flex;
+    gap: var(--gf-space-3);
+    align-items: end;
+    flex-wrap: wrap;
+  }
+  .racegowseat .field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 140px;
+  }
+  .racegowseat .field > span {
+    font-size: var(--gf-font-size-sm);
+    color: var(--gf-text-muted);
+  }
+  .profilenote {
     font-size: var(--gf-font-size-sm);
   }
   .tune {

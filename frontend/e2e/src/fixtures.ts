@@ -16,6 +16,11 @@ export const test = base.extend<{ rig: Rig; rh: RhPages }>({
     const rig = new Rig(RH_URL, { user: RH_USER, pass: RH_PASS });
     await rig.connect();
     await rig.reset('all');
+    // The mode is a plugin option, so RotorHazard's reset leaves it (#95): start every spec Full,
+    // and on the club profile — a RaceGOW profile has every other seat off.
+    await rig.setMode('full');
+    await rig.resetRaceGow();
+    await rig.dropProfile('RaceGOW');
     await use(rig);
     rig.disconnect();
   },

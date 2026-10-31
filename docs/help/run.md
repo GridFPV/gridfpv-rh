@@ -4,6 +4,10 @@ Race day in one screen. RotorHazard does the timing; this page drives it and sho
 sees, with sound, so its own Run page can stay closed. Top to bottom: the heat on the
 timer, the race controls, the seat cards, the leaderboard and the last race.
 
+In **RaceGOW mode** a Seat card sits at the top: pick the seat you fly and its channel; the
+other seats are turned off in a RaceGOW frequency profile, so the club profile is untouched.
+After a run, **Fix the laps** opens Marshal on that run. See the RaceGOW mode help.
+
 ## On the timer
 
 Pick the heat in the box at the top. The board on the Stages page says which heat is next,

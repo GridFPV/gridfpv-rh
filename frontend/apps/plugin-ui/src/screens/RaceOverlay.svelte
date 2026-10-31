@@ -20,6 +20,7 @@
     type OverlayTheme
   } from '../lib/overlay.js';
   import { clockView, formatClockMs, RACE_STATUS } from '../lib/race.js';
+  import { renderName } from '../lib/racegow.js';
   import { classById, heatById, pilotById, WIN_CONDITION } from '../lib/setup.js';
 
   let { theme = 'dark' }: { theme?: OverlayTheme } = $props();
@@ -127,6 +128,15 @@
   const recentOffset = $derived(solo ? Math.max(0, solo.lapMs.length - SHOWN) : 0);
 
   const title = $derived.by(() => {
+    // RaceGOW (#95): the run's name from the timer's template, the same name a recording
+    // gets (#96) — "RaceGOW 2 Track 4 Round 7".
+    if (timer.mode === 'racegow' && heat)
+      return renderName(timer.racegow.nameTemplate, {
+        season: timer.racegow.season,
+        track: cls?.displayName ?? heat.displayName,
+        round: race.nextRound,
+        heat: heat.displayName
+      });
     // Heat and round first: the line is clipped at the end on a narrow frame.
     const parts: string[] = [];
     if (heat) parts.push(heat.displayName);

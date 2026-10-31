@@ -9,6 +9,7 @@
    */
   import { Card, Collapsible } from '@gridfpv/components';
   import LeaderboardTable from '../components/LeaderboardTable.svelte';
+  import TrackView from '../components/TrackView.svelte';
   import { rh } from '../lib/rh.svelte.js';
   import { primaryRows, type Boards } from '../lib/resultBoards.js';
   import { href, link } from '../lib/router.svelte.js';
@@ -59,85 +60,90 @@
   </div>
 {/snippet}
 
-<section class="page">
-  {#if empty}
-    <Card title="Results">
-      <p class="muted">
-        No saved races yet. Race on <a href={href('run')} onclick={link}>Run</a>; results appear
-        here as RotorHazard saves them.
-      </p>
-    </Card>
-  {/if}
-  <!-- Widest first: the event overall, then stage by stage, then round by round (#94). -->
-  {#if boards.event}
-    <Card>
-      <Collapsible title="Overall" headingLevel={2}>
-        {#snippet summary()}every race in the event{/snippet}
-        <section class="stage" aria-label="Event totals">
-          {@render three(boards.event, true)}
-        </section>
-      </Collapsible>
-    </Card>
-  {/if}
-  {#each boards.classes as c (c.classId)}
-    <Card>
-      <Collapsible title={c.name} headingLevel={2}>
-        {#snippet summary()}
-          {c.heats.length} {c.heats.length === 1 ? 'heat' : 'heats'}
-        {/snippet}
-        <section class="stage sections" aria-label={c.name}>
-          {#if c.ranking}
-            {@const rank = c.ranking}
-            <Collapsible title="Stage ranking" headingLevel={3}>
-              {#snippet summary()}{rank.methodLabel}{/snippet}
-              <table class="ranking leaderboard" aria-label="Class ranking">
-                <thead>
-                  <tr>
-                    <th class="pos"><span class="sr">Rank</span></th>
-                    <th class="pilot">Pilot</th>
-                    {#if c.ranking.teamRacing}<th class="team">Team</th>{/if}
-                    {#each c.ranking.fields as f (f.name)}<th class={f.name}>{f.label}</th>{/each}
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each c.ranking.rows as row, i (i)}
+{#if timer.mode === 'racegow'}
+  <!-- RaceGOW (#95): one track, its bests and runs; never the event or the other tracks. -->
+  <TrackView />
+{:else}
+  <section class="page">
+    {#if empty}
+      <Card title="Results">
+        <p class="muted">
+          No saved races yet. Race on <a href={href('run')} onclick={link}>Run</a>; results appear
+          here as RotorHazard saves them.
+        </p>
+      </Card>
+    {/if}
+    <!-- Widest first: the event overall, then stage by stage, then round by round (#94). -->
+    {#if boards.event}
+      <Card>
+        <Collapsible title="Overall" headingLevel={2}>
+          {#snippet summary()}every race in the event{/snippet}
+          <section class="stage" aria-label="Event totals">
+            {@render three(boards.event, true)}
+          </section>
+        </Collapsible>
+      </Card>
+    {/if}
+    {#each boards.classes as c (c.classId)}
+      <Card>
+        <Collapsible title={c.name} headingLevel={2}>
+          {#snippet summary()}
+            {c.heats.length} {c.heats.length === 1 ? 'heat' : 'heats'}
+          {/snippet}
+          <section class="stage sections" aria-label={c.name}>
+            {#if c.ranking}
+              {@const rank = c.ranking}
+              <Collapsible title="Stage ranking" headingLevel={3}>
+                {#snippet summary()}{rank.methodLabel}{/snippet}
+                <table class="ranking leaderboard" aria-label="Class ranking">
+                  <thead>
                     <tr>
-                      <td class="pos">{row.position ?? '—'}</td>
-                      <td class="pilot">{row.callsign}</td>
-                      {#if c.ranking.teamRacing}<td class="team">{row.team}</td>{/if}
-                      {#each c.ranking.fields as f (f.name)}<td class={f.name}
-                          >{row[f.name] ?? ''}</td
-                        >{/each}
+                      <th class="pos"><span class="sr">Rank</span></th>
+                      <th class="pilot">Pilot</th>
+                      {#if c.ranking.teamRacing}<th class="team">Team</th>{/if}
+                      {#each c.ranking.fields as f (f.name)}<th class={f.name}>{f.label}</th>{/each}
                     </tr>
-                  {/each}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {#each c.ranking.rows as row, i (i)}
+                      <tr>
+                        <td class="pos">{row.position ?? '—'}</td>
+                        <td class="pilot">{row.callsign}</td>
+                        {#if c.ranking.teamRacing}<td class="team">{row.team}</td>{/if}
+                        {#each c.ranking.fields as f (f.name)}<td class={f.name}
+                            >{row[f.name] ?? ''}</td
+                          >{/each}
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </Collapsible>
+            {/if}
+            <Collapsible title="Stage summary" headingLevel={3}>
+              {@render three(c.summary, true)}
             </Collapsible>
-          {/if}
-          <Collapsible title="Stage summary" headingLevel={3}>
-            {@render three(c.summary, true)}
-          </Collapsible>
-          <Collapsible title="Heats" headingLevel={3}>
-            {#snippet summary()}
-              {c.heats.length} {c.heats.length === 1 ? 'heat' : 'heats'}
-            {/snippet}
-            {@render heats(c.heats, 4)}
-          </Collapsible>
-        </section>
-      </Collapsible>
-    </Card>
-  {/each}
-  {#if boards.unclassified.length}
-    <Card>
-      <Collapsible title="Unclassified" headingLevel={2}>
-        {#snippet summary()}heats outside any stage{/snippet}
-        <section class="stage" aria-label="Unclassified">
-          {@render heats(boards.unclassified, 3)}
-        </section>
-      </Collapsible>
-    </Card>
-  {/if}
-</section>
+            <Collapsible title="Heats" headingLevel={3}>
+              {#snippet summary()}
+                {c.heats.length} {c.heats.length === 1 ? 'heat' : 'heats'}
+              {/snippet}
+              {@render heats(c.heats, 4)}
+            </Collapsible>
+          </section>
+        </Collapsible>
+      </Card>
+    {/each}
+    {#if boards.unclassified.length}
+      <Card>
+        <Collapsible title="Unclassified" headingLevel={2}>
+          {#snippet summary()}heats outside any stage{/snippet}
+          <section class="stage" aria-label="Unclassified">
+            {@render heats(boards.unclassified, 3)}
+          </section>
+        </Collapsible>
+      </Card>
+    {/if}
+  </section>
+{/if}
 
 <style>
   .page {

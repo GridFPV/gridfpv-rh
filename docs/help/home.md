@@ -15,6 +15,20 @@ it is confirmed.
 6. **Marshal**: fix a lap after the fact.
 7. **Seats**: channels, profiles, thresholds and calibration. **Overlays**: stream overlays for OBS.
 
+## Modes
+
+The Home page's **Mode** chooses how much of Grid this timer shows. It is one setting for
+the whole timer — every phone, laptop and overlay machine on it sees the same thing — and it
+stays until someone changes it.
+
+- **Full**: every page.
+- **Simple**: a club night without the machinery. Teams and Formats leave the nav, and
+  Stages loses brackets, seeding and Chase the Ace.
+- **RaceGOW**: Simple, in racegow's words — seasons, tracks and runs, one pilot on one seat.
+
+A hidden page is still there by its address and from this help; the mode is about what is
+in the way, not about locking anything.
+
 Every page has a **?** that opens its help. This help ships inside the plugin and works
 with no internet at the field.
 

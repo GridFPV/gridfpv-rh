@@ -1,6 +1,7 @@
 <script lang="ts">
   /** The public landing: what the plugin reports about this timer, and where to go. */
   import { Badge, Card } from '@gridfpv/components';
+  import ModeCard from '../components/ModeCard.svelte';
   import { rh } from '../lib/rh.svelte.js';
   import { href, link } from '../lib/router.svelte.js';
 
@@ -34,6 +35,8 @@
       <p class="muted">Connecting to the timer…</p>
     {/if}
   </Card>
+
+  <ModeCard />
 
   <Card title="Race director" elevation="xs">
     <p>

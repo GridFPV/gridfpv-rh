@@ -7,6 +7,10 @@ and fastest consecutive laps) — then that stage's heats, and inside a heat its
 across its rounds (once it has more than one) and every round's leaderboard. Heats with no
 stage sit under "Unclassified".
 
+In **RaceGOW mode** this page shows one track at a time — the one on the timer, or one you
+pick — with its best lap and best consecutive laps, the run each came from, and every run
+newest first; a run opens onto its laps. See the RaceGOW mode help.
+
 Every section folds: click its heading to show or hide it. Heats start folded, so a long
 day reads as a short list of headings until you open the one you want; everything else
 starts open. Folding is for this visit — a reload brings the page back as described above.

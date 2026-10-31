@@ -23,11 +23,11 @@ import os
 
 from flask import Blueprint, abort, redirect, request, send_from_directory
 
-from . import archive, auth, capture, datadir, event, presets, races, roster, teams
+from . import archive, auth, capture, datadir, event, mode, presets, racegow, races, roster, teams
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_VERSION = "0.7.2"
+PLUGIN_VERSION = "0.8.0"
 
 #: Where the SPA is mounted inside RotorHazard's web server.
 URL_PREFIX = "/grid"
@@ -66,6 +66,16 @@ EVT_EVENT_SAVE = "gridfpv_event_save"
 EVT_EVENT_CLEAR = "gridfpv_event_clear"
 #: Broadcast: the whole event (name, description, details), after any change and on request.
 EVT_EVENT = "gridfpv_event"
+#: The plugin's mode (#95): full / simple / racegow, one setting for the whole timer.
+EVT_MODE_GET = "gridfpv_mode_get"
+EVT_MODE_SET = "gridfpv_mode_set"
+#: Broadcast: {mode, modes}, after any change and on request; the hello ack carries mode too.
+EVT_MODE = "gridfpv_mode"
+#: RaceGOW mode's settings (#95): season number, seat, pilot callsign.
+EVT_RACEGOW_GET = "gridfpv_racegow_get"
+EVT_RACEGOW_SET = "gridfpv_racegow_set"
+#: Broadcast: the whole record, after any change and on request.
+EVT_RACEGOW = "gridfpv_racegow"
 #: The roster (#14): pilots that outlive events. gridfpv_roster carries every entry with an
 #: in_event flag; after an add it also carries ``added`` (callsigns created).
 EVT_ROSTER_GET = "gridfpv_roster_get"
@@ -219,6 +229,7 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
                 "rh_version": info.get("release_version"),
                 "seat_count": len(rhapi.interface.seats or []),
                                 "redirect_home": redirect_enabled(rhapi),
+                "mode": mode.current(rhapi),
                 "capture": recorder.capture.summary() if recorder.capture else None,
                 # Where our files land, so a timer can be checked without a shell on it.
                 "data_dir": datadir.data_dir(rhapi),
@@ -297,6 +308,29 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
             rhapi.ui.message_alert(f"GridFPV event: {e}")
             return
         rhapi.ui.socket_broadcast(EVT_EVENT, out)
+
+    def on_mode_get(*_args, **_kwargs):
+        send(EVT_MODE, mode.load(rhapi))
+
+    def on_mode_set(data=None, *_args, **_kwargs):
+        try:
+            out = mode.save(rhapi, data or {})
+        except mode.ModeError as e:
+            rhapi.ui.message_alert(f"GridFPV mode: {e}")
+            return
+        logger.info("gridfpv: mode set to %s", out["mode"])
+        rhapi.ui.socket_broadcast(EVT_MODE, out)
+
+    def on_racegow_get(*_args, **_kwargs):
+        send(EVT_RACEGOW, racegow.load(rhapi))
+
+    def on_racegow_set(data=None, *_args, **_kwargs):
+        try:
+            out = racegow.save(rhapi, data or {})
+        except racegow.RaceGowError as e:
+            rhapi.ui.message_alert(f"GridFPV RaceGOW: {e}")
+            return
+        rhapi.ui.socket_broadcast(EVT_RACEGOW, out)
 
     # Saved races (#36): delete keeps a copy, restore puts it back. RotorHazard's own path
     # on RHAPI 1.12+, the plugin's snapshot path on 4.4.0; see races.py.
@@ -385,6 +419,10 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
     rhapi.ui.socket_listen(EVT_EVENT_GET, on_event_get)
     rhapi.ui.socket_listen(EVT_EVENT_SAVE, on_event_save)
     rhapi.ui.socket_listen(EVT_EVENT_CLEAR, on_event_clear)
+    rhapi.ui.socket_listen(EVT_MODE_GET, on_mode_get)
+    rhapi.ui.socket_listen(EVT_MODE_SET, on_mode_set)
+    rhapi.ui.socket_listen(EVT_RACEGOW_GET, on_racegow_get)
+    rhapi.ui.socket_listen(EVT_RACEGOW_SET, on_racegow_set)
     rhapi.ui.socket_listen(EVT_ROSTER_GET, on_roster_get)
     rhapi.ui.socket_listen(EVT_ROSTER_ADD, on_roster_add)
     rhapi.ui.socket_listen(EVT_ROSTER_REMOVE, on_roster_remove)

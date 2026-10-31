@@ -252,6 +252,78 @@ export class Rig {
     return (await this.api<{ options: Record<string, string | null> }>('/api/options')).options;
   }
 
+  /** RaceGOW mode's settings (#95) back to their defaults: they are a plugin option too. */
+  async resetRaceGow(): Promise<void> {
+    const want = { season: 1, seat: null, callsign: '', name_template: '' };
+    const same = (raw: string | null | undefined) => {
+      if (!raw) return true;
+      try {
+        const o = JSON.parse(raw) as Record<string, unknown>;
+        return (
+          o.season === 1 &&
+          o.seat == null &&
+          !o.callsign &&
+          o.name_template === 'RaceGOW {season} {track} Round {round}'
+        );
+      } catch {
+        return false;
+      }
+    };
+    if (same((await this.options())['gridfpv_racegow'])) return;
+    this.emit('gridfpv_racegow_set', want);
+    await this.until('racegow settings reset', async () =>
+      same((await this.options())['gridfpv_racegow']) ? true : undefined
+    );
+  }
+
+  /** RotorHazard's node_tuning: the profiles and which is active. */
+  async profiles(): Promise<{ ids: number[]; names: string[]; current: number }> {
+    const t = await this.loadData<{
+      profile_ids: number[];
+      profile_names: string[];
+      current_profile: number;
+    }>('node_tuning');
+    return { ids: t.profile_ids ?? [], names: t.profile_names ?? [], current: t.current_profile };
+  }
+
+  /**
+   * Drop a frequency profile by name, if it exists: profiles outlive every reset, and a
+   * RaceGOW profile (one seat live, the rest off) left by a spec would starve every spec after
+   * it. RotorHazard deletes only the active profile, so it is selected, deleted, and the
+   * first remaining one selected again.
+   */
+  async dropProfile(name: string): Promise<void> {
+    const before = await this.profiles();
+    const idx = before.names.findIndex((n) => n.trim().toLowerCase() === name.toLowerCase());
+    if (idx < 0) return;
+    const id = before.ids[idx];
+    const fallback = before.ids.find((x) => x !== id);
+    if (fallback == null) throw new Error(`rig: cannot drop the only profile, ${name}`);
+    if (before.current !== id) {
+      this.emit('set_profile', { profile: id });
+      await this.until(`profile ${name} active`, async () =>
+        (await this.profiles()).current === id ? true : undefined
+      );
+    }
+    this.emit('delete_profile');
+    await this.until(`profile ${name} gone`, async () =>
+      (await this.profiles()).ids.includes(id) ? undefined : true
+    );
+    this.emit('set_profile', { profile: fallback });
+    await this.until(`profile ${fallback} active`, async () =>
+      (await this.profiles()).current === fallback ? true : undefined
+    );
+  }
+
+  /** The plugin's mode (#95): full / simple / racegow, one option for the whole timer. */
+  async setMode(mode: 'full' | 'simple' | 'racegow'): Promise<void> {
+    if ((await this.options())['gridfpv_mode'] === mode) return;
+    this.emit('gridfpv_mode_set', { mode });
+    await this.until(`mode ${mode}`, async () =>
+      (await this.options())['gridfpv_mode'] === mode ? true : undefined
+    );
+  }
+
   async formats(): Promise<Array<{ id: number; name: string }>> {
     return (await this.api<{ formats: Array<{ id: number; name: string }> }>('/api/format/all'))
       .formats;
