@@ -5,12 +5,15 @@
  *   gridfpv-video watch            the race-day loop: record on the timer's events, render on save and marshal
  *   gridfpv-video render <sidecar> render (again) from a sidecar; also takes the recording's path
  *   gridfpv-video probe            check the timer, its clock sync, OBS and ffmpeg
+ *   gridfpv-video init             write gridfpv-video.json from a few questions (the Windows launcher runs it first)
  *
  * Settings: gridfpv-video.json in the working directory (see README), or the environment.
  */
 import { performance } from 'node:perf_hooks';
 import { spawn } from 'node:child_process';
+import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import readline from 'node:readline/promises';
 import { loadConfig, requireTimer } from './config.js';
 import { Obs } from './obs.js';
 import { renderRun } from './render.js';
@@ -23,6 +26,7 @@ const log = (msg) => console.log(`${new Date().toISOString().slice(11, 19)} ${ms
 async function main(argv) {
   const [cmd = 'watch', arg] = argv;
   if (cmd === 'help' || cmd === '--help' || cmd === '-h') return usage();
+  if (cmd === 'init') return init();
   const cfg = loadConfig();
   if (cmd === 'watch') return watch(requireTimer(cfg));
   if (cmd === 'render') return render(requireTimer(cfg), arg);
@@ -32,7 +36,42 @@ async function main(argv) {
 }
 
 function usage() {
-  console.log('usage: gridfpv-video watch | render <sidecar.json|recording> | probe');
+  console.log('usage: gridfpv-video watch | render <sidecar.json|recording> | probe | init');
+}
+
+/** A few questions → gridfpv-video.json beside the program; everything else keeps its default. */
+async function init() {
+  const file = process.env.GRIDFPV_VIDEO_CONFIG ?? path.join(process.cwd(), 'gridfpv-video.json');
+  // Lines from stdin one at a time: a terminal or a pipe, the same way.
+  const lines = readline
+    .createInterface({ input: process.stdin, crlfDelay: Infinity })
+    [Symbol.asyncIterator]();
+  const ask = async (q, d = '') => {
+    process.stdout.write(d ? `${q} [${d}]: ` : `${q}: `);
+    const { value, done } = await lines.next();
+    if (done) throw new Error('init: no more input');
+    return value.trim() || d;
+  };
+  const timer = (
+    await ask('Timer address (as in the browser, e.g. http://recon-nh.local:5000)')
+  ).replace(/\/+$/, '');
+  const timerUser = await ask(
+    'RotorHazard admin username (blank if RotorHazard has no login)',
+    'admin'
+  );
+  const timerPass = timerUser ? await ask('RotorHazard admin password') : '';
+  const obsPass = await ask('OBS WebSocket password (OBS → Tools → WebSocket Server Settings)');
+  const cfg = {
+    timer,
+    timerUser,
+    timerPass,
+    obs: 'ws://127.0.0.1:4455',
+    obsPass,
+    browserChannel: process.platform === 'win32' ? 'msedge' : 'chrome'
+  };
+  await fs.writeFile(file, JSON.stringify(cfg, null, 2) + '\n');
+  console.log(`saved ${file}`);
+  process.stdin.destroy();
 }
 
 async function watch(cfg) {

@@ -59,4 +59,5 @@ program on the OBS machine: it starts and stops the recording on the timer's rac
 writes down where the start signal sits in the file, and renders `RaceGOW 2 Track 4 Round 7.mp4`
 plus an overlay-only track with alpha beside it when a run is saved, again when it is
 marshalled; a discarded run's recording goes to a trash folder. Nothing runs on the timer,
-and nothing is uploaded. The overlay it draws is the Replay on the Overlays page.
+and nothing is uploaded. The overlay it draws is the Replay on the Overlays page, and the companion itself is
+downloaded from there.

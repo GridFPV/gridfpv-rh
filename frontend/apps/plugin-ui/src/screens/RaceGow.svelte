@@ -380,6 +380,8 @@
       <a href={href('marshal')} onclick={link}>Marshal</a> — fix the laps after.
       <a href={href('results')} onclick={link}>Results</a> — the track's best and every run.
       <a href={href('seats')} onclick={link}>Seats</a> — tune the seat.
+      <a href={href('overlays')} onclick={link}>Overlays</a> — the video companion for the OBS machine,
+      and the overlay.
     </p>
   </Card>
 

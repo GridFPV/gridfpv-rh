@@ -17,3 +17,12 @@ This is the page the RaceGOW video re-render screenshots frame by frame to put a
 corrected overlay on a clean recording: the renderer calls `window.gridfpvReplay.seek(ms)`
 once per frame, so frame N is race time N/fps, identical every run. Nothing about the video
 lives on the timer.
+
+## Video companion
+
+The Overlays page also offers the **video companion** for download: a program for the OBS
+machine (Windows) that records each run clean, writes down where the start signal sits in
+the file, and renders the corrected overlay onto the recording after every save and
+marshal. The zip carries its own Node and JavaScript; it fetches ffmpeg once on first run,
+and draws frames with Edge. Unzip, enable OBS's WebSocket server, double-click
+`gridfpv-video.cmd`, answer three questions. Details in the companion's README.

@@ -21,7 +21,23 @@ anything. Design and reasons: GridFPV/gridfpv-rh#96.
 
 Renders are idempotent on the laps: the same laps never render twice.
 
-## Setup
+## Setup on Windows (the usual case)
+
+1. On the timer, open Grid → **Overlays** → **Download for Windows (zip)**. The zip carries
+   its own Node and every JavaScript dependency; nothing to install.
+2. Unzip it anywhere, e.g. `C:\gridfpv-video`.
+3. In OBS: Tools → WebSocket Server Settings → enable the server, set a password. Record
+   the clean capture: the recorded scene has no overlay (keep the live overlay on the
+   stream scene if you stream, or use the `obs-source-record` filter).
+4. Double-click `gridfpv-video.cmd`. The first run fetches ffmpeg (once, 115 MB, from
+   gyan.dev; Windows' own `curl` and `tar` do it) and asks for the timer's address, the
+   RotorHazard login and the OBS password, saved to `gridfpv-video.json`. Then it watches.
+   Frames are drawn with Edge, which Windows 11 has. Leave the window open while you fly.
+
+`gridfpv-video.cmd probe` checks everything; `gridfpv-video.cmd render "<recording>"`
+renders a run again; edit `gridfpv-video.json` for the rest (below).
+
+## Setup elsewhere (from source)
 
 1. **OBS**: Tools → WebSocket Server Settings → enable, note the port and password. Record
    the **clean** capture: a scene with the capture card only (keep the live overlay on the

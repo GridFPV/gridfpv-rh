@@ -35,8 +35,12 @@ $(VENV)/.ok: plugin/requirements-dev.txt
 	$(PY) -m pip install --quiet -r plugin/requirements-dev.txt
 	touch $@
 
-build: ## Build the SPA into $(STATIC_DIR)
+build: companion-dist ## Build the SPA into $(STATIC_DIR), with the video companion's Windows zip under downloads/
 	cd frontend && npm run build
+	mkdir -p $(STATIC_DIR)/downloads && cp companion/dist/gridfpv-video-win64.zip $(STATIC_DIR)/downloads/
+
+companion-dist: ## Package the video companion for Windows (carries node.exe and its JavaScript; see dev/package_companion.py)
+	python3 -I dev/package_companion.py companion companion/dist/gridfpv-video-win64.zip
 
 check: ## Type-check the frontend and byte-compile the plugin
 	# The app's types resolve against the component library's built dist/, so build it first.

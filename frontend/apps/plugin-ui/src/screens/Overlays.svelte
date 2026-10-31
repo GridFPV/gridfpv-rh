@@ -15,6 +15,7 @@
   } from '../lib/overlay.js';
   import { replayQuery } from '../lib/replay.js';
   import { rh } from '../lib/rh.svelte.js';
+  import { BASE } from '../lib/router.svelte.js';
 
   let themes = $state<Record<OverlayName, OverlayTheme>>({ race: 'dark' });
   let copied: OverlayName | null = $state(null);
@@ -36,6 +37,8 @@
     savedRaces.find((x) => `${x.heat.heatId}:${x.round.round}` === replayPick) ?? savedRaces[0]
   );
   let replaySeconds = $state('0');
+  /** The companion's Windows zip, shipped inside the plugin (#96). */
+  const downloadUrl = `${BASE}/downloads/gridfpv-video-win64.zip`;
   const replayUrl = $derived(
     replayRace
       ? overlayUrl(window.location.origin, 'race', themes.race) +
@@ -156,6 +159,32 @@
       {/if}
     </div>
   </Card>
+
+  <Card title="Video companion">
+    <div class="controls">
+      <p class="muted">
+        The program for the <strong>OBS machine</strong> that records each run clean, and puts the corrected
+        overlay on the recording after every save and marshal — the finished file just appears. It carries
+        everything it needs; ffmpeg is fetched once on first run.
+      </p>
+      <div class="actions">
+        <a class="download" href={downloadUrl} download>Download for Windows (zip)</a>
+        <span class="muted">gridfpv-video {timer.hello?.plugin_version ?? ''}</span>
+      </div>
+      <ol class="steps">
+        <li>Unzip it anywhere on the OBS machine, e.g. <code>C:\gridfpv-video</code>.</li>
+        <li>
+          In OBS: Tools → WebSocket Server Settings → enable the server and set a password. Record
+          the clean capture (no overlay in the recorded scene).
+        </li>
+        <li>
+          Double-click <code>gridfpv-video.cmd</code>. The first run asks for the timer's address —
+          <code>{window.location.origin}</code> — the RotorHazard login, and the OBS password, then watches.
+          Leave it open while you fly.
+        </li>
+      </ol>
+    </div>
+  </Card>
 </section>
 
 <style>
@@ -188,6 +217,17 @@
     display: flex;
     flex-direction: column;
     gap: var(--gf-space-3);
+  }
+  .download {
+    font-weight: 600;
+  }
+  .steps {
+    margin: 0;
+    padding-left: 1.25rem;
+    color: var(--gf-text-muted);
+    font-size: var(--gf-font-size-sm);
+    display: grid;
+    gap: var(--gf-space-1);
   }
   .replayrow {
     display: flex;

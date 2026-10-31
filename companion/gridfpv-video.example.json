@@ -1,0 +1,18 @@
+{
+  "timer": "http://recon-nh.local:5000",
+  "timerUser": "admin",
+  "timerPass": "",
+  "obs": "ws://127.0.0.1:4455",
+  "obsPass": "",
+  "outDir": "",
+  "tailSeconds": 3,
+  "trashDiscarded": true,
+  "composite": true,
+  "overlayOnly": "vp9",
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "theme": "dark",
+  "layout": "solo",
+  "browserChannel": "msedge"
+}
