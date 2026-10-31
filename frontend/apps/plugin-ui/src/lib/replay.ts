@@ -232,4 +232,6 @@ export type ReplayInfo = {
    * appearing): a renderer screenshots on a new key and repeats the last frame otherwise.
    */
   key: string;
+  /** The overlay's placement as drawn (corner, offsets, size): a render is stale when it changes. */
+  look: string;
 };

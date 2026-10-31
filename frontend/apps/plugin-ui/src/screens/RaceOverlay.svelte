@@ -121,4 +121,5 @@
   {windowN}
   unlimitedTime={race.unlimitedTime}
   stage="live"
+  placement={timer.overlayPlacement}
 />

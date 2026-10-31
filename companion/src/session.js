@@ -38,6 +38,7 @@ export class Session {
     t.on('race_list', (list) => this.onRaceList(list));
     t.on('result_data', () => this.onResults());
     t.on('races_deleted', () => void this.d.timer.refreshRaceList?.());
+    t.on('overlay', (look) => this.onLook(look));
     return this;
   }
 
@@ -243,12 +244,26 @@ export class Session {
         if (!r) return;
         data.name = r.title ?? data.name;
         data.laps_hash = lapsHash(r.lapStamps);
+        if (r.look) data.look = r.look;
         data.rendered = { at: new Date().toISOString(), files: r.files };
         await writeSidecar(sidecarFile, data);
         this.log(`rendered: ${r.files.map((f) => path.basename(f)).join(', ')}`);
       })
       .catch((e) => this.log(`render failed for ${path.basename(sidecarFile)}: ${e.message}`));
     return this.renderQueue;
+  }
+
+  /** The overlay's placement changed on the timer: every render is stale, so render them all again. */
+  onLook(look) {
+    if (this.look === undefined) {
+      this.look = look;
+      return;
+    }
+    if (look === this.look) return;
+    this.look = look;
+    const stale = [...this.known].filter(([, data]) => data.round != null && data.look !== look);
+    this.log(`overlay placement changed → re-render ${stale.length} run(s)`);
+    for (const [file, data] of stale) void this.queueRender(file, data);
   }
 
   /** Results changed (a marshal, somewhere): re-render every known run whose laps differ from what was rendered. */

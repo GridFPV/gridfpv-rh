@@ -20,6 +20,7 @@ export const test = base.extend<{ rig: Rig; rh: RhPages }>({
     // and on the club profile — a RaceGOW profile has every other seat off.
     await rig.setMode('full');
     await rig.resetRaceGow();
+    await rig.resetOverlayPlacement();
     await rig.dropProfile('RaceGOW');
     await use(rig);
     rig.disconnect();

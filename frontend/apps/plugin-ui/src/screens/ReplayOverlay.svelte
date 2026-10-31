@@ -174,7 +174,8 @@
           durationMs: race && !race.unlimitedTime ? race.raceTimeSec * 1000 : null,
           lapStamps: lapStamps(records, startBehavior),
           t,
-          key: [pageState, clock.text, phase, rows.map((r) => r.lapMs.length).join(',')].join('|')
+          key: [pageState, clock.text, phase, rows.map((r) => r.lapMs.length).join(',')].join('|'),
+          look: JSON.stringify(timer.overlayPlacement)
         }
       : null;
   let waiting: Array<{ resolve: (i: ReplayInfo) => void; reject: (e: Error) => void }> = [];
@@ -221,4 +222,5 @@
   {windowN}
   unlimitedTime={race?.unlimitedTime ?? true}
   stage={pageState}
+  placement={timer.overlayPlacement}
 />

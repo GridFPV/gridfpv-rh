@@ -41,6 +41,7 @@ export class Timer extends EventEmitter {
       this.differential = null;
       this.syncClock();
       s.emit('load_data', { load_types: ['race_status', 'race_list'] });
+      s.emit('gridfpv_overlay_get');
       this.emit('connected');
     });
     s.on('disconnect', (why) => {
@@ -78,6 +79,8 @@ export class Timer extends EventEmitter {
     });
     s.on('result_data', () => this.emit('result_data'));
     s.on('gridfpv_races_deleted', (p) => this.emit('races_deleted', p));
+    // The overlay's placement (#96): a change makes every render stale.
+    s.on('gridfpv_overlay', (p) => this.emit('overlay', JSON.stringify(p ?? {})));
     s.on('race_details', (p) => this.resolvePending('race_details', p));
     return this;
   }

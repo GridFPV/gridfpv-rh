@@ -10,6 +10,12 @@
  */
 import { DEFAULT_MODE, isMode, type Mode } from './mode.js';
 import { applyRaceGow, DEFAULT_RACEGOW, type RaceGowSettings } from './racegow.js';
+import {
+  applyPlacement,
+  DEFAULT_PLACEMENT,
+  samePlacement,
+  type OverlayPlacement
+} from './overlayPlacement.js';
 import { io, type Socket } from 'socket.io-client';
 import {
   applyConfigUpdate,
@@ -166,6 +172,8 @@ const state = $state({
   mode: DEFAULT_MODE as Mode,
   /** RaceGOW mode's own settings (#95): season number, the seat flown, the pilot. */
   racegow: { ...DEFAULT_RACEGOW } as RaceGowSettings,
+  /** Where the race overlay sits (#96), for every page that draws it. */
+  overlayPlacement: { ...DEFAULT_PLACEMENT } as OverlayPlacement,
   /** RotorHazard's database backups (file names), newest last as RotorHazard lists them. */
   archives: [] as string[],
   // ---- the race side (Run / Marshal) ----
@@ -357,6 +365,7 @@ function reloadEverything() {
   socket?.emit('gridfpv_event_get');
   socket?.emit('gridfpv_mode_get');
   socket?.emit('gridfpv_racegow_get');
+  socket?.emit('gridfpv_overlay_get');
   socket?.emit('gridfpv_races_deleted_get');
   socket?.emit('gridfpv_roster_get');
   socket?.emit('list_backups');
@@ -413,6 +422,7 @@ export function connect(): Socket {
     socket?.emit('gridfpv_event_get');
     socket?.emit('gridfpv_mode_get');
     socket?.emit('gridfpv_racegow_get');
+    socket?.emit('gridfpv_overlay_get');
     socket?.emit('gridfpv_races_deleted_get');
     socket?.emit('gridfpv_roster_get');
     socket?.emit('list_backups');
@@ -671,6 +681,10 @@ export function connect(): Socket {
   });
   socket.on('gridfpv_mode', (p: { mode?: string }) => {
     if (isMode(p.mode)) state.mode = p.mode;
+    checkWaiters();
+  });
+  socket.on('gridfpv_overlay', (p: unknown) => {
+    state.overlayPlacement = applyPlacement(p);
     checkWaiters();
   });
   socket.on('gridfpv_racegow', (p: Parameters<typeof applyRaceGow>[0]) => {
@@ -1438,6 +1452,13 @@ export function saveRaceGow(fields: Partial<RaceGowSettings>): Promise<WriteResu
         : state.racegow[k] === fields[k]
     )
   );
+}
+
+/** Where the race overlay sits (#96): the timer keeps it, every page that draws the overlay follows. */
+export function saveOverlayPlacement(fields: Partial<OverlayPlacement>): Promise<WriteResult> {
+  const want = { ...state.overlayPlacement, ...fields };
+  socket?.emit('gridfpv_overlay_set', fields);
+  return awaitState('Overlay placement', () => samePlacement(state.overlayPlacement, want));
 }
 
 // ---- the roster (#14) --------------------------------------------------------------

@@ -11,6 +11,11 @@
    */
   import { formatClockMs, type ClockView } from '../lib/race.js';
   import { formatLapMs, inWindow, type OverlayRow, type OverlayTheme } from '../lib/overlay.js';
+  import {
+    DEFAULT_PLACEMENT,
+    placementStyle,
+    type OverlayPlacement
+  } from '../lib/overlayPlacement.js';
 
   let {
     theme = 'dark',
@@ -23,7 +28,8 @@
     solo,
     windowN,
     unlimitedTime,
-    stage
+    stage,
+    placement = DEFAULT_PLACEMENT
   }: {
     theme?: OverlayTheme;
     /** The title line; empty shows `notice` instead. */
@@ -43,6 +49,8 @@
     unlimitedTime: boolean;
     /** The page's state, for a renderer to read off the root (`data-state`): live, loading, ready, missing. */
     stage?: string;
+    /** Where the panel sits (#96): corner, offsets and size, from the timer. */
+    placement?: OverlayPlacement;
   } = $props();
 
   // Flag the document while mounted: app.css makes the page see-through.
@@ -77,7 +85,7 @@
   data-state={stage}
   aria-label="Race overlay"
 >
-  <div class="panel">
+  <div class="panel" style={placementStyle(placement)} data-corner={placement.corner}>
     <div class="head">
       {#if logoLeft}
         <img class="logo" src="{BRANDING}left.png" alt="" onerror={() => (logoLeft = false)} />
@@ -179,16 +187,15 @@
 
 <style>
   .overlay {
+    position: relative;
     min-height: 100vh;
     background: transparent;
     color: var(--gf-text);
     font-family: var(--gf-font-family);
-    display: flex;
-    align-items: flex-start;
-    justify-content: flex-start;
-    padding: 24px;
   }
+  /* Pinned to a corner and scaled about it by the placement (inline style). */
   .panel {
+    position: absolute;
     display: flex;
     flex-direction: column;
     gap: 10px;

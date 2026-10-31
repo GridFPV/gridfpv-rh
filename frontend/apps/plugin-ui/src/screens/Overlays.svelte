@@ -14,7 +14,15 @@
     type OverlayTheme
   } from '../lib/overlay.js';
   import { replayQuery } from '../lib/replay.js';
-  import { rh } from '../lib/rh.svelte.js';
+  import { rh, saveOverlayPlacement } from '../lib/rh.svelte.js';
+  import {
+    CORNER_LABELS,
+    CORNERS,
+    DEFAULT_PLACEMENT,
+    SCALE_MAX,
+    SCALE_MIN,
+    type Corner
+  } from '../lib/overlayPlacement.js';
   import { BASE } from '../lib/router.svelte.js';
 
   let themes = $state<Record<OverlayName, OverlayTheme>>({ race: 'dark' });
@@ -24,8 +32,23 @@
 
   const urlFor = (name: OverlayName) => overlayUrl(window.location.origin, name, themes[name]);
 
-  // ---- replay (#96): the race overlay drawn from a saved race at a chosen moment ----
+  // ---- placement (#96): where the panel sits, for the live page, the replay and every render ----
   const timer = rh();
+  const placement = $derived(timer.overlayPlacement);
+  let placing = $state(false);
+  let placeNote = $state('');
+  async function place(fields: Partial<typeof placement>) {
+    placing = true;
+    try {
+      const r = await saveOverlayPlacement(fields);
+      placeNote = r.ok ? '' : (r.message ?? 'RotorHazard did not confirm the change.');
+    } finally {
+      placing = false;
+    }
+  }
+  const num = (e: Event) => Number((e.currentTarget as HTMLInputElement).value);
+
+  // ---- replay (#96): the race overlay drawn from a saved race at a chosen moment ----
   /** Every saved race, newest first: "heat · Round N · when". */
   const savedRaces = $derived(
     timer.marshal.raceList
@@ -97,6 +120,80 @@
               onclick={() => (themes[info.name] = 'light')}>Dark text on light</button
             >
           </div>
+          {#if info.name === 'race'}
+            <fieldset class="placement" aria-label="Placement">
+              <legend>Placement — the same on the stream, in the replay and in every render</legend>
+              <div class="pick" role="radiogroup" aria-label="Corner">
+                {#each CORNERS as c (c)}
+                  <button
+                    type="button"
+                    class="opt"
+                    role="radio"
+                    aria-checked={placement.corner === c}
+                    disabled={placing}
+                    onclick={() => place({ corner: c as Corner })}>{CORNER_LABELS[c]}</button
+                  >
+                {/each}
+              </div>
+              <div class="placerow">
+                <label class="field">
+                  <span>In from the side (px)</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="4000"
+                    value={String(placement.x)}
+                    aria-label="In from the side"
+                    disabled={placing}
+                    onchange={(e: Event) => place({ x: num(e) })}
+                  />
+                </label>
+                <label class="field">
+                  <span>In from the top or bottom (px)</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="4000"
+                    value={String(placement.y)}
+                    aria-label="In from the top or bottom"
+                    disabled={placing}
+                    onchange={(e: Event) => place({ y: num(e) })}
+                  />
+                </label>
+                <label class="field">
+                  <span>Size (%)</span>
+                  <Input
+                    type="number"
+                    min={String(SCALE_MIN)}
+                    max={String(SCALE_MAX)}
+                    step="5"
+                    value={String(placement.scale)}
+                    aria-label="Size"
+                    disabled={placing}
+                    onchange={(e: Event) => place({ scale: num(e) })}
+                  />
+                </label>
+                <input
+                  class="slider"
+                  type="range"
+                  min={SCALE_MIN}
+                  max={SCALE_MAX}
+                  step="5"
+                  value={placement.scale}
+                  aria-label="Size slider"
+                  disabled={placing}
+                  onchange={(e: Event) => place({ scale: num(e) })}
+                />
+                <button
+                  type="button"
+                  class="linkish"
+                  disabled={placing}
+                  onclick={() => place({ ...DEFAULT_PLACEMENT })}>Reset</button
+                >
+              </div>
+              {#if placeNote}<p class="muted" role="alert">{placeNote}</p>{/if}
+            </fieldset>
+          {/if}
           <code class="url" aria-label="{info.title} URL">{url}</code>
           <div class="actions">
             <Button size="sm" variant="secondary" onclick={() => copy(info.name)}>Copy URL</Button>
@@ -228,6 +325,42 @@
     font-size: var(--gf-font-size-sm);
     display: grid;
     gap: var(--gf-space-1);
+  }
+  .placement {
+    border: 1px solid var(--gf-border);
+    border-radius: var(--gf-radius-sm);
+    padding: var(--gf-space-2) var(--gf-space-3) var(--gf-space-3);
+    display: grid;
+    gap: var(--gf-space-2);
+  }
+  .placement legend {
+    font-size: var(--gf-font-size-sm);
+    color: var(--gf-text-muted);
+    padding: 0 var(--gf-space-1);
+  }
+  .placerow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gf-space-3);
+    align-items: end;
+  }
+  .placerow .field {
+    min-width: 9rem;
+  }
+  .slider {
+    flex: 1 1 10rem;
+    align-self: center;
+  }
+  .linkish {
+    appearance: none;
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--gf-brand-500);
+    font: inherit;
+    font-size: var(--gf-font-size-sm);
+    cursor: pointer;
+    text-decoration: underline;
   }
   .replayrow {
     display: flex;

@@ -23,11 +23,11 @@ import os
 
 from flask import Blueprint, abort, redirect, request, send_from_directory
 
-from . import archive, auth, capture, datadir, event, mode, presets, racegow, races, roster, teams
+from . import archive, auth, capture, datadir, event, mode, overlay, presets, racegow, races, roster, teams
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_VERSION = "0.9.0"
+PLUGIN_VERSION = "0.10.0"
 
 #: Where the SPA is mounted inside RotorHazard's web server.
 URL_PREFIX = "/grid"
@@ -76,6 +76,10 @@ EVT_RACEGOW_GET = "gridfpv_racegow_get"
 EVT_RACEGOW_SET = "gridfpv_racegow_set"
 #: Broadcast: the whole record, after any change and on request.
 EVT_RACEGOW = "gridfpv_racegow"
+#: The overlay's placement (#96): corner, offsets and size, for every page that draws it.
+EVT_OVERLAY_GET = "gridfpv_overlay_get"
+EVT_OVERLAY_SET = "gridfpv_overlay_set"
+EVT_OVERLAY = "gridfpv_overlay"
 #: The roster (#14): pilots that outlive events. gridfpv_roster carries every entry with an
 #: in_event flag; after an add it also carries ``added`` (callsigns created).
 EVT_ROSTER_GET = "gridfpv_roster_get"
@@ -332,6 +336,17 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
             return
         rhapi.ui.socket_broadcast(EVT_RACEGOW, out)
 
+    def on_overlay_get(*_args, **_kwargs):
+        send(EVT_OVERLAY, overlay.load(rhapi))
+
+    def on_overlay_set(data=None, *_args, **_kwargs):
+        try:
+            out = overlay.save(rhapi, data or {})
+        except overlay.OverlayError as e:
+            rhapi.ui.message_alert(f"GridFPV overlay: {e}")
+            return
+        rhapi.ui.socket_broadcast(EVT_OVERLAY, out)
+
     # Saved races (#36): delete keeps a copy, restore puts it back. RotorHazard's own path
     # on RHAPI 1.12+, the plugin's snapshot path on 4.4.0; see races.py.
     def _races_payload(**extra):
@@ -423,6 +438,8 @@ def register_socket(rhapi, recorder: capture.Recorder) -> None:
     rhapi.ui.socket_listen(EVT_MODE_SET, on_mode_set)
     rhapi.ui.socket_listen(EVT_RACEGOW_GET, on_racegow_get)
     rhapi.ui.socket_listen(EVT_RACEGOW_SET, on_racegow_set)
+    rhapi.ui.socket_listen(EVT_OVERLAY_GET, on_overlay_get)
+    rhapi.ui.socket_listen(EVT_OVERLAY_SET, on_overlay_set)
     rhapi.ui.socket_listen(EVT_ROSTER_GET, on_roster_get)
     rhapi.ui.socket_listen(EVT_ROSTER_ADD, on_roster_add)
     rhapi.ui.socket_listen(EVT_ROSTER_REMOVE, on_roster_remove)

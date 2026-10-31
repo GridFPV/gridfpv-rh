@@ -195,7 +195,7 @@ export async function renderRun({ cfg, data, log = () => {} }) {
     log(
       `render: done in ${((Date.now() - started) / 1000).toFixed(1)} s — ${counts.frames} frames, ${counts.shots} screenshots`
     );
-    return { files, lapStamps: info.lapStamps, title };
+    return { files, lapStamps: info.lapStamps, title, look: info.look };
   } catch (e) {
     for (const enc of encoders) enc.proc.kill('SIGKILL');
     throw e;

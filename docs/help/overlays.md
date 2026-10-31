@@ -3,6 +3,14 @@
 Browser-source overlays for OBS: the race overlay in dark and light, at `/grid/live/race`.
 Copy a link into an OBS Browser source. They also show on RotorHazard's Streams page.
 
+## Placement
+
+Where the panel sits is the overlay's own setting, kept by the timer: a corner, how far in
+from its edges, and its size as a percentage. Set it on the Overlays page and the live
+page, the replay and so every render by the video companion draw it the same — so the
+rendered file matches the stream. OBS can still move and scale the browser source, but
+that only moves the live picture.
+
 ## Replay
 
 The same race overlay drawn from a **saved** race instead of the timer: the laps as they

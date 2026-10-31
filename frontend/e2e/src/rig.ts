@@ -276,6 +276,24 @@ export class Rig {
     );
   }
 
+  /** The overlay's placement (#96) back to the default, so no spec inherits another's corner. */
+  async resetOverlayPlacement(): Promise<void> {
+    const same = (raw: string | null | undefined) => {
+      if (!raw) return true;
+      try {
+        const o = JSON.parse(raw) as Record<string, unknown>;
+        return o.corner === 'top-left' && o.x === 24 && o.y === 24 && o.scale === 100;
+      } catch {
+        return false;
+      }
+    };
+    if (same((await this.options())['gridfpv_overlay'])) return;
+    this.emit('gridfpv_overlay_set', { corner: 'top-left', x: 24, y: 24, scale: 100 });
+    await this.until('overlay placement reset', async () =>
+      same((await this.options())['gridfpv_overlay']) ? true : undefined
+    );
+  }
+
   /** RotorHazard's node_tuning: the profiles and which is active. */
   async profiles(): Promise<{ ids: number[]; names: string[]; current: number }> {
     const t = await this.loadData<{

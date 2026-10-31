@@ -280,6 +280,23 @@ await sleep(4000);
 if ((await sidecarOf()).data.rendered.at !== again.data.rendered.at)
   fail('rendered a third time with no change');
 
+// ---- 2b. the overlay moves on the timer: the run renders again, with the new look ----
+const renderedBeforeLook = again.data.rendered.at;
+rig.emit('gridfpv_overlay_set', { corner: 'bottom-right', x: 40, y: 30, scale: 150 });
+const moved = await until(
+  'the re-render after the placement change',
+  async () => {
+    const s = await sidecarOf();
+    return s && s.data.rendered.at !== renderedBeforeLook ? s : null;
+  },
+  180_000,
+  1000
+);
+if (!/bottom-right/.test(moved.data.look ?? '')) fail(`the sidecar's look is ${moved.data.look}`);
+log(`re-rendered for the new placement: look ${moved.data.look}`);
+rig.emit('gridfpv_overlay_set', { corner: 'top-left', x: 24, y: 24, scale: 100 });
+await sleep(1000);
+
 // ---- 3. a discard: stage, stop, discard → trash ----
 const filesBefore = new Set(await fs.readdir(RECORDINGS));
 rig.emit('stage_race');

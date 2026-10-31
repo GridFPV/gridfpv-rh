@@ -62,6 +62,7 @@ function rig({ trashDiscarded = true } = {}) {
       renders.push({ ...data });
       return {
         title: `RaceGOW 2 Track 4 Round ${data.round}`,
+        look: deps.look,
         lapStamps: [2000, 3600],
         files: [path.join(path.dirname(data.recording), 'render.mp4')]
       };
@@ -178,6 +179,18 @@ test('staging starts the recording, the start is pinned by elapsed time, the sto
   await s.checkResults();
   await s.renderQueue;
   assert.equal(renders.length, 2);
+
+  // The overlay's placement changes on the timer: the run renders again with the new look,
+  // and the same placement arriving again (a reconnect) does not.
+  deps.look = '{"corner":"bottom-right"}';
+  timer.emit('overlay', '{"corner":"top-left"}'); // the baseline, learnt on connect
+  timer.emit('overlay', '{"corner":"bottom-right"}');
+  await s.renderQueue;
+  assert.equal(renders.length, 3);
+  assert.equal((await readSidecar(side)).look, '{"corner":"bottom-right"}');
+  timer.emit('overlay', '{"corner":"bottom-right"}');
+  await s.renderQueue;
+  assert.equal(renders.length, 3);
 
   // The round is deleted (#36): the recording, sidecar and render go to trash.
   await fs.writeFile(path.join(dir, 'render.mp4'), '');
