@@ -8,7 +8,17 @@
    * The clock runs locally against RotorHazard's monotonic clock (sampled on connect and
    * at every staging), the way RotorHazard's own page does, so both agree.
    */
-  import { Badge, Banner, Button, Card, Dialog, Input, Select } from '@gridfpv/components';
+  import {
+    Badge,
+    Banner,
+    Button,
+    Card,
+    Collapsible,
+    Dialog,
+    Input,
+    Select
+  } from '@gridfpv/components';
+  import { overlayTitle } from '../lib/overlay.js';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import ChannelPicker from '../components/ChannelPicker.svelte';
   import { flySeat } from '../lib/racegowFlow.js';
@@ -141,6 +151,25 @@
     if (cls.rounds > 0) return `Round ${r} of ${cls.rounds}`;
     return `Round ${r}`;
   });
+  /**
+   * The card's title is what the run is called: in RaceGOW mode the run name from the
+   * template (the same name the recording gets, #96); otherwise heat · round · stage · event,
+   * as the overlay titles itself. Nothing loaded: "Practice", or the event.
+   */
+  const cardTitle = $derived(
+    overlayTitle({
+      racegow: {
+        on: racegow,
+        template: timer.racegow.nameTemplate,
+        season: timer.racegow.season
+      },
+      heatName: heat?.displayName ?? '',
+      className: cls?.displayName ?? '',
+      round: race.nextRound || 1,
+      eventName: timer.event.name,
+      practice: race.heatId === 0
+    }) || 'Run'
+  );
   const stageBadge = $derived(
     cls ? stageState(cls, heatsInClass(setup, cls.id), timer.results) : null
   );
@@ -444,8 +473,8 @@
     >
   {/if}
 
-  <Card>
-    <div class="head">
+  <Card title={cardTitle}>
+    <div class="timerhead">
       <div class="pick">
         <span class="label">On the timer</span>
         {#key pickKey}
@@ -496,119 +525,146 @@
         <div class="sub">
           {#if heat}
             {roundsText}
-            {#if cls}· {cls.displayName}{/if}
+            {#if cls && !racegow}· {cls.displayName}{/if}
             {#if stageBadge}<Badge tone="neutral">{STAGE_STATE_LABELS[stageBadge]}</Badge>{/if}
-            {#if aceNote}<span class="acenote" role="note">{aceNote}</span>{/if}
           {:else}
             Practice: whoever is on a seat. RotorHazard does not save practice laps; Stop, then
             Discard, clears them.
           {/if}
-          {#if formatPickable}
-            · <Select
-              value={String(race.formatId ?? '')}
-              size="sm"
-              disabled={busy}
-              aria-label="Race format"
-              onchange={(e: Event) =>
-                run(
-                  () => setRaceFormat(Number((e.currentTarget as HTMLSelectElement).value)),
-                  'Format set.'
-                )}
-            >
-              {#each setup.formats as f (f.id)}<option value={String(f.id)}>{f.name}</option>{/each}
-            </Select>
-          {:else if format}· {format.name}, {formatSummary(format)}{/if}
         </div>
-        <RaceSettingsStrip
-          {profileName}
-          minLapS={timer.timing.minLapMs / 1000}
-          {behaviorLabel}
-          {format}
-          onEditFormat={() => (editFormat = format ?? null)}
-        />
       </div>
 
-      <div class="clock">
+      <div class="clockcol">
         <RaceClock
           {race}
           differential={timer.sync.differential}
           {now}
           frozenAt={timer.clockFrozenAt}
-          size="xl"
+          size="xxl"
         />
         <div class="state">
           <Badge tone={statusTone}>{statusLabel}</Badge>
           {#if clock.phase === 'unsynced' && status !== RACE_STATUS.READY}
             <button type="button" class="linkish" onclick={resyncClock}>sync clock</button>
           {/if}
-        </div>
-      </div>
-
-      <div class="controls">
-        <Button
-          variant="primary"
-          size="lg"
-          disabled={!canStart || busy}
-          onclick={() => run(stageRace)}>Start</Button
-        >
-        <Button variant="danger" size="lg" disabled={!canStop || busy} onclick={() => run(stopRace)}
-          >Stop</Button
-        >
-        <Button
-          variant="secondary"
-          size="lg"
-          disabled={!canSave || busy || practice}
-          title={practice ? 'Practice laps are never saved by RotorHazard' : undefined}
-          onclick={() => run(saveLaps, 'Race saved.')}>Save</Button
-        >
-        <Button variant="ghost" size="lg" disabled={!canDiscard || busy} onclick={discard}
-          >Discard</Button
-        >
-        {#if scheduleLeftMs != null}
-          <span class="scheduled" role="status">Starts in {countdownText(scheduleLeftMs)}</span>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={busy}
-            onclick={() => run(cancelScheduledRace, 'Scheduled start cancelled.')}
-            >Cancel start</Button
-          >
-        {:else}
-          <form
-            class="schedule"
-            onsubmit={(e) => {
-              e.preventDefault();
-              void schedule();
-            }}
-          >
-            <Input
-              type="number"
-              size="sm"
-              min="0"
-              max="999"
-              aria-label="Minutes"
-              bind:value={scheduleM}
-              disabled={busy || status !== RACE_STATUS.READY}
-            />:<Input
-              type="number"
-              size="sm"
-              min="0"
-              max="59"
-              aria-label="Seconds"
-              bind:value={scheduleS}
-              disabled={busy || status !== RACE_STATUS.READY}
-            />
+          {#if scheduleLeftMs != null}
+            <span class="scheduled" role="status">Starts in {countdownText(scheduleLeftMs)}</span>
             <Button
               size="sm"
               variant="ghost"
-              type="submit"
-              disabled={busy || status !== RACE_STATUS.READY}
-              title="RotorHazard starts the race itself when the time is up">Schedule start</Button
+              disabled={busy}
+              onclick={() => run(cancelScheduledRace, 'Scheduled start cancelled.')}
+              >Cancel start</Button
             >
-          </form>
-        {/if}
+          {/if}
+        </div>
+        <div class="controls">
+          <Button
+            variant="primary"
+            size="lg"
+            disabled={!canStart || busy}
+            onclick={() => run(stageRace)}>Start</Button
+          >
+          <Button
+            variant="danger"
+            size="lg"
+            disabled={!canStop || busy}
+            onclick={() => run(stopRace)}>Stop</Button
+          >
+          <Button
+            variant="secondary"
+            size="lg"
+            disabled={!canSave || busy || practice}
+            title={practice ? 'Practice laps are never saved by RotorHazard' : undefined}
+            onclick={() => run(saveLaps, 'Race saved.')}>Save</Button
+          >
+          <Button variant="ghost" size="lg" disabled={!canDiscard || busy} onclick={discard}
+            >Discard</Button
+          >
+        </div>
       </div>
     </div>
+
+    <Collapsible title="Details" open={false} headingLevel={3} id="run-details">
+      <dl class="details">
+        {#if aceNote}
+          <div class="row">
+            <dt>Chase the Ace</dt>
+            <dd class="acenote" role="note">{aceNote}</dd>
+          </div>
+        {/if}
+        <div class="row">
+          <dt>Format</dt>
+          <dd>
+            {#if formatPickable}
+              <Select
+                value={String(race.formatId ?? '')}
+                size="sm"
+                disabled={busy}
+                aria-label="Race format"
+                onchange={(e: Event) =>
+                  run(
+                    () => setRaceFormat(Number((e.currentTarget as HTMLSelectElement).value)),
+                    'Format set.'
+                  )}
+              >
+                {#each setup.formats as f (f.id)}<option value={String(f.id)}>{f.name}</option
+                  >{/each}
+              </Select>
+              {#if format}<span class="muted">{formatSummary(format)}</span>{/if}
+            {:else if format}
+              {format.name}, {formatSummary(format)}
+              <button type="button" class="linkish" onclick={() => (editFormat = format ?? null)}
+                >edit</button
+              >
+            {:else}
+              none
+            {/if}
+          </dd>
+        </div>
+        <RaceSettingsStrip {profileName} minLapS={timer.timing.minLapMs / 1000} {behaviorLabel} />
+        {#if scheduleLeftMs == null}
+          <div class="row">
+            <dt>Scheduled start</dt>
+            <dd>
+              <form
+                class="schedule"
+                onsubmit={(e) => {
+                  e.preventDefault();
+                  void schedule();
+                }}
+              >
+                <Input
+                  type="number"
+                  size="sm"
+                  min="0"
+                  max="999"
+                  aria-label="Minutes"
+                  bind:value={scheduleM}
+                  disabled={busy || status !== RACE_STATUS.READY}
+                />:<Input
+                  type="number"
+                  size="sm"
+                  min="0"
+                  max="59"
+                  aria-label="Seconds"
+                  bind:value={scheduleS}
+                  disabled={busy || status !== RACE_STATUS.READY}
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  type="submit"
+                  disabled={busy || status !== RACE_STATUS.READY}
+                  title="RotorHazard starts the race itself when the time is up"
+                  >Schedule start</Button
+                >
+              </form>
+            </dd>
+          </div>
+        {/if}
+      </dl>
+    </Collapsible>
   </Card>
 
   <!-- RaceGOW: the seat card and the one pilot's card side by side, under the clock. -->
@@ -1012,7 +1068,19 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--gf-space-3);
-    align-items: start;
+    align-items: stretch;
+  }
+  /* The one pilot's card fills its half, as tall as the seat card beside it. */
+  .racegowrow .seats {
+    grid-template-columns: 1fr;
+  }
+  .racegowrow .seat,
+  .racegowrow > :global(.gf-card) {
+    height: 100%;
+    box-sizing: border-box;
+  }
+  .racegowrow .seat {
+    align-content: start;
   }
   @media (max-width: 48rem) {
     .racegowrow {
@@ -1072,16 +1140,52 @@
     display: grid;
     gap: var(--gf-space-3);
   }
-  .head {
+  .timerhead {
     display: grid;
-    grid-template-columns: minmax(220px, 1fr) auto auto;
+    grid-template-columns: minmax(220px, 1fr) 2fr;
     gap: var(--gf-space-4);
     align-items: center;
+    margin-bottom: var(--gf-space-3);
   }
-  @media (max-width: 860px) {
-    .head {
+  @media (max-width: 48rem) {
+    .timerhead {
       grid-template-columns: 1fr;
     }
+  }
+  .clockcol {
+    display: grid;
+    justify-items: center;
+    gap: var(--gf-space-2);
+  }
+  .details {
+    margin: 0;
+    display: grid;
+    gap: var(--gf-space-2) var(--gf-space-4);
+  }
+  .details .row {
+    display: grid;
+    grid-template-columns: 9rem 1fr;
+    gap: var(--gf-space-3);
+    align-items: center;
+  }
+  .details dt {
+    font-size: var(--gf-font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--gf-text-muted);
+  }
+  .details dd {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gf-space-2);
+    align-items: center;
+  }
+  .details .muted {
+    font-size: var(--gf-font-size-sm);
+  }
+  .details dd :global(.gf-select) {
+    max-width: 24rem;
   }
   .pick {
     display: grid;
@@ -1101,16 +1205,12 @@
     align-items: center;
     flex-wrap: wrap;
   }
-  .clock {
-    text-align: center;
-    min-width: 200px;
-  }
   .state {
-    margin-top: var(--gf-space-1);
     display: flex;
     gap: var(--gf-space-2);
     justify-content: center;
     align-items: center;
+    flex-wrap: wrap;
   }
   .linkish {
     background: none;
@@ -1125,6 +1225,7 @@
     display: flex;
     gap: var(--gf-space-2);
     flex-wrap: wrap;
+    justify-content: center;
   }
   .seats {
     display: grid;

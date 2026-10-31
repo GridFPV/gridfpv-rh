@@ -21,7 +21,7 @@
     now: number;
     /** Where the clock stopped, once the race is stopped. */
     frozenAt: number | null;
-    size?: 'lg' | 'xl';
+    size?: 'lg' | 'xl' | 'xxl';
   } = $props();
 
   const clock = $derived(clockView(race, differential, now, frozenAt));
@@ -71,6 +71,14 @@
   }
   .raceclock[data-size='xl'] .time {
     font-size: 84px;
+  }
+  .raceclock[data-size='xxl'] .time {
+    font-size: 112px;
+  }
+  @media (max-width: 48rem) {
+    .raceclock[data-size='xxl'] .time {
+      font-size: 72px;
+    }
   }
   .under {
     margin-top: 4px;

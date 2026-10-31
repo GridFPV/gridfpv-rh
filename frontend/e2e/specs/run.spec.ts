@@ -60,6 +60,7 @@ test.describe('Run', () => {
   }) => {
     test.setTimeout(90_000);
     await page.goto('/grid/run'); // practice: the format can be picked here
+    await page.getByRole('button', { name: 'Details' }).click();
     const f3 = (await rig.formats()).find((f) => /First to 3/.test(f.name))!;
     await page.getByLabel('Race format').selectOption(String(f3.id));
     await expect(page.getByText('Format set.')).toBeVisible();
