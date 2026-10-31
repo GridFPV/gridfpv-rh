@@ -21,3 +21,14 @@ if (typeof HTMLDialogElement !== 'undefined') {
     };
   }
 }
+
+// jsdom has no ResizeObserver; Svelte's `bind:clientHeight` (OverlayPanel measures its head,
+// #96) needs one. Sizes are 0 under jsdom either way; the stub only keeps the binding quiet.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = ResizeObserverStub;
+}

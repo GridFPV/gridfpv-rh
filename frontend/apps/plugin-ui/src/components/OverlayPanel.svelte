@@ -75,6 +75,8 @@
   );
   const SHOWN = 6;
   const recent = $derived(solo ? solo.lapMs.slice(-SHOWN) : []);
+  /** The head's unscaled height, for a bottom corner: the laps hang below it (see placementStyle). */
+  let headPx = $state(0);
   const recentOffset = $derived(solo ? Math.max(0, solo.lapMs.length - SHOWN) : 0);
 </script>
 
@@ -85,102 +87,108 @@
   data-state={stage}
   aria-label="Race overlay"
 >
-  <div class="panel" style={placementStyle(placement)} data-corner={placement.corner}>
-    <div class="head">
-      {#if logoLeft}
-        <img class="logo" src="{BRANDING}left.png" alt="" onerror={() => (logoLeft = false)} />
-      {:else}
-        <span class="brand">Grid<span class="fpv">FPV</span></span>
-      {/if}
-      <span class="track">
-        {#if title}
-          {title}
+  <div
+    class="panel"
+    style={placementStyle(placement, { headPx, hangs: recent.length > 0 })}
+    data-corner={placement.corner}
+  >
+    <div class="headblock" bind:clientHeight={headPx}>
+      <div class="head">
+        {#if logoLeft}
+          <img class="logo" src="{BRANDING}left.png" alt="" onerror={() => (logoLeft = false)} />
         {:else}
-          {notice}
+          <span class="brand">Grid<span class="fpv">FPV</span></span>
         {/if}
-      </span>
-      {#if logoRight}
-        <img
-          class="logo right"
-          src="{BRANDING}right.png"
-          alt=""
-          onerror={() => (logoRight = false)}
-        />
-      {/if}
-    </div>
-
-    <div class="clockrow">
-      <span class="clock" data-phase={clock.phase}>{clock.text}</span>
-      {#if elapsed}<span class="elapsed">{elapsed}</span>{/if}
-      <span class="phase">{phase}</span>
-    </div>
-
-    {#if solo}
-      <div class="solo" style={solo.color ? `--pilot: ${solo.color}` : ''}>
-        {#if solo.color}<span class="swatch"></span>{/if}{solo.name}
-      </div>
-      <div class="stats">
-        {#if windowN !== undefined}
-          <div class="stat">
-            <span class="l">Laps</span>
-            <span class="n">{solo.lapMs.length}</span>
-          </div>
-          <div class="stat">
-            <span class="l">Best {windowN} this race</span>
-            <span class="n">{formatLapMs(solo.window?.totalMs)}</span>
-          </div>
-        {:else}
-          <div class="stat">
-            <span class="l">Laps</span>
-            <span class="n">{solo.lapMs.length}</span>
-          </div>
-          <div class="stat">
-            <span class="l">Best lap</span>
-            <span class="n">{formatLapMs(solo.best)}</span>
-          </div>
+        <span class="track">
+          {#if title}
+            {title}
+          {:else}
+            {notice}
+          {/if}
+        </span>
+        {#if logoRight}
+          <img
+            class="logo right"
+            src="{BRANDING}right.png"
+            alt=""
+            onerror={() => (logoRight = false)}
+          />
         {/if}
       </div>
-      {#if recent.length}
-        <ol class="laps" aria-label="Recent laps">
-          {#each recent as lap, i (recentOffset + i)}
-            <li class="lap" class:lit={inWindow(recentOffset + i, solo.window)}>
-              <span class="ln">L{recentOffset + i + 1}</span>
-              <span class="lt">{formatLapMs(lap)}</span>
-            </li>
-          {/each}
-        </ol>
-      {/if}
-    {:else if rows.length}
-      <table class="field" aria-label="Pilots on the timer">
-        <thead>
-          <tr>
-            <th class="pos"></th>
-            <th class="name">Pilot</th>
-            <th class="num">Laps</th>
-            <th class="num">Last</th>
-            <th class="num">{windowN === undefined ? 'Best' : `Best ${windowN}`}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each rows as row, i (row.seat)}
-            <tr style={row.color ? `--pilot: ${row.color}` : ''}>
-              <td class="pos">{row.position ?? i + 1}</td>
-              <td class="name"
-                >{#if row.color}<span class="swatch"></span>{/if}{row.name}</td
-              >
-              <td class="num">{row.lapMs.length}</td>
-              <td class="num">{formatLapMs(row.last)}</td>
-              <td class="num best"
-                >{windowN === undefined
-                  ? formatLapMs(row.best)
-                  : formatLapMs(row.window?.totalMs)}</td
-              >
+
+      <div class="clockrow">
+        <span class="clock" data-phase={clock.phase}>{clock.text}</span>
+        {#if elapsed}<span class="elapsed">{elapsed}</span>{/if}
+        <span class="phase">{phase}</span>
+      </div>
+
+      {#if solo}
+        <div class="solo" style={solo.color ? `--pilot: ${solo.color}` : ''}>
+          {#if solo.color}<span class="swatch"></span>{/if}{solo.name}
+        </div>
+        <div class="stats">
+          {#if windowN !== undefined}
+            <div class="stat">
+              <span class="l">Laps</span>
+              <span class="n">{solo.lapMs.length}</span>
+            </div>
+            <div class="stat">
+              <span class="l">Best {windowN} this race</span>
+              <span class="n">{formatLapMs(solo.window?.totalMs)}</span>
+            </div>
+          {:else}
+            <div class="stat">
+              <span class="l">Laps</span>
+              <span class="n">{solo.lapMs.length}</span>
+            </div>
+            <div class="stat">
+              <span class="l">Best lap</span>
+              <span class="n">{formatLapMs(solo.best)}</span>
+            </div>
+          {/if}
+        </div>
+      {:else if rows.length}
+        <table class="field" aria-label="Pilots on the timer">
+          <thead>
+            <tr>
+              <th class="pos"></th>
+              <th class="name">Pilot</th>
+              <th class="num">Laps</th>
+              <th class="num">Last</th>
+              <th class="num">{windowN === undefined ? 'Best' : `Best ${windowN}`}</th>
             </tr>
-          {/each}
-        </tbody>
-      </table>
-    {:else}
-      <p class="empty">No pilots on the timer yet.</p>
+          </thead>
+          <tbody>
+            {#each rows as row, i (row.seat)}
+              <tr style={row.color ? `--pilot: ${row.color}` : ''}>
+                <td class="pos">{row.position ?? i + 1}</td>
+                <td class="name"
+                  >{#if row.color}<span class="swatch"></span>{/if}{row.name}</td
+                >
+                <td class="num">{row.lapMs.length}</td>
+                <td class="num">{formatLapMs(row.last)}</td>
+                <td class="num best"
+                  >{windowN === undefined
+                    ? formatLapMs(row.best)
+                    : formatLapMs(row.window?.totalMs)}</td
+                >
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {:else}
+        <p class="empty">No pilots on the timer yet.</p>
+      {/if}
+    </div>
+    {#if solo && recent.length}
+      <ol class="laps" aria-label="Recent laps">
+        {#each recent as lap, i (recentOffset + i)}
+          <li class="lap" class:lit={inWindow(recentOffset + i, solo.window)}>
+            <span class="ln">L{recentOffset + i + 1}</span>
+            <span class="lt">{formatLapMs(lap)}</span>
+          </li>
+        {/each}
+      </ol>
     {/if}
   </div>
 </div>
@@ -198,15 +206,20 @@
     position: absolute;
     display: flex;
     flex-direction: column;
-    gap: 10px;
     min-width: 22rem;
     max-width: 34rem;
-    padding: 16px 22px 18px;
     border-radius: 18px;
     background: rgba(8, 10, 14, 0.9);
     border: 1px solid rgba(255, 255, 255, 0.14);
     backdrop-filter: blur(6px);
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  }
+  /* The head is what the placement puts in the corner; the laps hang below it. */
+  .headblock {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 22px 18px;
   }
   .head {
     display: flex;
@@ -324,8 +337,8 @@
   }
   .laps {
     list-style: none;
-    margin: 0;
-    padding: 0;
+    margin: -8px 0 0;
+    padding: 0 22px 18px;
     display: flex;
     flex-direction: column;
     gap: 2px;

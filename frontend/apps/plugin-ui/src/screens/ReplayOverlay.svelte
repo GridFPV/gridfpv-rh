@@ -199,6 +199,10 @@
     t = Number(ms);
     await ready();
     await tick();
+    // The panel measures its head to place itself in a bottom corner (OverlayPanel): let
+    // layout run and that measurement land before a renderer takes the picture.
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await tick();
     return info()!;
   }
   $effect(() => {

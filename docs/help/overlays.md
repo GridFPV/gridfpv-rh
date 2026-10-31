@@ -6,7 +6,10 @@ Copy a link into an OBS Browser source. They also show on RotorHazard's Streams 
 ## Placement
 
 Where the panel sits is the overlay's own setting, kept by the timer: a corner, how far in
-from its edges, and its size as a percentage. Set it on the Overlays page and the live
+from its edges, and its size as a percentage. The size and the corner apply to the panel's
+head — title, clock, pilot and bests; the lap list hangs below the head and grows downward
+whichever corner you chose, so the clock never moves as laps come in. In a bottom corner,
+leave room below for up to six laps. Set it on the Overlays page and the live
 page, the replay and so every render by the video companion draw it the same — so the
 rendered file matches the stream. OBS can still move and scale the browser source, but
 that only moves the live picture.

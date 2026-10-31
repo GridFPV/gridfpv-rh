@@ -276,6 +276,24 @@ export class Rig {
     );
   }
 
+  /** Put the overlay where a spec wants it (#96). */
+  async setOverlayPlacement(p: {
+    corner: string;
+    x: number;
+    y: number;
+    scale: number;
+  }): Promise<void> {
+    this.emit('gridfpv_overlay_set', p);
+    await this.until('overlay placement', async () => {
+      const raw = (await this.options())['gridfpv_overlay'];
+      if (!raw) return undefined;
+      const o = JSON.parse(raw) as Record<string, unknown>;
+      return o.corner === p.corner && o.x === p.x && o.y === p.y && o.scale === p.scale
+        ? true
+        : undefined;
+    });
+  }
+
   /** The overlay's placement (#96) back to the default, so no spec inherits another's corner. */
   async resetOverlayPlacement(): Promise<void> {
     const same = (raw: string | null | undefined) => {

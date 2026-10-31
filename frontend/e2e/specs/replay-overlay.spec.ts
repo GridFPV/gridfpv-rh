@@ -79,6 +79,37 @@ test('Replay overlay: a saved race at time t, seekable, and the marshalled laps 
   await expect(panel).toHaveAttribute('data-state', 'missing', { timeout: 10_000 });
   await expect(panel).toContainText('no such saved race');
 
+  // Placed in a bottom corner, the panel's head sits where it was put and the laps hang
+  // below it, growing down — the clock never creeps up as laps come in (#96).
+  await rig.setOverlayPlacement({ corner: 'bottom-right', x: 40, y: 30, scale: 150 });
+  await page.goto(`/grid/live/race?heat=${heat}&round=1&t=5000`);
+  await expect(panel).toHaveAttribute('data-state', 'ready');
+  await expect(laps.locator('li')).toHaveCount(2);
+  const geometry = () =>
+    page.evaluate(() => {
+      const head = document.querySelector('.headblock')!.getBoundingClientRect();
+      const list = document.querySelector('.laps')!.getBoundingClientRect();
+      return {
+        headBottom: head.bottom,
+        listTop: list.top,
+        listBottom: list.bottom,
+        vh: window.innerHeight
+      };
+    });
+  const g2 = await geometry();
+  // clientHeight is whole pixels and the head is scaled by 1.5: within a couple of pixels.
+  expect(Math.abs(g2.vh - 30 - g2.headBottom)).toBeLessThan(3);
+  // The list starts in the head's bottom padding (tucked 8 px, scaled) and runs on below it.
+  expect(g2.listTop).toBeGreaterThanOrEqual(g2.headBottom - 14);
+  expect(g2.listBottom).toBeGreaterThan(g2.headBottom);
+  // One lap fewer: the head does not move; the list is shorter.
+  await page.evaluate((ms) => window.gridfpvReplay!.seek(ms), stamps[1] + 50);
+  await expect(laps.locator('li')).toHaveCount(1);
+  const g1 = await geometry();
+  expect(Math.abs(g1.headBottom - g2.headBottom)).toBeLessThan(1.5);
+  expect(g1.listBottom).toBeLessThan(g2.listBottom);
+  await rig.resetOverlayPlacement();
+
   // Marshal the race in Grid: the second crossing goes; RotorHazard's saved race agrees.
   await page.goto('/grid/marshal');
   const race = page.getByRole('combobox', { name: /^Race/ });

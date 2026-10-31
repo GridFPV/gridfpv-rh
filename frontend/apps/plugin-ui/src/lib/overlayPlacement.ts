@@ -37,10 +37,23 @@ export function applyPlacement(raw: unknown): OverlayPlacement {
   };
 }
 
-/** The panel's inline style: pinned to its corner, scaled about that corner. */
-export function placementStyle(p: OverlayPlacement): string {
+/**
+ * The panel's inline style. The scale sizes the panel's *head* (title, clock, pilot, stats);
+ * the head is what sits in the corner, and the lap list hangs below it and grows downward
+ * whichever corner was chosen — so a clock in a bottom corner never creeps up as laps come
+ * in. For a bottom corner that means pinning the head's top edge at `100vh - y - head`,
+ * where `head` is the head's unscaled height; until it is measured (or with nothing below
+ * it, which comes to the same place) the head is pinned by its bottom edge instead.
+ */
+export function placementStyle(
+  p: OverlayPlacement,
+  measure: { headPx: number; hangs: boolean } = { headPx: 0, hangs: false }
+): string {
   const [v, h] = p.corner.split('-') as ['top' | 'bottom', 'left' | 'right'];
-  return `${v}: ${p.y}px; ${h}: ${p.x}px; transform: scale(${p.scale / 100}); transform-origin: ${v} ${h};`;
+  const s = p.scale / 100;
+  if (v === 'bottom' && measure.hangs && measure.headPx > 0)
+    return `top: calc(100vh - ${p.y}px - ${Math.round(measure.headPx * s * 100) / 100}px); ${h}: ${p.x}px; transform: scale(${s}); transform-origin: top ${h};`;
+  return `${v}: ${p.y}px; ${h}: ${p.x}px; transform: scale(${s}); transform-origin: ${v} ${h};`;
 }
 
 export function samePlacement(a: OverlayPlacement, b: OverlayPlacement): boolean {
