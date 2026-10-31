@@ -22,9 +22,9 @@ describe('mode (#95)', () => {
     ]);
   });
 
-  it('racegow keeps only what a season needs: home, seats, run, marshal, results, overlays', () => {
+  it('racegow keeps only what a season needs: home, run, marshal, results, overlays', () => {
     const paths = visibleScreens('racegow').map((s) => s.path);
-    expect(paths).toEqual(['', 'seats', 'run', 'marshal', 'results', 'overlays']);
+    expect(paths).toEqual(['', 'run', 'marshal', 'results', 'overlays']);
   });
 
   it('only full shows the stage machinery', () => {

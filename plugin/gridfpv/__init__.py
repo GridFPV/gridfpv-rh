@@ -27,7 +27,7 @@ from . import archive, auth, capture, datadir, event, mode, presets, racegow, ra
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_VERSION = "0.8.0"
+PLUGIN_VERSION = "0.9.0"
 
 #: Where the SPA is mounted inside RotorHazard's web server.
 URL_PREFIX = "/grid"

@@ -6,8 +6,8 @@
  * - full: everything.
  * - simple: the club-night pages; Teams, Formats and the stage machinery stay out of the way.
  * - racegow: simple, plus racegow's workflow and vocabulary (seasons, tracks, runs): Home
- *   becomes the season — its tracks, the pilot, new season / new track — and Event, Pilots
- *   and Stages leave the nav.
+ *   becomes the season — its tracks, the pilot, new season / new track — and Event, Pilots,
+ *   Stages and Seats leave the nav (the one seat is picked and tuned from Run).
  *
  * Hidden pages stay reachable by URL and from the help: the mode is about what is in the
  * way, not about locking anything.
@@ -35,9 +35,10 @@ export const MODE_DESCRIPTIONS: Record<Mode, string> = {
 const HIDDEN: Record<Mode, ReadonlySet<string>> = {
   full: new Set(),
   simple: new Set(['teams', 'formats']),
-  // Seasons, tracks and the pilot live on racegow's own Home; Event, Pilots and Stages
-  // stay reachable by URL for the odd repair, out of the way otherwise.
-  racegow: new Set(['teams', 'formats', 'event', 'pilots', 'stages'])
+  // Seasons, tracks and the pilot live on racegow's own Home, the one seat and its channel
+  // on Run; Event, Pilots, Stages and Seats stay reachable by URL for the odd repair, out of
+  // the way otherwise.
+  racegow: new Set(['teams', 'formats', 'event', 'pilots', 'stages', 'seats'])
 };
 
 export function isMode(v: unknown): v is Mode {

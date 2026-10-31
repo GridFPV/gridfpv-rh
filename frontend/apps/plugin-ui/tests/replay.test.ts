@@ -61,6 +61,7 @@ describe('the replay query', () => {
       round: 2,
       t: 1500,
       end: null,
+      staging: null,
       layout: null,
       pilotId: null
     });
@@ -128,6 +129,24 @@ describe('the race at time t', () => {
   });
   it('without the format assumes an unlimited clock', () => {
     expect(replayStatus(saved, undefined, 0, null).unlimitedTime).toBe(true);
+  });
+  it('is idle before staging began, when the renderer says when that was', () => {
+    const f = format();
+    const before = replayStatus(saved, f, -9000, null, -3200);
+    expect(before.status).toBe(RACE_STATUS.READY);
+    expect(clockView(before, 0, -9000, null)).toMatchObject({ phase: 'idle', text: '0:00.0' });
+    expect(phaseLabel(before.status, 'idle')).toBe('READY');
+    expect(replayStatus(saved, f, -3200, null, -3200).status).toBe(RACE_STATUS.STAGING);
+    expect(replayQuery({ heatId: 4, round: 2, staging: -3200.4 })).toBe(
+      '?heat=4&round=2&staging=-3200'
+    );
+  });
+  it('hides the staging clock for a format with a random start delay, as live did', () => {
+    const f = format({ startDelayMax: 2000 });
+    expect(clockView(replayStatus(saved, f, -1000, null), 0, -1000, null).text).toBe('Ready');
+    expect(clockView(replayStatus(saved, format(), -1000, null), 0, -1000, null).text).toBe(
+      '0:01.0'
+    );
   });
 });
 

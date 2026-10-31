@@ -17,6 +17,7 @@ test('RaceGOW: a new season, the pilot, two tracks — and RotorHazard holds the
   const nav = page.getByRole('navigation');
   await expect(nav.getByRole('link', { name: 'Run' })).toBeVisible();
   await expect(nav.getByRole('link', { name: 'Stages' })).toHaveCount(0);
+  await expect(nav.getByRole('link', { name: 'Seats' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'RaceGOW', level: 1 })).toBeVisible();
 
   // A new season: the event is archived and renamed, the number recorded.
@@ -28,10 +29,13 @@ test('RaceGOW: a new season, the pilot, two tracks — and RotorHazard holds the
   await expect(page.getByRole('heading', { name: 'Season 2', level: 1 })).toBeVisible();
   expect((await rig.options())['eventName']).toBe('RaceGOW Season 2');
 
-  // You: a callsign; the pilot is made in the event when the first track needs them.
+  // You: a new pilot by callsign — made in the event now — or one already there.
+  await page.getByRole('combobox', { name: 'Pilot' }).selectOption('__new__');
   await page.getByLabel('Callsign').fill('Ryan');
-  await page.getByRole('button', { name: 'Save pilot' }).click();
+  await page.getByRole('button', { name: 'Add pilot' }).click();
   await expect(page.getByText('Pilot saved.')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Pilot' })).toHaveValue('Ryan');
+  expect((await rig.pilots()).some((p) => p.callsign === 'Ryan')).toBe(true);
 
   // Two tracks: numbered 1 then 2, each loaded on the timer as it is made.
   await page.getByRole('button', { name: /^New track · Track 1$/ }).click();
@@ -92,6 +96,18 @@ test('RaceGOW: a new season, the pilot, two tracks — and RotorHazard holds the
   // it, and Ryan moves to seat 2 on the track that is on the timer. (The fixture drops the
   // profile again before the next spec.)
   await page.goto('/grid/run');
+  // Run in racegow's words: no message form, and the picker offers tracks, each its one heat.
+  await expect(page.getByLabel('Message to every page')).toHaveCount(0);
+  const onTimer = page.getByRole('combobox', { name: 'On the timer' });
+  await expect(onTimer.locator('option')).toHaveText(['Track 2', 'Track 1']);
+  await onTimer.selectOption({ label: 'Track 1' });
+  await expect
+    .poll(async () => (await rig.loadData<{ current_heat: number }>('current_heat')).current_heat)
+    .toBe(heats.find((h) => h.class_id === t1.id)!.heat_id);
+  await onTimer.selectOption({ label: 'Track 2' });
+  await expect
+    .poll(async () => (await rig.loadData<{ current_heat: number }>('current_heat')).current_heat)
+    .toBe(h2.heat_id);
   await page.getByRole('combobox', { name: 'Seat' }).selectOption('1');
   await expect(
     page.getByText('Seat set; the other seats are off in the RaceGOW profile.')

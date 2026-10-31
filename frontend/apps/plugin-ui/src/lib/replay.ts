@@ -37,6 +37,8 @@ export type ReplayQuery = {
   t: number;
   /** Race time the race was stopped (ms): the clock freezes there and the phase reads FINISHED. */
   end: number | null;
+  /** Race time staging began (ms, negative); before it the timer was idle, so the panel reads READY. */
+  staging: number | null;
   /** Force the one-pilot or the table layout; null picks by how many pilots have a record. */
   layout: ReplayLayout | null;
   /** The pilot the solo layout follows when several raced; null = the first row. */
@@ -66,6 +68,7 @@ export function parseReplayQuery(search: string): ReplayQuery | null {
     round,
     t: int(p.get('t')) ?? 0,
     end: int(p.get('end')),
+    staging: int(p.get('staging')),
     layout: layout === 'solo' || layout === 'field' ? layout : null,
     pilotId: int(p.get('pilot'))
   };
@@ -78,6 +81,7 @@ export function replayQuery(q: Partial<ReplayQuery> & { heatId: number; round: n
   p.set('round', String(q.round));
   if (q.t) p.set('t', String(Math.trunc(q.t)));
   if (q.end != null) p.set('end', String(Math.trunc(q.end)));
+  if (q.staging != null) p.set('staging', String(Math.trunc(q.staging)));
   if (q.layout) p.set('layout', q.layout);
   if (q.pilotId != null) p.set('pilot', String(q.pilotId));
   return `?${p.toString()}`;
@@ -106,23 +110,33 @@ export function findSavedRace(
 /**
  * The race as `clockView` wants it, at race time `t`. Start is at 0 on a clock with no
  * differential, so `clockView(status, 0, t, end)` reads straight off the lap-stamp axis:
- * staging while t < 0, racing after, and stopped (frozen at `end`) once t reaches `end`.
+ * idle before `staging` (when given), staging while t < 0, racing after, and stopped
+ * (frozen at `end`) once t reaches `end`. A format with a random start delay hid its
+ * staging clock live, so it is hidden here too.
  */
 export function replayStatus(
   saved: SavedRace,
   format: RaceFormat | undefined,
   t: number,
-  end: number | null
+  end: number | null,
+  staging: number | null = null
 ): RaceStatus {
   const stopped = end != null && t >= end;
+  const idle = staging != null && t < staging;
   return {
-    status: t < 0 ? RACE_STATUS.STAGING : stopped ? RACE_STATUS.DONE : RACE_STATUS.RACING,
+    status: idle
+      ? RACE_STATUS.READY
+      : t < 0
+        ? RACE_STATUS.STAGING
+        : stopped
+          ? RACE_STATUS.DONE
+          : RACE_STATUS.RACING,
     formatId: saved.round.formatId,
     heatId: saved.heat.heatId,
     classId: saved.heat.classId || null,
     unlimitedTime: format?.unlimitedTime ?? true,
     raceTimeSec: format?.raceTimeSec ?? 0,
-    hideStageTimer: false,
+    hideStageTimer: (format?.startDelayMax ?? 0) > 0,
     stagingTones: 0,
     startsAt: 0,
     stagingAt: null,
@@ -213,4 +227,9 @@ export type ReplayInfo = {
   lapStamps: number[];
   /** Race time the overlay shows right now. */
   t: number;
+  /**
+   * Changes exactly when the panel's picture changes (the clock's tenth, the phase, a lap
+   * appearing): a renderer screenshots on a new key and repeats the last frame otherwise.
+   */
+  key: string;
 };

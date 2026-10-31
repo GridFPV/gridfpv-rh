@@ -12,6 +12,7 @@
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import ChannelPicker from '../components/ChannelPicker.svelte';
   import { flySeat } from '../lib/racegowFlow.js';
+  import { tracksOf } from '../lib/racegow.js';
   import RaceClock from '../components/RaceClock.svelte';
   import HeatPlanDialog from '../components/HeatPlanDialog.svelte';
   import FormatDialog from '../components/FormatDialog.svelte';
@@ -87,6 +88,13 @@
   const timer = rh();
   const setup = $derived(timer.setup);
   const race = $derived(timer.race);
+  // ---- RaceGOW mode (#95): one seat, picked here; the others off in the RaceGOW profile ----
+  const racegow = $derived(timer.mode === 'racegow');
+  const racegowSeat = $derived(
+    timer.racegow.seat != null ? timer.seats.find((x) => x.index === timer.racegow.seat) : undefined
+  );
+  /** RaceGOW: the picker offers tracks, each standing for its one heat; a track with no heat is a repair job. */
+  const tracks = $derived(racegow ? tracksOf(setup, timer.results).filter((t) => t.heat) : []);
   const status = $derived(race.status);
 
   // ---- what's loaded ----
@@ -126,6 +134,7 @@
   const roundsText = $derived.by(() => {
     if (!heat) return '';
     const r = race.nextRound || 1;
+    if (racegow) return `Run ${r} next`;
     if (!cls) return `Round ${r}`;
     if (cls.rounds > 0 && r > cls.rounds)
       return `All ${cls.rounds} round${cls.rounds === 1 ? '' : 's'} raced · a start would be round ${r}`;
@@ -242,11 +251,6 @@
   const offSeatIndexes = $derived(new Set(offSeat.map((w) => w.seat)));
   /** Practice (no heat): RotorHazard never saves those laps, so Save is not offered (#50). */
   const practice = $derived(race.heatId === 0);
-  // ---- RaceGOW mode (#95): one seat, picked here; the others off in the RaceGOW profile ----
-  const racegow = $derived(timer.mode === 'racegow');
-  const racegowSeat = $derived(
-    timer.racegow.seat != null ? timer.seats.find((x) => x.index === timer.racegow.seat) : undefined
-  );
   /**
    * The leaderboard is for a race, not an idle timer's seat list (#47): nothing while Ready,
    * and a seat RotorHazard lists by its frequency only once it has laps (practice).
@@ -401,29 +405,29 @@
     <button type="button" class="linkish" onclick={() => (soundOpen = true)}>Sound settings…</button
     >
   </p>
-  <form
-    class="message"
-    aria-label="Send message"
-    onsubmit={(e) => {
-      e.preventDefault();
-      void send();
-    }}
-  >
-    <Input
-      size="sm"
-      maxlength={256}
-      placeholder="Message to every page, RotorHazard's included"
-      aria-label="Message to every page"
-      bind:value={messageText}
-      disabled={busy}
-    />
-    <label class="check"
-      ><input type="checkbox" bind:checked={messageInterrupt} disabled={busy} /> Pop-up alert</label
+  {#if !racegow}<form
+      class="message"
+      aria-label="Send message"
+      onsubmit={(e) => {
+        e.preventDefault();
+        void send();
+      }}
     >
-    <Button size="sm" variant="secondary" type="submit" disabled={busy || !messageText.trim()}
-      >Send message</Button
-    >
-  </form>
+      <Input
+        size="sm"
+        maxlength={256}
+        placeholder="Message to every page, RotorHazard's included"
+        aria-label="Message to every page"
+        bind:value={messageText}
+        disabled={busy}
+      />
+      <label class="check"
+        ><input type="checkbox" bind:checked={messageInterrupt} disabled={busy} /> Pop-up alert</label
+      >
+      <Button size="sm" variant="secondary" type="submit" disabled={busy || !messageText.trim()}
+        >Send message</Button
+      >
+    </form>{/if}
   {#if offSeat.length && status === RACE_STATUS.READY}
     <Banner tone="warn">
       {#each offSeat as w (w.seat)}<span class="offline">{w.text}</span>{/each}
@@ -440,72 +444,52 @@
     >
   {/if}
 
-  {#if racegow}
-    <Card
-      title="Seat"
-      subtitle="One seat for racegow. Picking it turns every other seat off in the RaceGOW profile; the club profile is untouched."
-    >
-      <div class="racegowseat">
-        <label class="field">
-          <span>Seat</span>
-          <Select
-            size="sm"
-            value={timer.racegow.seat == null ? '' : String(timer.racegow.seat)}
-            disabled={busy || status !== RACE_STATUS.READY}
-            aria-label="Seat"
-            onchange={(e: Event) =>
-              run(
-                () => flySeat(Number((e.currentTarget as HTMLSelectElement).value)),
-                'Seat set; the other seats are off in the RaceGOW profile.'
-              )}
-          >
-            <option value="" disabled>Pick a seat</option>
-            {#each timer.seats as s (s.index)}
-              <option value={String(s.index)}>Seat {s.index + 1}</option>
-            {/each}
-          </Select>
-        </label>
-        {#if racegowSeat}
-          <div class="field">
-            <span>Channel</span>
-            <ChannelPicker seat={racegowSeat} onresult={(r) => onresult(r, 'Channel set.')} />
-          </div>
-          <a class="tune" href={href(`seats/${racegowSeat.index}`)} onclick={link}>Tune this seat</a
-          >
-        {/if}
-        <span class="muted profilenote" role="status">
-          {timer.profiles.name.trim().toLowerCase() === 'racegow'
-            ? 'RaceGOW profile active.'
-            : 'The RaceGOW profile is made when you pick a seat.'}
-        </span>
-      </div>
-    </Card>
-  {/if}
-
   <Card>
     <div class="head">
       <div class="pick">
         <span class="label">On the timer</span>
         {#key pickKey}
-          <Select value={String(race.heatId)} disabled={!canPick || busy} onchange={onPick}>
-            <option value="0">Practice — no heat</option>
-            {#each stages as c (c.id)}
-              {@const hs = stageHeats(c.id)}
-              {#if hs.length}
-                <optgroup label={c.displayName}>
-                  {#each hs as h (h.id)}<option value={String(h.id)} disabled={!h.active}
-                      >{h.displayName}{h.active
-                        ? ''
-                        : ' — raced; RotorHazard keeps grouped heats inactive, re-fly it as a new round from the Stages board'}</option
+          <Select
+            value={String(race.heatId)}
+            disabled={!canPick || busy}
+            aria-label="On the timer"
+            onchange={onPick}
+          >
+            {#if racegow}
+              <!-- A track is its one heat: picking the track loads the heat (#95). -->
+              {#if !tracks.some((t) => t.heat!.id === race.heatId)}
+                <option value={String(race.heatId)} disabled
+                  >{heat ? heat.displayName : 'No track loaded'}</option
+                >
+              {/if}
+              {#each tracks as t (t.cls.id)}
+                <option value={String(t.heat!.id)}
+                  >{t.cls.displayName}{t.runs
+                    ? ` · ${t.runs} run${t.runs === 1 ? '' : 's'}`
+                    : ''}</option
+                >
+              {/each}
+            {:else}
+              <option value="0">Practice — no heat</option>
+              {#each stages as c (c.id)}
+                {@const hs = stageHeats(c.id)}
+                {#if hs.length}
+                  <optgroup label={c.displayName}>
+                    {#each hs as h (h.id)}<option value={String(h.id)} disabled={!h.active}
+                        >{h.displayName}{h.active
+                          ? ''
+                          : ' — raced; RotorHazard keeps grouped heats inactive, re-fly it as a new round from the Stages board'}</option
+                      >{/each}
+                  </optgroup>
+                {/if}
+              {/each}
+              {#if unclassified.length}
+                <optgroup label="No stage">
+                  {#each unclassified as h (h.id)}<option value={String(h.id)}
+                      >{h.displayName}</option
                     >{/each}
                 </optgroup>
               {/if}
-            {/each}
-            {#if unclassified.length}
-              <optgroup label="No stage">
-                {#each unclassified as h (h.id)}<option value={String(h.id)}>{h.displayName}</option
-                  >{/each}
-              </optgroup>
             {/if}
           </Select>
         {/key}
@@ -627,84 +611,135 @@
     </div>
   </Card>
 
-  <div class="seats">
-    {#each seatRows as row (row.seat.index)}
-      <div class="seat" class:crossing={row.crossing} class:finished={row.finished}>
-        <div class="seathead">
-          <span class="chan" data-band={row.tag?.band ?? ''}
-            >{row.tag ? `${row.tag.band}${row.tag.channel}` : `Seat ${row.seat.index + 1}`}</span
-          >
-          <span class="who" style={row.color ? `--pilot: ${row.color}` : ''}>
-            {#if row.callsign}<span class="swatch"></span>{row.callsign}{:else}<span class="muted"
-                >empty</span
-              >{/if}
+  <!-- RaceGOW: the seat card and the one pilot's card side by side, under the clock. -->
+  <div class="below" class:racegowrow={racegow}>
+    {#if racegow}
+      <Card
+        title="Seat"
+        subtitle="One seat for racegow. Picking it turns every other seat off in the RaceGOW profile; the club profile is untouched."
+      >
+        <div class="racegowseat">
+          <label class="field">
+            <span>Seat</span>
+            <Select
+              size="sm"
+              value={timer.racegow.seat == null ? '' : String(timer.racegow.seat)}
+              disabled={busy || status !== RACE_STATUS.READY}
+              aria-label="Seat"
+              onchange={(e: Event) =>
+                run(
+                  () => flySeat(Number((e.currentTarget as HTMLSelectElement).value)),
+                  'Seat set; the other seats are off in the RaceGOW profile.'
+                )}
+            >
+              <option value="" disabled>Pick a seat</option>
+              {#each timer.seats as s (s.index)}
+                <option value={String(s.index)}>Seat {s.index + 1}</option>
+              {/each}
+            </Select>
+          </label>
+          {#if racegowSeat}
+            <div class="field">
+              <span>Channel</span>
+              <ChannelPicker seat={racegowSeat} onresult={(r) => onresult(r, 'Channel set.')} />
+            </div>
+            <a class="tune" href={href(`seats/${racegowSeat.index}`)} onclick={link}
+              >Tune this seat</a
+            >
+          {/if}
+          <span class="muted profilenote" role="status">
+            {timer.profiles.name.trim().toLowerCase() === 'racegow'
+              ? 'RaceGOW profile active.'
+              : 'The RaceGOW profile is made when you pick a seat.'}
           </span>
-          {#if row.crossing}<span class="cross" role="status">crossing</span>{/if}
-          {#if row.finished}<span class="fin" role="status">finished</span>{/if}
-          {#if !prefs.hide_graphs}<span class="rssi" title="RSSI">{row.seat.rssi || ''}</span>{/if}
-          <a
-            class="tune"
-            href={href(`seats/${row.seat.index}`)}
-            onclick={link}
-            title="Tune this seat">tune</a
-          >
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={status !== RACE_STATUS.RACING || busy}
-            title="Manual lap: register a pass on this seat now, as RotorHazard's + Lap does"
-            aria-label="Manual lap for seat {row.seat.index + 1}"
-            onclick={() => {
-              cueManualLap(row.seat.index);
-              void run(() => simulateLap(row.seat.index));
-            }}>+ Lap</Button
-          >
         </div>
-        {#if row.off}
-          <p class="offseat" role="alert">
-            No frequency on this seat: {row.callsign} will not be timed.
-          </p>
-        {/if}
-        <div class="stats">
-          <div class="stat big pos" title="Position">
-            <span class="n">{row.position ? `P${row.position}` : '—'}</span><span class="l"
-              >pos</span
+      </Card>
+    {/if}
+    <div class="seats">
+      {#each seatRows as row (row.seat.index)}
+        <div class="seat" class:crossing={row.crossing} class:finished={row.finished}>
+          <div class="seathead">
+            <span class="chan" data-band={row.tag?.band ?? ''}
+              >{row.tag ? `${row.tag.band}${row.tag.channel}` : `Seat ${row.seat.index + 1}`}</span
+            >
+            <span class="who" style={row.color ? `--pilot: ${row.color}` : ''}>
+              {#if row.callsign}<span class="swatch"></span>{row.callsign}{:else}<span class="muted"
+                  >empty</span
+                >{/if}
+            </span>
+            {#if row.crossing}<span class="cross" role="status">crossing</span>{/if}
+            {#if row.finished}<span class="fin" role="status">finished</span>{/if}
+            {#if !prefs.hide_graphs}<span class="rssi" title="RSSI">{row.seat.rssi || ''}</span
+              >{/if}
+            <a
+              class="tune"
+              href={href(`seats/${row.seat.index}`)}
+              onclick={link}
+              title="Tune this seat">tune</a
+            >
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={status !== RACE_STATUS.RACING || busy}
+              title="Manual lap: register a pass on this seat now, as RotorHazard's + Lap does"
+              aria-label="Manual lap for seat {row.seat.index + 1}"
+              onclick={() => {
+                cueManualLap(row.seat.index);
+                void run(() => simulateLap(row.seat.index));
+              }}>+ Lap</Button
             >
           </div>
-          <div class="stat big laps" title="Laps">
-            <span class="n">{row.laps.length}</span><span class="l">laps</span>
-          </div>
-          <div class="stat last" title="Last lap">
-            <span class="n">{row.last ? row.last.formatted : '—'}</span><span class="l">last</span>
-          </div>
-          <div class="stat best" title="Best lap">
-            <span class="n">{row.best ? row.best.formatted : '—'}</span><span class="l">best</span>
-          </div>
-        </div>
-        {#if row.live?.laps.length}
-          <div class="laps">
-            {#each lapChips(row.live.laps, prefs) as chip (chip.lap.index)}
-              {@const lap = chip.lap}
-              <button
-                type="button"
-                class="lap"
-                class:deleted={lap.deleted}
-                class:best={row.live.fastestIndex === lap.index}
-                disabled={!canEditLaps || busy}
-                title={lap.deleted ? 'Deleted — click to restore' : 'Click to delete this lap'}
-                onclick={() => onLap(row.seat.index, lap)}
-                ><span class="ln">{lapLabel(lap)}</span
-                >{lap.formatted}{#each chip.extra as x (x)}<span class="extra">{x}</span
-                  >{/each}</button
+          {#if row.off}
+            <p class="offseat" role="alert">
+              No frequency on this seat: {row.callsign} will not be timed.
+            </p>
+          {/if}
+          <div class="stats">
+            <div class="stat big pos" title="Position">
+              <span class="n">{row.position ? `P${row.position}` : '—'}</span><span class="l"
+                >pos</span
               >
-            {/each}
+            </div>
+            <div class="stat big laps" title="Laps">
+              <span class="n">{row.laps.length}</span><span class="l">laps</span>
+            </div>
+            <div class="stat last" title="Last lap">
+              <span class="n">{row.last ? row.last.formatted : '—'}</span><span class="l">last</span
+              >
+            </div>
+            <div class="stat best" title="Best lap">
+              <span class="n">{row.best ? row.best.formatted : '—'}</span><span class="l">best</span
+              >
+            </div>
           </div>
-        {/if}
-      </div>
-    {/each}
-    {#if seatRows.length === 0}
-      <p class="muted">No seat has a frequency. Set channels on the Seats page.</p>
-    {/if}
+          {#if row.live?.laps.length}
+            <div class="laps">
+              {#each lapChips(row.live.laps, prefs) as chip (chip.lap.index)}
+                {@const lap = chip.lap}
+                <button
+                  type="button"
+                  class="lap"
+                  class:deleted={lap.deleted}
+                  class:best={row.live.fastestIndex === lap.index}
+                  disabled={!canEditLaps || busy}
+                  title={lap.deleted ? 'Deleted — click to restore' : 'Click to delete this lap'}
+                  onclick={() => onLap(row.seat.index, lap)}
+                  ><span class="ln">{lapLabel(lap)}</span
+                  >{lap.formatted}{#each chip.extra as x (x)}<span class="extra">{x}</span
+                    >{/each}</button
+                >
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/each}
+      {#if seatRows.length === 0}
+        <p class="muted">
+          {#if racegow}No seat yet: pick one.{:else}No seat has a frequency. Set channels on the
+            Seats page.{/if}
+        </p>
+      {/if}
+    </div>
   </div>
 
   <!-- Mounted only while open: a closed dialog's selects would otherwise stay in the DOM, and a
@@ -972,6 +1007,17 @@
   .soundrow {
     margin: 0;
     font-size: var(--gf-font-size-sm);
+  }
+  .racegowrow {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--gf-space-3);
+    align-items: start;
+  }
+  @media (max-width: 48rem) {
+    .racegowrow {
+      grid-template-columns: 1fr;
+    }
   }
   .racegowseat {
     display: flex;

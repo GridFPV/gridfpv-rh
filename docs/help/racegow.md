@@ -13,13 +13,15 @@ it is one setting for the whole timer.
   all-time best. Underneath it is a class with one heat, unlimited rounds, and "stay on this
   heat" after a race.
 - A **run** is one flight of the track: a round of that heat.
-- **You** are one pilot on one seat. The pilot comes from the roster, so a new season knows
-  you already.
+- **You** are one pilot on one seat. Pick the pilot from this season's or the roster's, or
+  add a new one by callsign; the seat, its channel and its tuning are on Run, so the Seats
+  page leaves the nav.
 
 ## A session
 
 1. Home shows the season. **New track** makes the next track and loads it on the timer.
-2. **Run** — the seat, its channel and tuning are there; start, fly, land, stop.
+2. **Run** — pick the track on the timer (it is its one heat); the seat, its channel and
+   tuning sit beside your card under the clock; start, fly, land, stop.
 3. **Marshal** — racegow tracks are small, so nearly every run needs its laps checked.
 4. **Results** — the track's best lap and best 3 consecutive, and every run, newest first.
 

@@ -28,7 +28,7 @@
     trackName,
     tracksOf
   } from '../lib/racegow.js';
-  import { newSeason, newTrack, switchSeason } from '../lib/racegowFlow.js';
+  import { ensurePilot, newSeason, newTrack, switchSeason } from '../lib/racegowFlow.js';
 
   const timer = rh();
   const settings = $derived(timer.racegow);
@@ -60,19 +60,46 @@
     }
   }
 
-  // ---- you: the pilot's callsign follows the timer only when the timer's value changes ----
-  let callsign = $state('');
-  let callsignFor: string | null = null;
-  $effect(() => {
-    if (settings.callsign !== callsignFor) {
-      callsignFor = settings.callsign;
-      callsign = settings.callsign;
-    }
+  // ---- you: an existing pilot (this season's, or the roster's), or a new one by callsign ----
+  const NEW_PILOT = '__new__';
+  const key = (c: string) => c.trim().toLowerCase();
+  /** Pilots to pick from: this season's, then roster pilots not in it, by callsign. */
+  const pilotChoices = $derived.by(() => {
+    const out: Array<{ callsign: string; where: 'season' | 'roster' }> = [];
+    for (const p of timer.setup.pilots)
+      if (p.callsign.trim()) out.push({ callsign: p.callsign, where: 'season' });
+    for (const p of timer.roster)
+      if (p.callsign.trim() && !out.some((x) => key(x.callsign) === key(p.callsign)))
+        out.push({ callsign: p.callsign, where: 'roster' });
+    return out.sort((a, b) => a.callsign.localeCompare(b.callsign));
   });
-  const callsignDirty = $derived(callsign.trim() !== settings.callsign);
-  function savePilot() {
-    if (!callsign.trim() || !callsignDirty) return;
-    void run(() => saveRaceGow({ callsign: callsign.trim() }), 'Pilot saved.');
+  const pilotKnown = $derived(pilotChoices.some((x) => key(x.callsign) === key(settings.callsign)));
+  /** The picker's value: the saved callsign when it is a known pilot, else "new". */
+  let makingPilot = $state(false);
+  const pilotValue = $derived(
+    makingPilot ? NEW_PILOT : pilotKnown ? settings.callsign : settings.callsign ? NEW_PILOT : ''
+  );
+  let callsign = $state('');
+  function onPilotPick(e: Event) {
+    const v = (e.currentTarget as HTMLSelectElement).value;
+    if (v === NEW_PILOT) {
+      makingPilot = true;
+      callsign = '';
+      return;
+    }
+    makingPilot = false;
+    void run(() => saveRaceGow({ callsign: v }), 'Pilot saved.');
+  }
+  /** A new pilot: made in this season now (so the next track can seat them) and chosen. */
+  async function addPilot() {
+    const c = callsign.trim();
+    if (!c) return;
+    const r = await run(async () => {
+      const made = await ensurePilot(c);
+      if (!made.ok) return made;
+      return saveRaceGow({ callsign: c });
+    }, 'Pilot saved.');
+    if (r.ok) makingPilot = false;
   }
 
   // ---- new season ----
@@ -212,14 +239,34 @@
 
   <Card title="You" subtitle="One pilot, one seat. The seat's channel and tuning are on Run.">
     <div class="you">
-      <label class="field grow">
-        <span>Callsign</span>
-        <Input
-          bind:value={callsign}
-          placeholder="Who is flying"
-          onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && savePilot()}
-        />
+      <label class="field">
+        <span>Pilot</span>
+        <Select value={pilotValue} disabled={busy} aria-label="Pilot" onchange={onPilotPick}>
+          <option value="" disabled>Pick a pilot</option>
+          {#each pilotChoices as p (p.callsign)}
+            <option value={p.callsign}>{p.callsign}{p.where === 'roster' ? ' · roster' : ''}</option
+            >
+          {/each}
+          {#if settings.callsign && !pilotKnown && !makingPilot}
+            <option value={NEW_PILOT}>{settings.callsign}</option>
+          {:else}
+            <option value={NEW_PILOT}>New pilot…</option>
+          {/if}
+        </Select>
       </label>
+      {#if makingPilot}
+        <label class="field grow">
+          <span>Callsign</span>
+          <Input
+            bind:value={callsign}
+            placeholder="Who is flying"
+            onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && addPilot()}
+          />
+        </label>
+        <Button variant="secondary" disabled={busy || !callsign.trim()} onclick={addPilot}
+          >Add pilot</Button
+        >
+      {/if}
       <label class="field">
         <span>Seat</span>
         <Select
@@ -239,11 +286,6 @@
           {/each}
         </Select>
       </label>
-      <Button
-        variant="secondary"
-        disabled={busy || !callsignDirty || !callsign.trim()}
-        onclick={savePilot}>Save pilot</Button
-      >
     </div>
   </Card>
 

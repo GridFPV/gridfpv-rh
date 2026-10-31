@@ -94,7 +94,7 @@
   const pageState = $derived(saved && records ? 'ready' : missing ? 'missing' : 'loading');
 
   // ---- the race at time t ----
-  const race = $derived(saved ? replayStatus(saved, format, t, query.end) : null);
+  const race = $derived(saved ? replayStatus(saved, format, t, query.end, query.staging) : null);
   const clock = $derived(
     race
       ? clockView(race, 0, t, query.end)
@@ -173,7 +173,8 @@
           unlimitedTime: race?.unlimitedTime ?? true,
           durationMs: race && !race.unlimitedTime ? race.raceTimeSec * 1000 : null,
           lapStamps: lapStamps(records, startBehavior),
-          t
+          t,
+          key: [pageState, clock.text, phase, rows.map((r) => r.lapMs.length).join(',')].join('|')
         }
       : null;
   let waiting: Array<{ resolve: (i: ReplayInfo) => void; reject: (e: Error) => void }> = [];
@@ -195,9 +196,9 @@
   }
   async function seek(ms: number): Promise<ReplayInfo> {
     t = Number(ms);
-    const now = await ready();
+    await ready();
     await tick();
-    return { ...now, t };
+    return info()!;
   }
   $effect(() => {
     const api = { ready, seek, info };
