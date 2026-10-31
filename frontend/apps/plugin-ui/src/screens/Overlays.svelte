@@ -6,13 +6,15 @@
    * a frame over a dark backdrop standing in for the video, so what you see here is what
    * the stream gets.
    */
-  import { Button, Card } from '@gridfpv/components';
+  import { Button, Card, Input, Select } from '@gridfpv/components';
   import {
     OVERLAY_CATALOG,
     overlayUrl,
     type OverlayName,
     type OverlayTheme
   } from '../lib/overlay.js';
+  import { replayQuery } from '../lib/replay.js';
+  import { rh } from '../lib/rh.svelte.js';
 
   let themes = $state<Record<OverlayName, OverlayTheme>>({ race: 'dark' });
   let copied: OverlayName | null = $state(null);
@@ -20,6 +22,30 @@
   let copyTimer = 0;
 
   const urlFor = (name: OverlayName) => overlayUrl(window.location.origin, name, themes[name]);
+
+  // ---- replay (#96): the race overlay drawn from a saved race at a chosen moment ----
+  const timer = rh();
+  /** Every saved race, newest first: "heat · Round N · when". */
+  const savedRaces = $derived(
+    timer.marshal.raceList
+      .flatMap((h) => h.rounds.map((r) => ({ heat: h, round: r })))
+      .sort((a, b) => b.round.startTime - a.round.startTime)
+  );
+  let replayPick: string = $state('');
+  const replayRace = $derived(
+    savedRaces.find((x) => `${x.heat.heatId}:${x.round.round}` === replayPick) ?? savedRaces[0]
+  );
+  let replaySeconds = $state('0');
+  const replayUrl = $derived(
+    replayRace
+      ? overlayUrl(window.location.origin, 'race', themes.race) +
+          replayQuery({
+            heatId: replayRace.heat.heatId,
+            round: replayRace.round.round,
+            t: Math.round((Number(replaySeconds) || 0) * 1000)
+          })
+      : ''
+  );
 
   async function copy(name: OverlayName) {
     window.clearTimeout(copyTimer);
@@ -84,6 +110,52 @@
       </div>
     </Card>
   {/each}
+
+  <Card title="Replay">
+    <div class="controls">
+      <p class="muted">
+        The race overlay drawn from a <strong>saved</strong> race — the laps as they stand after
+        marshalling — at a moment you choose, instead of from the timer. It is the page the video
+        re-render (#96) screenshots frame by frame, and a way to check a frame by eye: the URL opens
+        on race time <code>t</code> (milliseconds from the start signal; negative is staging), and
+        <code>end</code> is where the clock freezes. The colors follow the race overlay's choice above.
+      </p>
+      {#if savedRaces.length === 0}
+        <p class="muted">No saved races yet.</p>
+      {:else if replayRace}
+        <div class="replayrow">
+          <label class="field">
+            <span>Saved race</span>
+            <Select
+              size="sm"
+              aria-label="Saved race"
+              value={`${replayRace.heat.heatId}:${replayRace.round.round}`}
+              onchange={(e: Event) => (replayPick = (e.currentTarget as HTMLSelectElement).value)}
+            >
+              {#each savedRaces as x (`${x.heat.heatId}:${x.round.round}`)}
+                <option value={`${x.heat.heatId}:${x.round.round}`}
+                  >{x.heat.name} · Round {x.round.round} · {x.round.startTimeFormatted}</option
+                >
+              {/each}
+            </Select>
+          </label>
+          <label class="field">
+            <span>Seconds into the race</span>
+            <Input
+              type="number"
+              step="0.1"
+              bind:value={replaySeconds}
+              aria-label="Seconds into the race"
+            />
+          </label>
+        </div>
+        <code class="url" aria-label="Replay URL">{replayUrl}</code>
+        <div class="actions">
+          <a class="open" href={replayUrl} target="_blank" rel="noopener">Open in a new tab</a>
+        </div>
+      {/if}
+    </div>
+  </Card>
 </section>
 
 <style>
@@ -116,6 +188,20 @@
     display: flex;
     flex-direction: column;
     gap: var(--gf-space-3);
+  }
+  .replayrow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gf-space-3);
+    align-items: end;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gf-space-1);
+    font-size: var(--gf-font-size-sm);
+    color: var(--gf-text-muted);
+    min-width: 12rem;
   }
   .pick {
     display: inline-flex;

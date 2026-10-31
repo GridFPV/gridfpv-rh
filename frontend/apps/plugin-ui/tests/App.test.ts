@@ -92,3 +92,26 @@ describe('overlay routes', () => {
     expect(document.documentElement.dataset.overlay).toBe('race');
   });
 });
+
+describe('replay overlay route (#96)', () => {
+  it('renders /grid/live/race?heat=&round= from a saved race, not the timer, and offers the seek handle', () => {
+    const state = rh();
+    state.connection = 'connected';
+    window.history.replaceState(null, '', '/grid/live/race?heat=4&round=2&t=3000');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    render(App, { autoconnect: false });
+    const panel = screen.getByLabelText('Race overlay');
+    expect(panel.dataset.state).toBe('loading');
+    expect(screen.getByText(/loading the race/)).toBeInTheDocument();
+    const api = (
+      window as unknown as {
+        gridfpvReplay?: { seek: unknown; ready: unknown; info: () => unknown };
+      }
+    ).gridfpvReplay;
+    expect(typeof api?.seek).toBe('function');
+    expect(typeof api?.ready).toBe('function');
+    expect(api?.info()).toBeNull();
+    window.history.replaceState(null, '', '/grid');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
+});

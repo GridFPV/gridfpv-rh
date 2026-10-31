@@ -17,9 +17,11 @@
   import Results from './screens/Results.svelte';
   import Overlays from './screens/Overlays.svelte';
   import RaceOverlay from './screens/RaceOverlay.svelte';
+  import ReplayOverlay from './screens/ReplayOverlay.svelte';
   import Help from './screens/Help.svelte';
   import { visibleScreens } from './lib/mode.js';
   import { parseOverlayRoute } from './lib/overlay.js';
+  import { parseReplayQuery } from './lib/replay.js';
 
   let { autoconnect = true }: { autoconnect?: boolean } = $props();
 
@@ -47,6 +49,9 @@
   const current = $derived(route());
   /** `/grid/live/...` renders bare — no shell — for OBS. */
   const overlay = $derived(parseOverlayRoute(current));
+  // `?heat=&round=` (or `?race=`) on the overlay is the replay of a saved race (#96). The
+  // query is not part of the route; it is read when the overlay route is entered.
+  const replay = $derived(overlay ? parseReplayQuery(window.location.search) : null);
   const tuneMatch = $derived(/^seats\/(\d+)$/.exec(current));
   // The nav follows the timer's mode (#95); hidden pages stay reachable by URL and from help.
   const NAV = $derived([
@@ -58,7 +63,9 @@
 </script>
 
 {#if overlay}
-  {#if overlay.name === 'race'}
+  {#if overlay.name === 'race' && replay}
+    <ReplayOverlay theme={overlay.theme} query={replay} />
+  {:else if overlay.name === 'race'}
     <RaceOverlay theme={overlay.theme} />
   {:else}
     <p class="muted bare">

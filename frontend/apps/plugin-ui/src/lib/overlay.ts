@@ -7,6 +7,7 @@
  */
 import { BASE } from './router.svelte.js';
 import { RACE_STATUS, type ClockPhase, type LiveLap, type LiveSeat } from './race.js';
+import { renderName } from './racegow.js';
 
 export type OverlayTheme = 'dark' | 'light';
 export type OverlayName = 'race';
@@ -51,6 +52,70 @@ export function overlayUrl(
   theme: OverlayTheme = 'dark'
 ): string {
   return `${origin}${BASE}/${overlayRoute(name, theme)}`;
+}
+
+/**
+ * One pilot's line on the panel, whether the laps came off the live timer or a saved race.
+ * `position` is RotorHazard's live order, or the replay's ranking; null when unranked.
+ */
+export type OverlayRow = {
+  seat: number;
+  pilotId: number;
+  name: string;
+  color: string;
+  lapMs: number[];
+  last: number | undefined;
+  best: number | undefined;
+  window: ConsecutiveWindow | undefined;
+  position: number | null;
+};
+
+/** A row from a pilot's identity and their scored lap times, scoring `windowN` in a row when set. */
+export function overlayRow(
+  id: { seat: number; pilotId: number; name: string; color: string },
+  lapMs: number[],
+  windowN: number | undefined,
+  position: number | null = null
+): OverlayRow {
+  return {
+    ...id,
+    lapMs,
+    last: lapMs.at(-1),
+    best: lapMs.length ? Math.min(...lapMs) : undefined,
+    window: windowN === undefined ? undefined : bestConsecutive(lapMs, windowN),
+    position
+  };
+}
+
+/**
+ * The panel's title line. RaceGOW (#95): the run's name from the timer's template, the
+ * same name a recording gets (#96) — "RaceGOW 2 Track 4 Round 7". Otherwise heat and round
+ * first (the line is clipped at the end on a narrow frame), then class and event; practice
+ * (no heat) names itself only once someone is flying or a race is on.
+ */
+export function overlayTitle(a: {
+  racegow: { on: boolean; template: string; season: number };
+  heatName: string;
+  className: string;
+  round: number;
+  eventName: string;
+  /** Practice: no heat, but seats with laps or a race under way. */
+  practice: boolean;
+}): string {
+  if (a.racegow.on && a.heatName)
+    return renderName(a.racegow.template, {
+      season: a.racegow.season,
+      track: a.className || a.heatName,
+      round: a.round,
+      heat: a.heatName
+    });
+  const parts: string[] = [];
+  if (a.heatName) parts.push(a.heatName);
+  if (a.heatName && a.round) parts.push(`Round ${a.round}`);
+  if (!a.heatName && a.practice) parts.push('Practice');
+  if (a.className) parts.push(a.className);
+  if (a.eventName) parts.push(a.eventName);
+  return parts.join(' · ');
 }
 
 /** Laps that score: not deleted, not the holeshot (lap 0), not a late lap (-1). */
