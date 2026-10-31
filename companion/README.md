@@ -87,7 +87,6 @@ colour source to `dev/recordings`), and `make video-test` plays a race day again
 run recorded, saved and rendered; a marshal re-rendered once; a discard trashed — then
 decodes what landed. CI runs it. `make obs-logs` has OBS's log; `make obs-down` stops it.
 
-
 `npm test` runs the state machine and the pure parts in a fake race day. `npm run smoke`
 renders a real run from a timer (defaults to the dev rig at `localhost:5050`) and decodes
 the result; it needs a Chromium and an ffmpeg with `libvpx-vp9` — see the note in
