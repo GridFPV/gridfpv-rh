@@ -7,7 +7,7 @@
   "documentation_uri": "https://github.com/GridFPV/gridfpv-rh",
   "license": "AGPL-3.0-or-later",
   "license_uri": "https://github.com/GridFPV/gridfpv-rh/blob/main/LICENSE",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "required_rhapi_version": "1.4",
   "zip_filename": "racegow_overlay.zip"
 }

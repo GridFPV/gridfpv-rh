@@ -28,7 +28,14 @@
   let busy = $state(false);
   let name = $state('');
   let removing = $state(false);
+  // Seed the name when the dialog opens or is pointed at another heat — never on a readback.
+  // RotorHazard re-broadcasts the whole heat table after any write, by this page or by another
+  // client, and seeding on every one of those wiped the name the director was still typing:
+  // "Rename" then wrote the stored name straight back (#93). Same guard as PilotDialog/SeatCard.
+  let nameFor: number | null = null;
   $effect(() => {
+    if (heat.id === nameFor) return;
+    nameFor = heat.id;
     name = heat.name;
   });
   const nameDirty = $derived(name.trim() !== heat.name);

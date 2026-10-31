@@ -59,6 +59,36 @@ test.describe('Stages', () => {
     expect((await rh.formatHeatNames()).length).toBeGreaterThanOrEqual(2);
   });
 
+  test('a heat name being typed survives RotorHazard re-sending the heat table (#93)', async ({
+    page,
+    rig,
+    rh
+  }) => {
+    const cls = await rig.addClass({ name: 'E2E Naming' });
+    const heat = await rig.addHeat({ name: 'Heat A', classId: cls, pilots: [] });
+
+    await page.goto('/grid/stages');
+    await page.locator('tr.heat', { hasText: 'Heat A' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel('Name').fill('Track 3 Final');
+
+    // Another client adds a heat, so RotorHazard broadcasts the whole heat table to this page
+    // (it does the same after any write, by anyone). The name being typed must survive it: it
+    // used to be reset to the stored name, and Rename then wrote that old name back (#93).
+    await rig.addHeat({ classId: cls, pilots: [] });
+    await expect(page.locator('tr.heat')).toHaveCount(2);
+    await expect(dialog.getByLabel('Name')).toHaveValue('Track 3 Final');
+
+    await dialog.getByRole('button', { name: 'Rename' }).click();
+    await expect(dialog.getByRole('heading', { name: 'Track 3 Final' })).toBeVisible();
+    await dialog.getByRole('button', { name: 'Done' }).click();
+
+    // RotorHazard has the typed name, on its own page too.
+    expect((await rig.heats()).find((h) => h.heat_id === heat)?.displayname).toBe('Track 3 Final');
+    expect(await rh.formatHeatNames()).toContain('Track 3 Final');
+  });
+
   test('rounds on the board: delete a saved race (copy kept), restore it, re-run a heat (#36)', async ({
     page,
     rig,
