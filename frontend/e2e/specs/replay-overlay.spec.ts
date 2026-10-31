@@ -144,6 +144,8 @@ test('Replay overlay: a saved race at time t, seekable, and the marshalled laps 
   // The Overlays page builds the same URL, and offers the video companion for Windows — a
   // zip that carries node.exe, shipped inside the plugin.
   await page.goto('/grid/overlays');
+  // Replay and the companion are folded by default.
+  await page.getByRole('button', { name: 'Video companion' }).click();
   const dl = page.getByRole('link', { name: 'Download for Windows (zip)' });
   await expect(dl).toHaveAttribute('href', '/grid/downloads/gridfpv-video-win64.zip');
   const zip = await page.request.get('/grid/downloads/gridfpv-video-win64.zip');
@@ -152,6 +154,7 @@ test('Replay overlay: a saved race at time t, seekable, and the marshalled laps 
   const body = await zip.body();
   expect(body.length).toBeGreaterThan(10_000_000);
   expect(body.subarray(0, 2).toString()).toBe('PK');
+  await page.getByRole('button', { name: 'Replay' }).click();
   await page.getByLabel('Seconds into the race').fill('12.5');
   await expect(page.getByLabel('Replay URL')).toHaveText(
     new RegExp(`/grid/live/race\\?heat=${heat}&round=1&t=12500$`)

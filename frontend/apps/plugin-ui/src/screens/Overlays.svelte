@@ -6,7 +6,7 @@
    * a frame over a dark backdrop standing in for the video, so what you see here is what
    * the stream gets.
    */
-  import { Button, Card, Input, Select } from '@gridfpv/components';
+  import { Button, Card, Collapsible, Input, Select } from '@gridfpv/components';
   import {
     OVERLAY_CATALOG,
     overlayUrl,
@@ -211,76 +211,82 @@
     </Card>
   {/each}
 
-  <Card title="Replay">
-    <div class="controls">
-      <p class="muted">
-        The race overlay drawn from a <strong>saved</strong> race — the laps as they stand after
-        marshalling — at a moment you choose, instead of from the timer. It is the page the video
-        re-render (#96) screenshots frame by frame, and a way to check a frame by eye: the URL opens
-        on race time <code>t</code> (milliseconds from the start signal; negative is staging), and
-        <code>end</code> is where the clock freezes. The colors follow the race overlay's choice above.
-      </p>
-      {#if savedRaces.length === 0}
-        <p class="muted">No saved races yet.</p>
-      {:else if replayRace}
-        <div class="replayrow">
-          <label class="field">
-            <span>Saved race</span>
-            <Select
-              size="sm"
-              aria-label="Saved race"
-              value={`${replayRace.heat.heatId}:${replayRace.round.round}`}
-              onchange={(e: Event) => (replayPick = (e.currentTarget as HTMLSelectElement).value)}
-            >
-              {#each savedRaces as x (`${x.heat.heatId}:${x.round.round}`)}
-                <option value={`${x.heat.heatId}:${x.round.round}`}
-                  >{x.heat.name} · Round {x.round.round} · {x.round.startTimeFormatted}</option
-                >
-              {/each}
-            </Select>
-          </label>
-          <label class="field">
-            <span>Seconds into the race</span>
-            <Input
-              type="number"
-              step="0.1"
-              bind:value={replaySeconds}
-              aria-label="Seconds into the race"
-            />
-          </label>
-        </div>
-        <code class="url" aria-label="Replay URL">{replayUrl}</code>
-        <div class="actions">
-          <a class="open" href={replayUrl} target="_blank" rel="noopener">Open in a new tab</a>
-        </div>
-      {/if}
-    </div>
+  <Card>
+    <Collapsible title="Replay" open={false} headingLevel={2} id="overlays-replay">
+      <div class="controls">
+        <p class="muted">
+          The race overlay drawn from a <strong>saved</strong> race — the laps as they stand after
+          marshalling — at a moment you choose, instead of from the timer. It is the page the video
+          re-render (#96) screenshots frame by frame, and a way to check a frame by eye: the URL
+          opens on race time <code>t</code> (milliseconds from the start signal; negative is
+          staging), and
+          <code>end</code> is where the clock freezes. The colors follow the race overlay's choice above.
+        </p>
+        {#if savedRaces.length === 0}
+          <p class="muted">No saved races yet.</p>
+        {:else if replayRace}
+          <div class="replayrow">
+            <label class="field">
+              <span>Saved race</span>
+              <Select
+                size="sm"
+                aria-label="Saved race"
+                value={`${replayRace.heat.heatId}:${replayRace.round.round}`}
+                onchange={(e: Event) => (replayPick = (e.currentTarget as HTMLSelectElement).value)}
+              >
+                {#each savedRaces as x (`${x.heat.heatId}:${x.round.round}`)}
+                  <option value={`${x.heat.heatId}:${x.round.round}`}
+                    >{x.heat.name} · Round {x.round.round} · {x.round.startTimeFormatted}</option
+                  >
+                {/each}
+              </Select>
+            </label>
+            <label class="field">
+              <span>Seconds into the race</span>
+              <Input
+                type="number"
+                step="0.1"
+                bind:value={replaySeconds}
+                aria-label="Seconds into the race"
+              />
+            </label>
+          </div>
+          <code class="url" aria-label="Replay URL">{replayUrl}</code>
+          <div class="actions">
+            <a class="open" href={replayUrl} target="_blank" rel="noopener">Open in a new tab</a>
+          </div>
+        {/if}
+      </div>
+    </Collapsible>
   </Card>
 
-  <Card title="Video companion">
-    <div class="controls">
-      <p class="muted">
-        The program for the <strong>OBS machine</strong> that records each run clean, and puts the corrected
-        overlay on the recording after every save and marshal — the finished file just appears. It carries
-        everything it needs; ffmpeg is fetched once on first run.
-      </p>
-      <div class="actions">
-        <a class="download" href={downloadUrl} download>Download for Windows (zip)</a>
-        <span class="muted">gridfpv-video {timer.hello?.plugin_version ?? ''}</span>
+  <Card>
+    <Collapsible title="Video companion" open={false} headingLevel={2} id="overlays-companion">
+      <div class="controls">
+        <p class="muted">
+          The program for the <strong>OBS machine</strong> that records each run clean, and puts the corrected
+          overlay on the recording after every save and marshal — the finished file just appears. It carries
+          everything it needs; ffmpeg is fetched once on first run.
+        </p>
+        <div class="actions">
+          <a class="download" href={downloadUrl} download>Download for Windows (zip)</a>
+          <span class="muted">gridfpv-video {timer.hello?.plugin_version ?? ''}</span>
+        </div>
+        <ol class="steps">
+          <li>Unzip it anywhere on the OBS machine, e.g. <code>C:\gridfpv-video</code>.</li>
+          <li>
+            In OBS: Tools → WebSocket Server Settings → enable the server and set a password. Record
+            the clean capture (no overlay in the recorded scene).
+          </li>
+          <li>
+            Double-click <code>gridfpv-video.cmd</code>. The first run asks for the timer's address
+            —
+            <code>{window.location.origin}</code> — the RotorHazard login, and the OBS password, then
+            watches. Leave it open while you fly.
+          </li>
+        </ol>
       </div>
-      <ol class="steps">
-        <li>Unzip it anywhere on the OBS machine, e.g. <code>C:\gridfpv-video</code>.</li>
-        <li>
-          In OBS: Tools → WebSocket Server Settings → enable the server and set a password. Record
-          the clean capture (no overlay in the recorded scene).
-        </li>
-        <li>
-          Double-click <code>gridfpv-video.cmd</code>. The first run asks for the timer's address —
-          <code>{window.location.origin}</code> — the RotorHazard login, and the OBS password, then watches.
-          Leave it open while you fly.
-        </li>
-      </ol>
-    </div>
+    </Collapsible>
   </Card>
 </section>
 
