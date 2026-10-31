@@ -25,8 +25,9 @@ RH_SRC      := dev/rh-src/$(RH_VERSION)
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
 
-setup: $(VENV)/.ok ## Install frontend deps and the Python test venv
+setup: $(VENV)/.ok ## Install frontend deps, the video companion's deps and the Python test venv
 	cd frontend && npm ci
+	cd companion && npm ci
 
 $(VENV)/.ok: plugin/requirements-dev.txt
 	python3 -m venv $(VENV)
@@ -44,12 +45,16 @@ check: ## Type-check the frontend and byte-compile the plugin
 
 lint: ## ESLint + Prettier (check only)
 	cd frontend && npm run lint
+	cd frontend && npx prettier --check ../companion/src ../companion/test ../companion/smoke ../companion/README.md
 
 format: ## Prettier (write)
 	cd frontend && npm run format
 
-test: py-test ## Frontend + plugin tests
+test: py-test companion-test ## Frontend + plugin + companion tests
 	cd frontend && npm test
+
+companion-test: ## The video companion's tests (a fake race day; no OBS, no browser)
+	cd companion && npm test
 
 py-test: $(VENV)/.ok ## Plugin tests only (needs python3-venv; or use py-test-rig)
 	$(PY) -m unittest discover -s plugin/tests -v

@@ -49,3 +49,14 @@ Our pages, the overlay and the names speak racegow. RotorHazard's own pages stil
 class, heat and round, and a season boundary is a database archive underneath. The pages
 RaceGOW mode hides — Event, Pilots, Stages, Teams, Formats — are still there by address
 for the odd repair.
+
+## Video
+
+Racegow video is recorded clean in OBS and the overlay is put on afterwards, from the run
+as it stands **after** marshalling — so the file is right even when the laps were fixed.
+That is the job of the video companion (`companion/` in the GridFPV repository), a small
+program on the OBS machine: it starts and stops the recording on the timer's race events,
+writes down where the start signal sits in the file, and renders `RaceGOW 2 Track 4 Round 7.mp4`
+plus an overlay-only track with alpha beside it when a run is saved, again when it is
+marshalled; a discarded run's recording goes to a trash folder. Nothing runs on the timer,
+and nothing is uploaded. The overlay it draws is the Replay on the Overlays page.
