@@ -32,6 +32,15 @@
 
   const urlFor = (name: OverlayName) => overlayUrl(window.location.origin, name, themes[name]);
 
+  /**
+   * The preview is the real page laid out at the stream's size — 1920×1080 for now (#97) —
+   * and scaled down to fit its box, so the panel is as big against the frame as it is on
+   * the stream. The box's width sets the scale.
+   */
+  const FRAME = { width: 1920, height: 1080 };
+  let previewWidth = $state(0);
+  const previewScale = $derived(previewWidth > 0 ? previewWidth / FRAME.width : 1);
+
   // ---- placement (#96): where the panel sits, for the live page, the replay and every render ----
   const timer = rh();
   const placement = $derived(timer.overlayPlacement);
@@ -204,8 +213,17 @@
               >{/if}
           </div>
         </div>
-        <div class="preview" aria-label="{info.title} preview">
-          <iframe class="frame" title="{info.title} preview" src={url} tabindex="-1"></iframe>
+        <div class="previewcol">
+          <div class="preview" aria-label="{info.title} preview" bind:clientWidth={previewWidth}>
+            <iframe
+              class="frame"
+              title="{info.title} preview"
+              src={url}
+              tabindex="-1"
+              style="width: {FRAME.width}px; height: {FRAME.height}px; transform: scale({previewScale});"
+            ></iframe>
+          </div>
+          <p class="muted framenote">Shown at {FRAME.width}×{FRAME.height}, scaled to fit.</p>
         </div>
       </div>
     </Card>
@@ -439,11 +457,19 @@
     background: linear-gradient(135deg, #1f2a3a 0%, #0b0f16 60%, #233047 100%);
     overflow: hidden;
   }
+  .previewcol {
+    display: grid;
+    gap: var(--gf-space-1);
+  }
+  .framenote {
+    font-size: var(--gf-font-size-xs);
+  }
+  /* Laid out at the stream's size and scaled about the top-left corner (inline style). */
   .frame {
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+    top: 0;
+    left: 0;
+    transform-origin: top left;
     border: 0;
     background: transparent;
     pointer-events: none;

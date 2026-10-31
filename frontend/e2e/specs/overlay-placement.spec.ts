@@ -33,6 +33,8 @@ test('Overlay placement: a corner, offsets and size set once show on every page 
     .toEqual({ corner: 'bottom-right', x: 40, y: 30, scale: 150 });
 
   // The preview on this page already shows it (its own socket got the broadcast).
+  // The preview is the page at 1920×1080, scaled to fit (#97), so the panel is to scale.
+  await expect(page.locator('iframe[title="Race timer preview"]')).toHaveCSS('width', '1920px');
   const previewPanel = page.frameLocator('iframe[title="Race timer preview"]').locator('.panel');
   await expect(previewPanel).toHaveAttribute('data-corner', 'bottom-right');
 
