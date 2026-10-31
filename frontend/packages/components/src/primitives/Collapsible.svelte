@@ -23,6 +23,7 @@
     title,
     open = $bindable(true),
     id = undefined,
+    headingLevel = undefined,
     summary = undefined,
     actions = undefined,
     children
@@ -33,6 +34,12 @@
     open?: boolean;
     /** A stable id stem for the region (so `aria-controls` resolves). Auto-generated if omitted. */
     id?: string;
+    /**
+     * Wrap the toggle in a heading of this level, the accordion pattern the W3C recommends:
+     * a page of these is then navigable heading by heading (and `getByRole('heading')` finds
+     * the section titles). Omitted, the toggle stands alone, as a nested or minor section.
+     */
+    headingLevel?: 2 | 3 | 4 | 5;
     /** A count/summary snippet rendered next to the title (e.g. a placed-count badge). */
     summary?: Snippet;
     /** Interactive controls rendered in the header beside the toggle (clicks don't toggle). */
@@ -50,34 +57,44 @@
   }
 </script>
 
+{#snippet toggleButton()}
+  <button
+    type="button"
+    class="gf-collapsible-toggle"
+    aria-expanded={open}
+    aria-controls={regionId}
+    onclick={toggle}
+  >
+    <svg
+      class="gf-collapsible-chevron"
+      viewBox="0 0 16 16"
+      width="16"
+      height="16"
+      aria-hidden="true"
+    >
+      <path
+        d="M6 4l4 4-4 4"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    <span class="gf-collapsible-title">{title}</span>
+    {#if summary}<span class="gf-collapsible-summary">{@render summary()}</span>{/if}
+  </button>
+{/snippet}
+
 <section class="gf-collapsible" data-open={open}>
   <div class="gf-collapsible-head">
-    <button
-      type="button"
-      class="gf-collapsible-toggle"
-      aria-expanded={open}
-      aria-controls={regionId}
-      onclick={toggle}
-    >
-      <svg
-        class="gf-collapsible-chevron"
-        viewBox="0 0 16 16"
-        width="16"
-        height="16"
-        aria-hidden="true"
+    {#if headingLevel}
+      <svelte:element this={`h${headingLevel}`} class="gf-collapsible-heading"
+        >{@render toggleButton()}</svelte:element
       >
-        <path
-          d="M6 4l4 4-4 4"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-      <span class="gf-collapsible-title">{title}</span>
-      {#if summary}<span class="gf-collapsible-summary">{@render summary()}</span>{/if}
-    </button>
+    {:else}
+      {@render toggleButton()}
+    {/if}
     {#if actions}<div class="gf-collapsible-actions">{@render actions()}</div>{/if}
   </div>
 
@@ -102,6 +119,15 @@
     align-items: center;
     gap: var(--gf-space-3);
     padding-right: var(--gf-space-4);
+  }
+  /* The heading is a wrapper for the button, so it carries no look of its own. */
+  .gf-collapsible-heading {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    margin: 0;
+    font: inherit;
+    letter-spacing: inherit;
   }
   .gf-collapsible-toggle {
     flex: 1;

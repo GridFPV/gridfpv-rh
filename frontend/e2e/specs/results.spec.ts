@@ -30,6 +30,40 @@ async function tableRows(page: Page, selector: string): Promise<Row[]> {
 }
 const norm = (r: Row) => ({ ...r, pos: r.pos === '—' ? '-' : r.pos });
 
+test('Results: the event overall comes first, and every section folds (#94)', async ({
+  page,
+  rig
+}) => {
+  const ace = await rig.addPilot({ callsign: 'Ace' });
+  const cls = await rig.addClass({ name: 'E2E Folding' });
+  // Seat 1 carries the rig's emulated signal; use seat 2.
+  const heat = await rig.addHeat({ name: 'F1', classId: cls, pilots: [null, ace] });
+  await rig.setMinLap(1);
+  await rig.raceHeat(heat, { 1: [500, 2000] });
+  // RotorHazard agrees there is a saved round to show.
+  expect((await rig.rounds()).find((h) => h.id === heat)?.rounds).toBe(1);
+
+  await page.goto('/grid/results');
+  // Widest first: the event overall, then the stage.
+  const sections = page.getByRole('heading', { level: 2 });
+  await expect(sections.first()).toContainText('Overall');
+  await expect(sections.nth(1)).toContainText('E2E Folding');
+
+  // The overall folds away.
+  const totals = page.getByLabel('Event totals');
+  await expect(totals).toBeVisible();
+  await page.getByRole('button', { name: 'Overall' }).click();
+  await expect(totals).toBeHidden();
+
+  // A heat opens onto its rounds, and a round board folds too.
+  const roundBoard = page.locator('[data-round="1"] table.leaderboard');
+  await expect(roundBoard).toBeHidden();
+  await page.getByRole('button', { name: 'F1' }).click();
+  await expect(roundBoard).toBeVisible();
+  await page.getByRole('button', { name: 'Round 1' }).click();
+  await expect(roundBoard).toBeHidden();
+});
+
 test("Results: a marshalled race shows on ours as on RotorHazard's Results page, board by board", async ({
   page,
   rig

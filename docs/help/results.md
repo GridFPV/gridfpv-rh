@@ -1,9 +1,15 @@
 # Results
 
-Everything RotorHazard's Results page shows, as RotorHazard computes it: for each stage its
-ranking when it has a rank method (with that method's own columns), its summary boards
-(race totals, fastest laps and fastest consecutive laps), each heat's summary across its
-rounds (once it has more than one), every round's leaderboard, and the event totals. Heats with no stage sit under "Unclassified".
+Everything RotorHazard's Results page shows, as RotorHazard computes it, widest first:
+**Overall** (the event totals) at the top, then each stage — its ranking when it has a rank
+method (with that method's own columns) and its summary boards (race totals, fastest laps
+and fastest consecutive laps) — then that stage's heats, and inside a heat its summary
+across its rounds (once it has more than one) and every round's leaderboard. Heats with no
+stage sit under "Unclassified".
+
+Every section folds: click its heading to show or hide it. Heats start folded, so a long
+day reads as a short list of headings until you open the one you want; everything else
+starts open. Folding is for this visit — a reload brings the page back as described above.
 
 The columns are RotorHazard's: rank, pilot, starts where a board spans races, laps, total,
 average, fastest lap (with where it was flown), consecutive laps, and points on a round

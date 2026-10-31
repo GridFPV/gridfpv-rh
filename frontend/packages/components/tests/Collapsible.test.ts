@@ -45,6 +45,23 @@ describe('Collapsible', () => {
     expect(region.hasAttribute('hidden')).toBe(false);
   });
 
+  it('stands alone by default, and wraps the toggle in a heading when given a level', () => {
+    const plain = render(Collapsible, { title: 'Roster' });
+    expect(plain.container.querySelector('.gf-collapsible-heading')).toBeNull();
+    expect(plain.container.querySelector('h2, h3, h4, h5')).toBeNull();
+
+    // The accordion pattern the W3C recommends: the heading wraps the button, so the
+    // section is findable by heading and the button is still the control.
+    const titled = render(Collapsible, { title: 'Stage ranking', headingLevel: 3 });
+    const heading = titled.container.querySelector('h3') as HTMLElement;
+    expect(heading).not.toBeNull();
+    expect(heading.classList.contains('gf-collapsible-heading')).toBe(true);
+    const toggle = heading.querySelector('.gf-collapsible-toggle') as HTMLButtonElement;
+    expect(toggle).not.toBeNull();
+    expect(toggle.textContent).toContain('Stage ranking');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  });
+
   it('honors a controlled (bound) open prop, starting collapsed when told to', () => {
     const { container } = render(Collapsible, { title: 'Roster', open: false });
     const { toggle, region } = parts(container);

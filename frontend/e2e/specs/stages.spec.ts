@@ -17,6 +17,8 @@ test.describe('Stages', () => {
     await page.getByRole('button', { name: 'Create' }).click();
 
     await expect(page.getByRole('heading', { name: 'E2E Qualifying' })).toBeVisible();
+    // Stage settings start folded (#94); the ranking choice is inside them.
+    await page.getByRole('button', { name: 'Stage settings' }).first().click();
     // The empty ranking choice says what RotorHazard does with it (#46), and the Qualifying
     // template leaves it there when its format ranks by consecutive laps (#66).
     await expect(page.getByLabel('Ranked by').locator('option').first()).toHaveText(
@@ -89,6 +91,36 @@ test.describe('Stages', () => {
     expect(await rh.formatHeatNames()).toContain('Track 3 Final');
   });
 
+  test('stage sections fold: settings start away, the stage folds its board, titles stay headings (#94)', async ({
+    page,
+    rig
+  }) => {
+    const cls = await rig.addClass({ name: 'E2E Folding' });
+    await rig.addHeat({ name: 'Fold Heat', classId: cls, pilots: [] });
+    expect((await rig.heats()).some((h) => h.displayname === 'Fold Heat')).toBe(true);
+
+    await page.goto('/grid/stages');
+    const board = page.locator('tr.heat', { hasText: 'Fold Heat' });
+    await expect(board).toBeVisible();
+
+    // The settings are folded away until asked for; the board is what is on screen.
+    const settings = page.getByRole('button', { name: 'Stage settings' });
+    await expect(settings).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByLabel('Ranked by')).toBeHidden();
+    await settings.click();
+    await expect(page.getByLabel('Ranked by')).toBeVisible();
+
+    // The stage folds everything away and brings it back, and its title is still a heading
+    // (the toggle is wrapped in one), so the page stays navigable by heading.
+    const stage = page.getByRole('button', { name: 'E2E Folding' });
+    await expect(page.getByRole('heading', { name: 'E2E Folding' })).toBeVisible();
+    await expect(stage).toHaveAttribute('aria-expanded', 'true');
+    await stage.click();
+    await expect(board).toBeHidden();
+    await stage.click();
+    await expect(board).toBeVisible();
+  });
+
   test('rounds on the board: delete a saved race (copy kept), restore it, re-run a heat (#36)', async ({
     page,
     rig,
@@ -113,7 +145,9 @@ test.describe('Stages', () => {
 
     await page.goto('/grid/stages');
     await expect(page.getByRole('heading', { name: 'E2E Rounds' })).toBeVisible();
-    // Rank the stage by laps over its best rounds (RotorHazard's bundled method).
+    // Rank the stage by laps over its best rounds (RotorHazard's bundled method), in the
+    // folded settings (#94).
+    await page.getByRole('button', { name: 'Stage settings' }).first().click();
     const ranked = page.getByLabel('Ranked by');
     const bestRounds = await ranked.locator('option', { hasText: /Best/ }).getAttribute('value');
     await ranked.selectOption(bestRounds ?? '');
@@ -232,8 +266,9 @@ test.describe('Stages', () => {
     await expect(page.getByText('RotorHazard confirmed the change.').first()).toBeVisible();
     await dialog.getByRole('button', { name: 'Done' }).click();
 
-    // The stage's format is locked too, until unlocked.
-    const stage = page.locator('.classhead', { hasText: 'E2E Locked' }).locator('..');
+    // The stage's format is locked too, until unlocked. It lives in the folded settings (#94).
+    const stage = page.locator('.gf-card', { hasText: 'E2E Locked' }).first();
+    await stage.getByRole('button', { name: 'Stage settings' }).click();
     // The label wraps the select, so its accessible name carries every option: find it by structure.
     const formatSelect = stage
       .locator('label', { has: page.locator('span', { hasText: /^Format$/ }) })
@@ -296,9 +331,8 @@ test.describe('Stages', () => {
     await expect(page.getByLabel('Chase the Ace')).toContainText(
       'Ace is the ace — decided in round 4'
     );
-    await expect(
-      page.locator('.classhead', { hasText: 'E2E Ace' }).getByText('Done')
-    ).toBeVisible();
+    // The stage's state badge rides in its collapsible heading (#94).
+    await expect(page.getByRole('heading', { name: /E2E Ace/ })).toContainText('Done');
 
     // RotorHazard agrees: its class ranking (last heat position) has Ace first, on its Results page too.
     const ranking = await rig.classRanking(cls.id);
@@ -394,6 +428,7 @@ test.describe('Stages', () => {
 
     // "After a race" → None, written on its own after the round type: it stays None.
     const card = page.locator('.gf-card', { hasText: 'E2E Grouped Empty' }).first();
+    await card.getByRole('button', { name: 'Stage settings' }).click();
     await card
       .locator('label.field', { hasText: 'After a race' })
       .locator('select')

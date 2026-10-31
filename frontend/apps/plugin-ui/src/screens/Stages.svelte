@@ -7,7 +7,16 @@
    * seat it. "Add stage" creates a class and its heats from a template in one step.
    */
   import HelpLink from '../components/HelpLink.svelte';
-  import { Badge, Banner, Button, Card, Dialog, Input, Select } from '@gridfpv/components';
+  import {
+    Badge,
+    Banner,
+    Button,
+    Card,
+    Collapsible,
+    Dialog,
+    Input,
+    Select
+  } from '@gridfpv/components';
   import AddStageDialog from '../components/AddStageDialog.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import GenerateDialog from '../components/GenerateDialog.svelte';
@@ -367,42 +376,43 @@
   <div class="grouped">
     {#each rounds as round, r (r)}
       <div class="roundsection">
-        <div class="roundhead">
-          <span>Round {r + 1}</span>
-          {#if roundLabel(round)}<span class="muted">· {roundLabel(round)}</span>{/if}
-        </div>
-        {#if round.length === 0}
-          <p class="muted empty">No heats in this round yet.</p>
-        {:else}
-          <div class="boardwrap">
-            <table class="board">
-              <tbody>
-                {#each round as h (h.id)}
-                  {@const race = racesFor(results, h.id)[0]}
-                  {@const next = race ? null : 1}
-                  <tr class="heat" onclick={() => (heatOpen = h.id)}>
-                    <td class="heatcol">
-                      <strong>{heatShortName(h)}</strong>
-                      {#if h.locked}<span class="tag">raced</span>{/if}
-                    </td>
-                    <td class="lineup">
-                      <div class="chips">
-                        {#each seatChips(setup, h) as chip (chip.seat)}
-                          {@const chan = seatChan(chip.seat)}
-                          <span class="chip {chip.kind}" title={chip.title}
-                            ><span class="n" data-band={chan.band}>{chan.text}</span
-                            >{chip.text}</span
-                          >
-                        {/each}
-                      </div>
-                    </td>
-                    <td class="round">{@render roundCell(h, 1, next, false, true)}</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        {/if}
+        <Collapsible title="Round {r + 1}" headingLevel={4}>
+          {#snippet summary()}
+            {roundLabel(round) ?? `${round.length} ${round.length === 1 ? 'heat' : 'heats'}`}
+          {/snippet}
+          {#if round.length === 0}
+            <p class="muted empty">No heats in this round yet.</p>
+          {:else}
+            <div class="boardwrap">
+              <table class="board">
+                <tbody>
+                  {#each round as h (h.id)}
+                    {@const race = racesFor(results, h.id)[0]}
+                    {@const next = race ? null : 1}
+                    <tr class="heat" onclick={() => (heatOpen = h.id)}>
+                      <td class="heatcol">
+                        <strong>{heatShortName(h)}</strong>
+                        {#if h.locked}<span class="tag">raced</span>{/if}
+                      </td>
+                      <td class="lineup">
+                        <div class="chips">
+                          {#each seatChips(setup, h) as chip (chip.seat)}
+                            {@const chan = seatChan(chip.seat)}
+                            <span class="chip {chip.kind}" title={chip.title}
+                              ><span class="n" data-band={chan.band}>{chan.text}</span
+                              >{chip.text}</span
+                            >
+                          {/each}
+                        </div>
+                      </td>
+                      <td class="round">{@render roundCell(h, 1, next, false, true)}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {/if}
+        </Collapsible>
       </div>
     {/each}
   </div>
@@ -487,15 +497,15 @@
     {@const heats = heatsInClass(setup, c.id)}
     {@const st = stageState(c, heats, results)}
     <Card>
-      <div class="classhead">
-        <div class="title">
-          <h2>{c.displayName}</h2>
+      <Collapsible title={c.displayName} headingLevel={2} id={`stage-${c.id}`}>
+        {#snippet summary()}
           <Badge tone={STATE_TONE[st]} variant={st === 'done' ? 'outline' : 'solid'}
             >{STAGE_STATE_LABELS[st]}</Badge
           >
           {#if c.description}<span class="muted">{c.description}</span>{/if}
-        </div>
-        <div class="actions">
+          <span>{heats.length} {heats.length === 1 ? 'heat' : 'heats'}</span>
+        {/snippet}
+        {#snippet actions()}
           <Button size="sm" variant="secondary" disabled={busy} onclick={() => openClassEdit(c)}
             >Edit</Button
           >
@@ -520,199 +530,209 @@
               onclick={() => (unlockingClass = c)}>Unlock…</Button
             >
           {/if}
-        </div>
-      </div>
-      <div class="settings">
-        <label class="field">
-          <span>Format</span>
-          <Select
-            value={String(c.formatId)}
-            size="sm"
-            disabled={busy || classLocked(c)}
-            onchange={(e: Event) =>
-              run(() =>
-                alterClass(c.id, { formatId: Number((e.currentTarget as HTMLSelectElement).value) })
-              )}
-          >
-            <option value="0">— none —</option>
-            {#each setup.formats as f (f.id)}<option value={String(f.id)}>{f.name}</option>{/each}
-          </Select>
-        </label>
-        <div class="field rounds">
-          <span>Rounds</span>
-          <div class="roundsrow">
-            <Input
-              type="number"
-              size="sm"
-              value={c.rounds > 0 ? String(c.rounds) : ''}
-              placeholder="∞"
-              min="1"
-              max="99"
-              disabled={busy || c.rounds === 0}
-              aria-label="Rounds"
-              onchange={async (e: Event) => {
-                const el = e.currentTarget as HTMLInputElement;
-                await run(() => alterClass(c.id, { rounds: Math.max(1, Number(el.value) || 1) }));
-                // Refused or not confirmed: show RotorHazard's value again, not the typed one (#78).
-                const now = setup.classes.find((x) => x.id === c.id);
-                el.value = now && now.rounds > 0 ? String(now.rounds) : '';
-              }}
-            />
-            <label class="check">
-              <input
-                type="checkbox"
-                checked={c.rounds === 0}
+        {/snippet}
+
+        <!-- Format, rounds and ranking are set once; on race day they stand between the
+             director and the board, so they start folded away (#94). -->
+        <Collapsible title="Stage settings" headingLevel={3} open={false}>
+          <div class="settings">
+            <label class="field">
+              <span>Format</span>
+              <Select
+                value={String(c.formatId)}
+                size="sm"
+                disabled={busy || classLocked(c)}
+                onchange={(e: Event) =>
+                  run(() =>
+                    alterClass(c.id, {
+                      formatId: Number((e.currentTarget as HTMLSelectElement).value)
+                    })
+                  )}
+              >
+                <option value="0">— none —</option>
+                {#each setup.formats as f (f.id)}<option value={String(f.id)}>{f.name}</option
+                  >{/each}
+              </Select>
+            </label>
+            <div class="field rounds">
+              <span>Rounds</span>
+              <div class="roundsrow">
+                <Input
+                  type="number"
+                  size="sm"
+                  value={c.rounds > 0 ? String(c.rounds) : ''}
+                  placeholder="∞"
+                  min="1"
+                  max="99"
+                  disabled={busy || c.rounds === 0}
+                  aria-label="Rounds"
+                  onchange={async (e: Event) => {
+                    const el = e.currentTarget as HTMLInputElement;
+                    await run(() =>
+                      alterClass(c.id, { rounds: Math.max(1, Number(el.value) || 1) })
+                    );
+                    // Refused or not confirmed: show RotorHazard's value again, not the typed one (#78).
+                    const now = setup.classes.find((x) => x.id === c.id);
+                    el.value = now && now.rounds > 0 ? String(now.rounds) : '';
+                  }}
+                />
+                <label class="check">
+                  <input
+                    type="checkbox"
+                    checked={c.rounds === 0}
+                    disabled={busy}
+                    onchange={(e: Event) =>
+                      run(() =>
+                        alterClass(c.id, {
+                          rounds: (e.currentTarget as HTMLInputElement).checked ? 0 : 3
+                        })
+                      )}
+                  />
+                  No limit
+                </label>
+              </div>
+            </div>
+            <label class="field">
+              <span>Ranked by</span>
+              <Select
+                value={c.winCondition}
+                size="sm"
+                disabled={busy}
+                onchange={(e: Event) =>
+                  run(() =>
+                    alterClass(c.id, { winCondition: (e.currentTarget as HTMLSelectElement).value })
+                  )}
+              >
+                <option value=""
+                  >{defaultRankLabel(setup.formats.find((f) => f.id === c.formatId))}</option
+                >
+                {#each timer.rankMethods as m (m.name)}<option value={m.name}>{m.label}</option
+                  >{/each}
+              </Select>
+              {#if c.winCondition === 'Cumulative_Points' && !setup.formats.find((f) => f.id === c.formatId)?.pointsMethod}
+                <small class="hint" role="note"
+                  >Cumulative points add up only when the stage's format has a points method
+                  (Formats page); this one has none, so everyone scores 0.</small
+                >
+              {/if}
+            </label>
+            <label class="field">
+              <span>After a race</span>
+              <Select
+                value={String(c.heatAdvanceType)}
+                size="sm"
                 disabled={busy}
                 onchange={(e: Event) =>
                   run(() =>
                     alterClass(c.id, {
-                      rounds: (e.currentTarget as HTMLInputElement).checked ? 0 : 3
+                      heatAdvanceType: Number((e.currentTarget as HTMLSelectElement).value)
                     })
                   )}
-              />
-              No limit
+              >
+                {#each ADVANCE as a (a.v)}<option value={String(a.v)}>{a.l}</option>{/each}
+              </Select>
             </label>
+            <div class="field">
+              <span>Rounds are</span>
+              <span class="static" title="Set when the stage was created">
+                {ROUNDS.find((r) => r.v === c.roundType)?.l ?? '—'}
+              </span>
+            </div>
           </div>
-        </div>
-        <label class="field">
-          <span>Ranked by</span>
-          <Select
-            value={c.winCondition}
-            size="sm"
-            disabled={busy}
-            onchange={(e: Event) =>
-              run(() =>
-                alterClass(c.id, { winCondition: (e.currentTarget as HTMLSelectElement).value })
-              )}
-          >
-            <option value=""
-              >{defaultRankLabel(setup.formats.find((f) => f.id === c.formatId))}</option
-            >
-            {#each timer.rankMethods as m (m.name)}<option value={m.name}>{m.label}</option>{/each}
-          </Select>
-          {#if c.winCondition === 'Cumulative_Points' && !setup.formats.find((f) => f.id === c.formatId)?.pointsMethod}
-            <small class="hint" role="note"
-              >Cumulative points add up only when the stage's format has a points method (Formats
-              page); this one has none, so everyone scores 0.</small
-            >
-          {/if}
-        </label>
-        <label class="field">
-          <span>After a race</span>
-          <Select
-            value={String(c.heatAdvanceType)}
-            size="sm"
-            disabled={busy}
-            onchange={(e: Event) =>
-              run(() =>
-                alterClass(c.id, {
-                  heatAdvanceType: Number((e.currentTarget as HTMLSelectElement).value)
-                })
-              )}
-          >
-            {#each ADVANCE as a (a.v)}<option value={String(a.v)}>{a.l}</option>{/each}
-          </Select>
-        </label>
-        <div class="field">
-          <span>Rounds are</span>
-          <span class="static" title="Set when the stage was created">
-            {ROUNDS.find((r) => r.v === c.roundType)?.l ?? '—'}
-          </span>
-        </div>
-      </div>
-
-      {#if isAceStage(c) && heats.length}
-        {@const tally = stageTally(c, heats, results)}
-        <p class="standings ace" class:decided={!!tally.ace} aria-label="Chase the Ace">
-          <span class="label">Chase the Ace</span>
-          {aceLine(tally, aceRule(c))}
-        </p>
-      {/if}
-      {#if standingsLine(results.ranking[c.id])}
-        <p class="standings">
-          <span class="label">Standings</span>
-          {standingsLine(results.ranking[c.id])}
-        </p>
-      {/if}
-      {#if heats.length && c.roundType === ROUND_TYPE.GROUPED}
-        {@render sectionedBoard(roundsOf(heats))}
-      {:else if heats.length && isBracketStage(c, heats)}
-        {@render sectionedBoard(bracketRounds(heats))}
-      {:else if heats.length}
-        {@render board(c, heats)}
-      {:else}
-        <p class="muted empty">No heats yet.</p>
-      {/if}
-      {@const deleted = deletedRacesFor(
-        timer.deletedRaces,
-        heats.map((h) => h.id)
-      )}
-      {#if deleted.length}
-        <div class="deleted" aria-label="Deleted races">
-          <span class="label">Deleted races</span>
-          <ul>
-            {#each deleted as d (d.id)}
-              {@const blocker = restoreBlocker(d, results, setup)}
-              <li>
-                <span>{deletedLabel(d, setup)}</span>
-                {#if d.deletedAt}<span class="muted">deleted {d.deletedAt}</span>{/if}
-                <span class="spacer"></span>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={busy || !!blocker}
-                  title={blocker
-                    ? `Cannot restore: ${blocker}`
-                    : 'Put this race back in the results'}
-                  onclick={() => restoreRaceOf(d)}>Restore</Button
-                >
-                {#if !timer.deletedRacesNative}
-                  <Button size="sm" variant="ghost" disabled={busy} onclick={() => forgetRace(d)}
-                    >Discard copy</Button
+        </Collapsible>
+        {#if isAceStage(c) && heats.length}
+          {@const tally = stageTally(c, heats, results)}
+          <p class="standings ace" class:decided={!!tally.ace} aria-label="Chase the Ace">
+            <span class="label">Chase the Ace</span>
+            {aceLine(tally, aceRule(c))}
+          </p>
+        {/if}
+        {#if standingsLine(results.ranking[c.id])}
+          <p class="standings">
+            <span class="label">Standings</span>
+            {standingsLine(results.ranking[c.id])}
+          </p>
+        {/if}
+        {#if heats.length && c.roundType === ROUND_TYPE.GROUPED}
+          {@render sectionedBoard(roundsOf(heats))}
+        {:else if heats.length && isBracketStage(c, heats)}
+          {@render sectionedBoard(bracketRounds(heats))}
+        {:else if heats.length}
+          {@render board(c, heats)}
+        {:else}
+          <p class="muted empty">No heats yet.</p>
+        {/if}
+        {@const deleted = deletedRacesFor(
+          timer.deletedRaces,
+          heats.map((h) => h.id)
+        )}
+        {#if deleted.length}
+          <div class="deleted" aria-label="Deleted races">
+            <span class="label">Deleted races</span>
+            <ul>
+              {#each deleted as d (d.id)}
+                {@const blocker = restoreBlocker(d, results, setup)}
+                <li>
+                  <span>{deletedLabel(d, setup)}</span>
+                  {#if d.deletedAt}<span class="muted">deleted {d.deletedAt}</span>{/if}
+                  <span class="spacer"></span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={busy || !!blocker}
+                    title={blocker
+                      ? `Cannot restore: ${blocker}`
+                      : 'Put this race back in the results'}
+                    onclick={() => restoreRaceOf(d)}>Restore</Button
                   >
-                {/if}
-              </li>
-            {/each}
-          </ul>
-        </div>
-      {/if}
-      <div class="foot">
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={busy}
-          onclick={() => run(() => addHeat(c.id))}>Add heat</Button
-        >
-        {#if !heats.some((h) => h.locked)}
+                  {#if !timer.deletedRacesNative}
+                    <Button size="sm" variant="ghost" disabled={busy} onclick={() => forgetRace(d)}
+                      >Discard copy</Button
+                    >
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+        <div class="foot">
           <Button
             size="sm"
             variant="secondary"
-            disabled={busy || stages.length < 2}
-            title={stages.length < 2
-              ? 'Add a stage to seed from first'
-              : 'Build a single-elimination bracket seeded from another stage'}
-            onclick={() => (generating = c)}>Generate bracket…</Button
-          >
-        {/if}
-        {#if heats.some(needsSeeding)}
-          <Button
-            size="sm"
-            variant="primary"
             disabled={busy}
-            title="Fill seeded seats from results and confirm the lineups"
-            onclick={() => seedStage(heats)}>Seed now</Button
+            onclick={() => run(() => addHeat(c.id))}>Add heat</Button
           >
-        {/if}
-        {#if heats.some((h) => isSeededHeat(h) && !h.locked && h.status !== 0)}
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={busy}
-            title="Drop the confirmed lineups; seed again later"
-            onclick={() => unseedStage(heats)}>Reset seeding</Button
-          >
-        {/if}
-      </div>
+          {#if !heats.some((h) => h.locked)}
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy || stages.length < 2}
+              title={stages.length < 2
+                ? 'Add a stage to seed from first'
+                : 'Build a single-elimination bracket seeded from another stage'}
+              onclick={() => (generating = c)}>Generate bracket…</Button
+            >
+          {/if}
+          {#if heats.some(needsSeeding)}
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={busy}
+              title="Fill seeded seats from results and confirm the lineups"
+              onclick={() => seedStage(heats)}>Seed now</Button
+            >
+          {/if}
+          {#if heats.some((h) => isSeededHeat(h) && !h.locked && h.status !== 0)}
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              title="Drop the confirmed lineups; seed again later"
+              onclick={() => unseedStage(heats)}>Reset seeding</Button
+            >
+          {/if}
+        </div>
+      </Collapsible>
     </Card>
   {/each}
 
@@ -726,32 +746,35 @@
   {/if}
 
   {#if unclassified.length}
-    <Card
-      title="Heats outside any stage"
-      subtitle="RotorHazard runs these as one-offs. Move them into a stage, or leave them for practice."
-    >
-      {@render board(null, unclassified)}
-      <div class="foot">
-        {#if stages.length}
-          {#each unclassified as h (h.id)}
-            <Select
-              value=""
-              size="sm"
-              disabled={busy}
-              onchange={(e: Event) => {
-                const id = Number((e.currentTarget as HTMLSelectElement).value);
-                if (id) void run(() => alterHeat(h.id, { classId: id }));
-              }}
-            >
-              <option value="">Move {h.displayName} to…</option>
-              {#each stages as c (c.id)}<option value={String(c.id)}>{c.displayName}</option>{/each}
-            </Select>
-          {/each}
-        {/if}
-        <Button size="sm" variant="ghost" disabled={busy} onclick={() => run(() => addHeat(0))}
-          >Add one-off heat</Button
-        >
-      </div>
+    <Card>
+      <Collapsible title="Heats outside any stage" headingLevel={2}>
+        {#snippet summary()}
+          RotorHazard runs these as one-offs — move them into a stage, or leave them for practice
+        {/snippet}
+        {@render board(null, unclassified)}
+        <div class="foot">
+          {#if stages.length}
+            {#each unclassified as h (h.id)}
+              <Select
+                value=""
+                size="sm"
+                disabled={busy}
+                onchange={(e: Event) => {
+                  const id = Number((e.currentTarget as HTMLSelectElement).value);
+                  if (id) void run(() => alterHeat(h.id, { classId: id }));
+                }}
+              >
+                <option value="">Move {h.displayName} to…</option>
+                {#each stages as c (c.id)}<option value={String(c.id)}>{c.displayName}</option
+                  >{/each}
+              </Select>
+            {/each}
+          {/if}
+          <Button size="sm" variant="ghost" disabled={busy} onclick={() => run(() => addHeat(0))}
+            >Add one-off heat</Button
+          >
+        </div>
+      </Collapsible>
     </Card>
   {/if}
 </section>
@@ -776,27 +799,6 @@
   .muted {
     margin: 0;
     color: var(--gf-text-muted);
-  }
-  .classhead {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--gf-space-3);
-    flex-wrap: wrap;
-  }
-  .title {
-    display: flex;
-    align-items: center;
-    gap: var(--gf-space-2);
-    flex-wrap: wrap;
-  }
-  .title h2 {
-    margin: 0;
-    font-size: var(--gf-font-size-lg);
-  }
-  .actions {
-    display: flex;
-    gap: var(--gf-space-2);
   }
   .settings {
     display: flex;
@@ -1093,20 +1095,6 @@
   .grouped {
     display: grid;
     gap: var(--gf-space-3);
-  }
-  .roundhead {
-    display: flex;
-    gap: var(--gf-space-2);
-    align-items: baseline;
-    font-size: var(--gf-font-size-xs);
-    color: var(--gf-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: var(--gf-space-1);
-  }
-  .roundhead .muted {
-    text-transform: none;
-    letter-spacing: 0;
   }
   .cell.todo {
     min-width: 0;

@@ -12,6 +12,13 @@ RotorHazard makes the next round's heat with a fresh lineup). **Ranked by** choo
 class ranking; the default, "by the format's win condition", is what ranks a qualifying
 stage by fastest consecutive laps.
 
+## Folding a stage away
+
+Each stage's heading folds it: click it to hide a finished stage and keep the day short.
+**Stage settings** — format, rounds, ranking and what happens after a race — starts folded,
+since it is set once when the stage is built; open it to change any of them. On a grouped or
+bracket board each round folds on its own heading too.
+
 ## The board
 
 Rows are heats, columns (or a strip) are rounds. A raced cell shows the winner; click it
