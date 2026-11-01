@@ -31,6 +31,12 @@ const RECORDINGS = process.env.GRIDFPV_RECORDINGS ?? '/recordings';
 // 'scene' (#98): the runs are recorded from the "Clean" scene by Source Record while OBS's own
 // Record output runs the whole time, untouched — the race-day shape.
 const RECORD_FROM = process.env.GRIDFPV_RECORD_FROM ?? 'obs';
+// A race day's heat (#100): this many pilots on seats, every one flying, and the overlay in its
+// field form — the table of the heat — rendered onto the one clean recording. 1 = RaceGOW (solo).
+const PILOTS = Math.max(1, Math.min(4, Number(process.env.GRIDFPV_PILOTS ?? 1)));
+const CALLSIGNS = ['Ace', 'Bee', 'Cal', 'Dee'];
+// Seat 2 (node 1) stays Ace's, as the marshal step expects; the rest fill seats 1, 3, 4.
+const SEATS = [1, 0, 2, 3];
 const t0 = Date.now();
 const log = (m) => console.log(`${((Date.now() - t0) / 1000).toFixed(1).padStart(6)}s  ${m}`);
 const fail = (m) => {
@@ -91,14 +97,17 @@ await until(
 );
 rig.emit('set_min_lap', { min_lap: 1 });
 rig.emit('set_min_lap_behavior', { min_lap_behavior: 0 });
-rig.emit('add_pilot');
-const pilot = await until('new pilot', async () => (await api('/api/pilot/all')).pilots[0]);
-const pilotId = pilot.id;
-rig.emit('alter_pilot', {
-  pilot_id: pilotId,
-  callsign: 'Ace',
-  name: 'Ace'
-});
+const pilotIds = [];
+for (let i = 0; i < PILOTS; i++) {
+  rig.emit('add_pilot');
+  const pilot = await until(
+    `pilot ${i + 1}`,
+    async () => (await api('/api/pilot/all')).pilots.filter((p) => !pilotIds.includes(p.id))[0]
+  );
+  pilotIds.push(pilot.id);
+  rig.emit('alter_pilot', { pilot_id: pilot.id, callsign: CALLSIGNS[i], name: CALLSIGNS[i] });
+}
+const pilotId = pilotIds[0];
 rig.emit('add_heat', {});
 const heat = await until(
   'new heat',
@@ -108,22 +117,26 @@ rig.emit('alter_heat', { heat: heat.heat_id, name: 'Video A' });
 const heatData = await until('heat_data', async () =>
   (await loadData('heat_data')).heats?.find((h) => h.id === heat.heat_id)
 );
-const slot = heatData.slots.find((s) => s.node_index === 1);
-rig.emit('alter_heat', {
-  heat: heat.heat_id,
-  slot_id: slot.id,
-  pilot: pilotId,
-  method: 0
-});
-await until(
-  'Ace on seat 2',
-  async () =>
-    Object.values((await api('/api/heat/all')).heats).find((h) => h.heat_id === heat.heat_id)
-      ?.nodes_pilots?.['1'] === pilotId
-);
+for (let i = 0; i < PILOTS; i++) {
+  const slot = heatData.slots.find((s) => s.node_index === SEATS[i]);
+  rig.emit('alter_heat', { heat: heat.heat_id, slot_id: slot.id, pilot: pilotIds[i], method: 0 });
+  await until(
+    `${CALLSIGNS[i]} on seat ${SEATS[i] + 1}`,
+    async () =>
+      Object.values((await api('/api/heat/all')).heats).find((h) => h.heat_id === heat.heat_id)
+        ?.nodes_pilots?.[String(SEATS[i])] === pilotIds[i]
+  );
+}
 rig.emit('set_current_heat', { heat: heat.heat_id });
 await until('heat loaded', async () => (await status()).current_heat === heat.heat_id);
-log(`rig ready: heat ${heat.heat_id} "Video A", Ace on seat 2`);
+log(
+  `rig ready: heat ${heat.heat_id} "Video A", ${CALLSIGNS.slice(0, PILOTS).join(', ')} on seat${PILOTS > 1 ? 's' : ''} ${SEATS.slice(
+    0,
+    PILOTS
+  )
+    .map((s) => s + 1)
+    .join(', ')}`
+);
 await fs.mkdir(RECORDINGS, { recursive: true });
 const before = new Set(await fs.readdir(RECORDINGS));
 
@@ -139,12 +152,14 @@ const cfg = {
   height: 720,
   fps: 30,
   recordFrom: RECORD_FROM,
-  scene: process.env.GRIDFPV_SCENE ?? 'Clean'
+  scene: process.env.GRIDFPV_SCENE ?? 'Clean',
+  layout: PILOTS > 1 ? 'field' : 'solo'
 };
+const companionLines = [];
 log(
   `recording from ${RECORD_FROM === 'scene' ? `the "${cfg.scene}" scene (Source Record)` : "OBS's own Record output"}`
 );
-const clog = (m) => log(`  companion: ${m}`);
+const clog = (m) => (companionLines.push(String(m)), log(`  companion: ${m}`));
 const timer = new Timer(cfg.timer, {
   user: cfg.timerUser,
   pass: cfg.timerPass,
@@ -175,9 +190,14 @@ log(`companion synced to the timer's clock (${timer.samples.length} samples)`);
 rig.emit('stage_race');
 await until('racing', async () => (await raceStatus()) === 1, 30_000, 100);
 const started = Date.now();
-for (const at of [500, 2000, 3600]) {
-  await sleep(Math.max(0, started + at - Date.now()));
-  rig.emit('simulate_lap', { node: 1 });
+// Ace's three crossings; the other pilots cross a little later each, so the field has an order.
+const crossings = [];
+for (let i = 0; i < PILOTS; i++)
+  for (const at of [500, 2000, 3600]) crossings.push({ at: at + i * 150, node: SEATS[i] });
+crossings.sort((a, b) => a.at - b.at);
+for (const c of crossings) {
+  await sleep(Math.max(0, started + c.at - Date.now()));
+  rig.emit('simulate_lap', { node: c.node });
 }
 await sleep(1200);
 rig.emit('stop_race');
@@ -211,6 +231,8 @@ if (!(d.end_ms > 4000 && d.end_ms < 15_000)) fail(`end_ms ${d.end_ms}`);
 if (!(d.duration_ms > d.race_start_ms + d.end_ms)) fail('the recording is shorter than the race');
 if (d.round !== 1 || (d.name !== 'Video A · Round 1 · E2E event' && !/Video A/.test(d.name)))
   fail(`name/round: ${d.name} / ${d.round}`);
+if (PILOTS > 1 && !companionLines.some((l) => /render: .*layout=field/.test(l)))
+  fail('the field overlay was not what rendered (no layout=field in the render URL)');
 const composite = d.rendered.files.find((f) => f.endsWith('.mp4'));
 const overlay = d.rendered.files.find((f) => f.endsWith('.webm'));
 if (!composite || !overlay) fail(`rendered files: ${d.rendered.files.join(', ')}`);
