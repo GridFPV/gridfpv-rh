@@ -15,7 +15,7 @@
    */
   import { tick } from 'svelte';
   import OverlayPanel from '../components/OverlayPanel.svelte';
-  import { loadPilotRace, rh } from '../lib/rh.svelte.js';
+  import { fetchPilotRace, rh } from '../lib/rh.svelte.js';
   import {
     findSavedRace,
     lapsAt,
@@ -70,11 +70,12 @@
   async function load(
     pilots: Array<{ pilotraceId: number; pilotId: number; callsign: string; node: number }>
   ) {
+    // Every pilot's own answer, by id (RotorHazard broadcasts them all to everyone); a
+    // pilot whose answer never comes is asked for once more, then left out.
     const out: PilotRecord[] = [];
     for (const p of pilots) {
-      const r = await loadPilotRace(p.pilotraceId);
-      const d = timer.marshal.details;
-      if (!r.ok || !d || d.pilotraceId !== p.pilotraceId) continue;
+      const d = (await fetchPilotRace(p.pilotraceId)) ?? (await fetchPilotRace(p.pilotraceId));
+      if (!d) continue;
       out.push({ pilotId: p.pilotId, callsign: p.callsign, node: p.node, laps: d.laps });
     }
     records = out;

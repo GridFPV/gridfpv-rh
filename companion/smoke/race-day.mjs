@@ -22,6 +22,8 @@ import { recorderFor } from '../src/cli.js';
 import { renderRun } from '../src/render.js';
 import { Session } from '../src/session.js';
 import { listSidecars } from '../src/sidecar.js';
+import { replayUrl } from '../src/render.js';
+import { chromium } from 'playwright-core';
 import { Timer } from '../src/timer.js';
 
 const RH_URL = process.env.RH_URL ?? 'http://localhost:5050';
@@ -243,6 +245,28 @@ if (d.round !== 1 || (d.name !== 'Video A · Round 1 · E2E event' && !/Video A/
   fail(`name/round: ${d.name} / ${d.round}`);
 if (PILOTS > 1 && !companionLines.some((l) => /render: .*layout=field/.test(l)))
   fail('the field overlay was not what rendered (no layout=field in the render URL)');
+if (PILOTS > 1) {
+  // The replay page at the end of the race lists every pilot of the heat (the overlay used
+  // to lose some when answers from other clients interleaved with its own, #100).
+  const browser = await chromium.launch();
+  try {
+    const ctx = await browser.newContext({
+      httpCredentials: { username: RH_USER, password: RH_PASS }
+    });
+    const page = await ctx.newPage();
+    await page.goto(replayUrl(cfg, d), { waitUntil: 'load' });
+    await page.evaluate(() => window.gridfpvReplay.ready());
+    await page.evaluate((ms) => window.gridfpvReplay.seek(ms), d.end_ms);
+    const names = await page.$$eval('table.field tbody tr', (rows) =>
+      rows.map((r) => r.textContent.replace(/\s+/g, ' ').trim())
+    );
+    log(`field at the end of the race: ${names.length} row(s) — ${names.join(' | ')}`);
+    const missing = CALLSIGNS.slice(0, PILOTS).filter((c) => !names.some((n) => n.includes(c)));
+    if (missing.length) fail(`the field overlay is missing ${missing.join(', ')}`);
+  } finally {
+    await browser.close();
+  }
+}
 const composite = d.rendered.files.find((f) => f.endsWith('.mp4'));
 const overlay = d.rendered.files.find((f) => f.endsWith('.webm'));
 if (!composite || !overlay) fail(`rendered files: ${d.rendered.files.join(', ')}`);

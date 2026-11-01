@@ -260,6 +260,11 @@ type Waiter = {
   what: string;
 };
 const waiters: Waiter[] = [];
+/** Askers of one pilot's saved race, by pilotrace id (see `fetchPilotRace`). */
+const detailWaiters = new Map<
+  number,
+  Array<{ resolve: (d: RaceDetails | null) => void; timer: number }>
+>();
 
 function checkWaiters() {
   for (let i = waiters.length - 1; i >= 0; i--) {
@@ -632,7 +637,18 @@ export function connect(): Socket {
     checkWaiters();
   });
   socket.on('race_details', (p: Parameters<typeof applyRaceDetails>[0]) => {
-    state.marshal.details = applyRaceDetails(p);
+    const d = applyRaceDetails(p);
+    state.marshal.details = d;
+    // RotorHazard broadcasts every answer to everyone, so a page asking for several pilots
+    // while another client asks for others sees them interleaved: hand each asker its own.
+    const asked = detailWaiters.get(d.pilotraceId);
+    if (asked) {
+      detailWaiters.delete(d.pilotraceId);
+      for (const w of asked) {
+        window.clearTimeout(w.timer);
+        w.resolve(d);
+      }
+    }
     checkWaiters();
   });
 
@@ -2007,6 +2023,32 @@ export function requestMarshalCurrent(): Promise<WriteResult> {
 export function loadRaceList() {
   loadData('race_list');
 }
+/**
+ * One pilot's saved race, answered to the asker by id — unlike `loadPilotRace`, which leaves
+ * it in `marshal.details`, where the next broadcast (another page's request, the video
+ * companion checking laps) overwrites it. The replay overlay loads a whole heat this way.
+ * Null when RotorHazard does not answer in time.
+ */
+export function fetchPilotRace(
+  pilotraceId: number,
+  timeoutMs = READBACK_MS
+): Promise<RaceDetails | null> {
+  return new Promise((resolve) => {
+    const w = {
+      resolve,
+      timer: window.setTimeout(() => {
+        const list = detailWaiters.get(pilotraceId) ?? [];
+        const rest = list.filter((x) => x !== w);
+        if (rest.length) detailWaiters.set(pilotraceId, rest);
+        else detailWaiters.delete(pilotraceId);
+        resolve(null);
+      }, timeoutMs)
+    };
+    detailWaiters.set(pilotraceId, [...(detailWaiters.get(pilotraceId) ?? []), w]);
+    socket?.emit('get_pilotrace', { pilotrace_id: pilotraceId });
+  });
+}
+
 /** One pilot's recorded race (trace, laps, thresholds) for a saved race. */
 export function loadPilotRace(pilotraceId: number): Promise<WriteResult> {
   state.marshal.details = null;
