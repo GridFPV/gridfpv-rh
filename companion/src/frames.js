@@ -148,6 +148,11 @@ export function compositeArgs({ fps, recording, out, crf, blend = 'linear', vide
     String(fps),
     '-i',
     'pipe:0',
+    // One thread for the graph: sliced across threads, a 16-bit stage of ffmpeg 7/8 leaves
+    // the row at each slice boundary black (y = 1080·k/threads: 67, 135, … on a 16-thread
+    // PC), seen as lines through the overlay's text. The encoder keeps its own threads.
+    '-filter_complex_threads',
+    '1',
     '-filter_complex',
     compositeFilter(blend),
     '-map',

@@ -61,6 +61,8 @@ test('ffmpeg arguments: alpha overlay (vp9 / prores) and the composite with audi
   assert.equal(c[c.indexOf('-i') + 1], 'r.mkv');
   assert.ok(c.includes('libx264') && c.includes('0:a?') && c.includes('-shortest'));
   assert.equal(c.at(-1), 'n.mp4');
+  // The graph runs on one thread: slice boundaries came out as black rows through the text.
+  assert.equal(c[c.indexOf('-filter_complex_threads') + 1], '1');
   // Linear light by default (OBS's way), 16-bit, premultiplied, encoded back to 4:2:0 at the end.
   const graph = c[c.indexOf('-filter_complex') + 1];
   assert.ok(

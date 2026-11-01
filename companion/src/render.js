@@ -14,6 +14,10 @@ import { safeFileName, supersede } from './sidecar.js';
 const READY_TIMEOUT_MS = 30_000;
 
 /** The replay page's URL for a sidecar's run. */
+/** Styles a render adds to the page: see where it is added. */
+export const RENDER_STYLE =
+  '[aria-label="Race overlay"] .panel { backdrop-filter: none !important; }';
+
 export function replayUrl(cfg, data) {
   const q = new URLSearchParams({
     heat: String(data.heat_id),
@@ -133,6 +137,10 @@ export async function renderRun({ cfg, data, log = () => {} }) {
     const page = await ctx.newPage();
     const url = replayUrl(cfg, data);
     await page.goto(url, { waitUntil: 'load' });
+    // The panel's backdrop blur has nothing to blur in a screenshot (the page behind it is
+    // transparent) and Chrome's GPU rasterizer can leave tile seams — horizontal lines —
+    // under a backdrop-filter. Off for a render; the look is the same without it.
+    await page.addStyleTag({ content: RENDER_STYLE });
     const info = await page.evaluate(
       (ms) =>
         Promise.race([
