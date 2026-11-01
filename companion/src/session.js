@@ -67,7 +67,7 @@ export class Session {
     try {
       const st = await this.d.obs.recordStatus();
       if (!st.active) {
-        await this.d.obs.startRecord();
+        await this.d.obs.startRecord({ heatId: race.heatId });
         this.log(`recording: started for heat ${race.heatId}`);
       } else this.log(`recording: already on (${Math.round(st.durationMs / 1000)} s in); using it`);
     } catch (e) {

@@ -3,7 +3,14 @@
   "current_scene": "Scene",
   "current_transition": "Cut",
   "name": "Test",
-  "scene_order": [{ "name": "Scene" }],
+  "scene_order": [
+    {
+      "name": "Scene"
+    },
+    {
+      "name": "Clean"
+    }
+  ],
   "transition_duration": 300,
   "transitions": [],
   "groups": [],
@@ -41,13 +48,22 @@
             "id": 1,
             "visible": true,
             "locked": false,
-            "pos": { "x": 0.0, "y": 0.0 },
-            "scale": { "x": 1.0, "y": 1.0 },
+            "pos": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "scale": {
+              "x": 1.0,
+              "y": 1.0
+            },
             "rot": 0.0,
             "align": 5,
             "bounds_type": 0,
             "bounds_align": 0,
-            "bounds": { "x": 0.0, "y": 0.0 },
+            "bounds": {
+              "x": 0.0,
+              "y": 0.0
+            },
             "crop_left": 0,
             "crop_top": 0,
             "crop_right": 0,
@@ -55,8 +71,12 @@
             "scale_filter": "disable",
             "blend_method": "default",
             "blend_type": "normal",
-            "show_transition": { "duration": 0 },
-            "hide_transition": { "duration": 0 },
+            "show_transition": {
+              "duration": 0
+            },
+            "hide_transition": {
+              "duration": 0
+            },
             "private_settings": {}
           }
         ]
@@ -84,7 +104,136 @@
       "prev_ver": 503316482,
       "private_settings": {},
       "filters": [],
-      "settings": { "color": 4283782485, "width": 1280, "height": 720 }
+      "settings": {
+        "color": 4283782485,
+        "width": 1280,
+        "height": 720
+      }
+    },
+    {
+      "name": "Clean",
+      "id": "scene",
+      "versioned_id": "scene",
+      "enabled": true,
+      "muted": false,
+      "volume": 1.0,
+      "balance": 0.5,
+      "sync": 0,
+      "flags": 0,
+      "mixers": 0,
+      "monitoring_type": 0,
+      "push-to-mute": false,
+      "push-to-mute-delay": 0,
+      "push-to-talk": false,
+      "push-to-talk-delay": 0,
+      "deinterlace_mode": 0,
+      "deinterlace_field_order": 0,
+      "hotkeys": {},
+      "prev_ver": 503316482,
+      "private_settings": {},
+      "filters": [
+        {
+          "name": "Source Record",
+          "id": "source_record_filter",
+          "versioned_id": "source_record_filter",
+          "enabled": true,
+          "muted": false,
+          "volume": 1.0,
+          "balance": 0.5,
+          "sync": 0,
+          "flags": 0,
+          "mixers": 0,
+          "monitoring_type": 0,
+          "push-to-mute": false,
+          "push-to-mute-delay": 0,
+          "push-to-talk": false,
+          "push-to-talk-delay": 0,
+          "deinterlace_mode": 0,
+          "deinterlace_field_order": 0,
+          "hotkeys": {},
+          "prev_ver": 503316482,
+          "private_settings": {},
+          "settings": {
+            "record_mode": 0,
+            "path": "/recordings",
+            "rec_format": "mkv",
+            "encoder": "obs_x264",
+            "filename_formatting": "clean %CCYY-%MM-%DD %hh-%mm-%ss",
+            "different_audio": false,
+            "audio_track": 0
+          }
+        }
+      ],
+      "settings": {
+        "custom_size": false,
+        "id_counter": 1,
+        "items": [
+          {
+            "name": "Clean colour",
+            "id": 1,
+            "visible": true,
+            "locked": false,
+            "pos": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "scale": {
+              "x": 1.0,
+              "y": 1.0
+            },
+            "rot": 0.0,
+            "align": 5,
+            "bounds_type": 0,
+            "bounds_align": 0,
+            "bounds": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "crop_left": 0,
+            "crop_top": 0,
+            "crop_right": 0,
+            "crop_bottom": 0,
+            "scale_filter": "disable",
+            "blend_method": "default",
+            "blend_type": "normal",
+            "show_transition": {
+              "duration": 0
+            },
+            "hide_transition": {
+              "duration": 0
+            },
+            "private_settings": {}
+          }
+        ]
+      }
+    },
+    {
+      "name": "Clean colour",
+      "id": "color_source_v3",
+      "versioned_id": "color_source_v3",
+      "enabled": true,
+      "muted": false,
+      "volume": 1.0,
+      "balance": 0.5,
+      "sync": 0,
+      "flags": 0,
+      "mixers": 0,
+      "monitoring_type": 0,
+      "push-to-mute": false,
+      "push-to-mute-delay": 0,
+      "push-to-talk": false,
+      "push-to-talk-delay": 0,
+      "deinterlace_mode": 0,
+      "deinterlace_field_order": 0,
+      "hotkeys": {},
+      "prev_ver": 503316482,
+      "private_settings": {},
+      "filters": [],
+      "settings": {
+        "color": 4278255360,
+        "width": 1280,
+        "height": 720
+      }
     }
   ]
 }

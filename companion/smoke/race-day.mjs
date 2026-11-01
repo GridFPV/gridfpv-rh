@@ -18,6 +18,7 @@ import { performance } from 'node:perf_hooks';
 import { io } from 'socket.io-client';
 import { loadConfig } from '../src/config.js';
 import { Obs } from '../src/obs.js';
+import { recorderFor } from '../src/cli.js';
 import { renderRun } from '../src/render.js';
 import { Session } from '../src/session.js';
 import { listSidecars } from '../src/sidecar.js';
@@ -27,6 +28,9 @@ const RH_URL = process.env.RH_URL ?? 'http://localhost:5050';
 const RH_USER = process.env.RH_USER ?? 'admin';
 const RH_PASS = process.env.RH_PASS ?? 'rotorhazard';
 const RECORDINGS = process.env.GRIDFPV_RECORDINGS ?? '/recordings';
+// 'scene' (#98): the runs are recorded from the "Clean" scene by Source Record while OBS's own
+// Record output runs the whole time, untouched — the race-day shape.
+const RECORD_FROM = process.env.GRIDFPV_RECORD_FROM ?? 'obs';
 const t0 = Date.now();
 const log = (m) => console.log(`${((Date.now() - t0) / 1000).toFixed(1).padStart(6)}s  ${m}`);
 const fail = (m) => {
@@ -133,8 +137,13 @@ const cfg = {
   discardAfterSeconds: 6,
   width: 1280,
   height: 720,
-  fps: 30
+  fps: 30,
+  recordFrom: RECORD_FROM,
+  scene: process.env.GRIDFPV_SCENE ?? 'Clean'
 };
+log(
+  `recording from ${RECORD_FROM === 'scene' ? `the "${cfg.scene}" scene (Source Record)` : "OBS's own Record output"}`
+);
 const clog = (m) => log(`  companion: ${m}`);
 const timer = new Timer(cfg.timer, {
   user: cfg.timerUser,
@@ -145,9 +154,14 @@ const timer = new Timer(cfg.timer, {
 const obs = new Obs(cfg.obs, cfg.obsPass, clog);
 await obs.connect();
 if (!obs.connected) fail(`no OBS at ${cfg.obs} (make obs-up)`);
+if (RECORD_FROM === 'scene') {
+  // The whole-day recording OBS keeps regardless of the runs.
+  if (!(await obs.recordStatus()).active) await obs.startRecord();
+  log('OBS main recording ON for the whole day; the runs must not touch it');
+}
 const session = new Session(cfg, {
   timer,
-  obs,
+  obs: recorderFor(cfg, obs, clog),
   now: () => performance.now(),
   setTimeout,
   clearTimeout,
@@ -324,6 +338,15 @@ const trashed = await until(
 log(`discarded run in trash/: ${trashed.join(', ')}`);
 if ((await rounds(heat.heat_id)) !== 1) fail('the discard saved a round');
 
+if (RECORD_FROM === 'scene') {
+  const st = await obs.recordStatus();
+  if (!st.active) fail("OBS's own recording stopped: the runs touched it");
+  log(`OBS main recording still ON after ${Math.round(st.durationMs / 1000)} s`);
+  const whole = await obs.stopRecord();
+  log(`OBS main recording stopped → ${whole}`);
+  if (!path.basename(d.recording).startsWith('clean heat'))
+    fail(`the run was not recorded by Source Record: ${d.recording}`);
+}
 log('RACE DAY OK');
 timer.close();
 rig.close();

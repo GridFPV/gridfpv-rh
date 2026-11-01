@@ -141,11 +141,14 @@ obs-down: ## Stop the headless OBS
 obs-logs: ## Follow the headless OBS's log
 	$(COMPOSE) --profile video logs -f obs
 
-video-test: build ## The companion's race day for real: the rig + the headless OBS + a browser + ffmpeg, all in containers (`make rig-up obs-up` first)
+video-test: build ## The companion's race day for real, twice: OBS's own recording per run, then the Clean scene via Source Record while OBS records the whole day (#98) — rig + headless OBS + browser + ffmpeg in containers (`make rig-up obs-up` first)
 	docker build -q -t gridfpv-video-runner dev/companion
-	docker run --rm --network host --user $$(id -u):$$(id -g) -e HOME=/tmp \
-	  -e RH_URL="$${RH_URL:-http://localhost:5050}" -e GRIDFPV_OBS="ws://127.0.0.1:$${OBS_PORT:-4455}" -e GRIDFPV_OBS_PASS=gridfpv \
-	  -v "$$(pwd)/companion:/work" -v "$$(pwd)/dev/recordings:/recordings" -w /work gridfpv-video-runner node smoke/race-day.mjs
+	for from in obs scene; do \
+	  docker run --rm --network host --user $$(id -u):$$(id -g) -e HOME=/tmp \
+	    -e RH_URL="$${RH_URL:-http://localhost:5050}" -e GRIDFPV_OBS="ws://127.0.0.1:$${OBS_PORT:-4455}" -e GRIDFPV_OBS_PASS=gridfpv \
+	    -e GRIDFPV_RECORD_FROM=$$from \
+	    -v "$$(pwd)/companion:/work" -v "$$(pwd)/dev/recordings:/recordings" -w /work gridfpv-video-runner node smoke/race-day.mjs || exit 1; \
+	done
 
 rig-down: ## Stop the rig
 	$(COMPOSE) down

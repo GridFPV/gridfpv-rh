@@ -15,6 +15,19 @@ export const DEFAULTS = Object.freeze({
   /** obs-websocket (Tools → WebSocket Server Settings in OBS 28+). */
   obs: 'ws://127.0.0.1:4455',
   obsPass: '',
+  /**
+   * What records each run (#98): 'obs' — OBS's own Record output, started and stopped per
+   * run (a session where nothing else is being recorded); 'scene' — a named scene recorded
+   * on its own by the Source Record filter, so OBS can stream and record the whole day
+   * untouched while every run still lands in a clean file.
+   */
+  recordFrom: 'obs',
+  /** The scene (or source) Source Record records, when recordFrom is 'scene'. */
+  scene: '',
+  /** Its Source Record filter's name; empty finds the first one, or lets Source Record make one. */
+  sceneFilter: '',
+  /** Where Source Record writes; empty = the filter's own path, else OBS's recording folder. */
+  recordDir: '',
   /** Where renders go; empty = beside the recording. */
   outDir: '',
   /** Seconds of recording kept after the race stops, so the last lap and the FINISHED clock are in the file. */
