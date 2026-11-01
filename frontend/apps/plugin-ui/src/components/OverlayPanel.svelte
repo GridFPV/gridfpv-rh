@@ -74,10 +74,18 @@
     !unlimitedTime && clock.raceMs != null && clock.raceMs >= 0 ? formatClockMs(clock.raceMs) : ''
   );
   const SHOWN = 6;
-  const recent = $derived(solo ? solo.lapMs.slice(-SHOWN) : []);
+  /** The pilot's laps in order, the hole shot first as "HS" when the format has one; `lap` indexes lapMs (−1 for HS). */
+  const entries = $derived(
+    solo
+      ? [
+          ...(solo.holeshotMs != null ? [{ label: 'HS', ms: solo.holeshotMs, lap: -1 }] : []),
+          ...solo.lapMs.map((ms, i) => ({ label: `L${i + 1}`, ms, lap: i }))
+        ]
+      : []
+  );
+  const recent = $derived(entries.slice(-SHOWN));
   /** The head's unscaled height, for a bottom corner: the laps hang below it (see placementStyle). */
   let headPx = $state(0);
-  const recentOffset = $derived(solo ? Math.max(0, solo.lapMs.length - SHOWN) : 0);
 </script>
 
 <div
@@ -182,10 +190,10 @@
     </div>
     {#if solo && recent.length}
       <ol class="laps" aria-label="Recent laps">
-        {#each recent as lap, i (recentOffset + i)}
-          <li class="lap" class:lit={inWindow(recentOffset + i, solo.window)}>
-            <span class="ln">L{recentOffset + i + 1}</span>
-            <span class="lt">{formatLapMs(lap)}</span>
+        {#each recent as e (e.label)}
+          <li class="lap" class:lit={e.lap >= 0 && inWindow(e.lap, solo.window)}>
+            <span class="ln">{e.label}</span>
+            <span class="lt">{formatLapMs(e.ms)}</span>
           </li>
         {/each}
       </ol>

@@ -68,6 +68,8 @@ export type OverlayRow = {
   best: number | undefined;
   window: ConsecutiveWindow | undefined;
   position: number | null;
+  /** The hole shot (start to the first pass, ms) when the format has one and it is flown: shown as HS before L1. */
+  holeshotMs?: number;
 };
 
 /** A row from a pilot's identity and their scored lap times, scoring `windowN` in a row when set. */
@@ -75,7 +77,8 @@ export function overlayRow(
   id: { seat: number; pilotId: number; name: string; color: string },
   lapMs: number[],
   windowN: number | undefined,
-  position: number | null = null
+  position: number | null = null,
+  holeshotMs?: number
 ): OverlayRow {
   return {
     ...id,
@@ -83,8 +86,14 @@ export function overlayRow(
     last: lapMs.at(-1),
     best: lapMs.length ? Math.min(...lapMs) : undefined,
     window: windowN === undefined ? undefined : bestConsecutive(lapMs, windowN),
-    position
+    position,
+    holeshotMs
   };
+}
+
+/** A seat's hole shot from its live laps: lap 0, when RotorHazard numbered one and it stands. */
+export function liveHoleshotMs(seat: LiveSeat): number | undefined {
+  return seat.laps.find((l) => l.number === 0 && !l.deleted)?.timeMs;
 }
 
 /**
@@ -116,6 +125,22 @@ export function overlayTitle(a: {
   if (a.className) parts.push(a.className);
   if (a.eventName) parts.push(a.eventName);
   return parts.join(' · ');
+}
+
+/**
+ * The run's name for a file (the video helper's recordings and renders): RaceGOW's template
+ * as the title is, otherwise event, class, heat and round in reading order —
+ * "Spring Cup Open Heat 2 Round 3" — since one heat is flown many times.
+ */
+export function runFileName(a: Parameters<typeof overlayTitle>[0]): string {
+  if (a.racegow.on && a.heatName) return overlayTitle(a);
+  const parts: string[] = [];
+  if (a.eventName) parts.push(a.eventName);
+  if (a.className) parts.push(a.className);
+  if (a.heatName) parts.push(a.heatName);
+  else if (a.practice) parts.push('Practice');
+  if (a.heatName && a.round) parts.push(`Round ${a.round}`);
+  return parts.join(' ');
 }
 
 /** Laps that score: not deleted, not the holeshot (lap 0), not a late lap (-1). */

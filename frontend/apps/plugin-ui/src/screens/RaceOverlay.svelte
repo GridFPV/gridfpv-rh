@@ -10,6 +10,7 @@
   import OverlayPanel from '../components/OverlayPanel.svelte';
   import { rh } from '../lib/rh.svelte.js';
   import {
+    liveHoleshotMs,
     overlayRow,
     overlayTitle,
     phaseLabel,
@@ -77,7 +78,8 @@
           },
           laps.map((l) => l.timeMs),
           windowN,
-          lb?.position ?? null
+          lb?.position ?? null,
+          live ? liveHoleshotMs(live) : undefined
         )
       );
     }

@@ -318,8 +318,7 @@
         };
       })
   );
-  const lapLabel = (l: LiveLap) =>
-    l.number === 0 ? 'start' : l.number < 0 ? 'late' : `L${l.number}`;
+  const lapLabel = (l: LiveLap) => (l.number === 0 ? 'HS' : l.number < 0 ? 'late' : `L${l.number}`);
   // RotorHazard's rule: a lap it deleted itself (late, after time ran out) can be restored;
   // a lap the director deletes is gone for good, so that one asks first.
   let lapToDelete: { seat: number; lap: LiveLap } | null = $state(null);

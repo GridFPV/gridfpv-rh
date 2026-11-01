@@ -312,9 +312,10 @@
     <Collapsible title="Video companion" open={false} headingLevel={2} id="overlays-companion">
       <div class="controls">
         <p class="muted">
-          The program for the <strong>OBS machine</strong> that records each run clean, and puts the corrected
-          overlay on the recording after every save and marshal — the finished file just appears. It carries
-          everything it needs; ffmpeg is fetched once on first run. Two forms of the same program:
+          The program for the <strong>OBS machine</strong> that records each run clean (and overlaid,
+          from a second scene), names the files after the run, and renders the corrected overlay onto
+          the clean recording when a marshal changes the laps or when you ask. It carries everything it
+          needs; ffmpeg is fetched once on first run. Two forms of the same program:
         </p>
         <div class="actions">
           <a class="download" href={releasesUrl} target="_blank" rel="noopener"

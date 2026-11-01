@@ -3,8 +3,10 @@
 A small program for the **OBS machine** (not the timer). It listens to RotorHazard, has OBS
 record each run clean, writes down where the start signal sits in the file, and after every
 save — and again after every marshal — renders the corrected overlay onto the recording.
-The finished file just appears: `RaceGOW 2 Track 4 Round 7.mp4`, with `… overlay.webm`
-(the overlay alone, with alpha) beside it for a vertical cut in Resolve. It never uploads
+The finished file just appears: `RaceGOW 2 Track 4 Round 7 - Overlay.mp4` beside
+`… - Clean.mp4` (the recording as OBS made it), with `… - Overlay alpha.webm` (the overlay
+alone, with alpha) when asked, for a vertical cut in Resolve. Outside RaceGOW mode a run is
+named event, class, heat and round: `Spring Cup Open Heat 2 Round 3 - Clean.mp4`. It never uploads
 anything. Design and reasons: GridFPV/gridfpv-rh#96; the window and the independent
 recording: #99, #98 (plan: #101).
 
@@ -43,7 +45,8 @@ repository's releases page). Install it, and:
   lands in a clean file. Install Source Record in OBS (0.4.8 or newer; OBS 30–33), add the
   filter to the scene (set its encoder and folder there), name the scene in the profile.
   The helper starts and stops it over obs-websocket (`source-record` vendor requests) and
-  names the files `clean heat N <date time>.<ext>`. The helper sets the filter's folder itself
+  names the files `clean heat N <date time>.<ext>` until the save, when the run's name is
+  known and the file becomes `<name> - Clean.<ext>`. The helper sets the filter's folder itself
   before every start — `recordDir`, else the folder the filter already had, else OBS's
   recording folder — because Source Record's own default is a different OBS setting (the
   "Custom Output (FFmpeg)" path in Advanced output mode) and a file would land where nobody
@@ -55,14 +58,15 @@ streams is the expensive part (a headless browser drawing frames into two ffmpeg
 so the profile has two more choices:
 
 - `overlayScene` — a second scene recorded alongside the clean one: the program with the
-  live overlay on it. Its file is renamed to the run's name at the save (`RaceGOW 6 Track 2
-Round 3.mkv`) and is the **finished video, free from OBS**, right as long as the laps
-  stand. The clean file stays beside it with the sidecar.
+  live overlay on it. At the save both files take the run's name — `RaceGOW 6 Track 2
+Round 3 - Overlay.mkv` is the **finished video, free from OBS**, right as long as the laps
+  stand, and `… - Clean.mkv` stays beside it with the sidecar.
 - `renderWhen: "later"` (the default) — nothing renders on its own. A marshal that changes
   a run's laps, a move of the overlay, or a run with no overlaid file marks the run **needs
   a render**; the Session tab shows how many and has **Render all** (and Render per run), for
-  when the PC has the room. A render's composite takes the run's name and the file OBS made
-  moves to `superseded/` (never deleted). `"now"` renders after every save and marshal, as
+  when the PC has the room. A render's composite is `<name> - Overlay.mp4`; the file OBS
+  made of that name moves to `superseded/` beside it (never deleted) — there is no such
+  folder until a render replaces something. `"now"` renders after every save and marshal, as
   before — right for a practice laptop with nothing else going on.
 - `videoEncoder` — `h264_nvenc`, `h264_qsv` or `h264_amf` when ffmpeg has it; x264 otherwise.
 

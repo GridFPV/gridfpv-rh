@@ -512,7 +512,8 @@ if (RECORD_FROM === 'scene') {
   log(`OBS main recording still ON after ${Math.round(st.durationMs / 1000)} s`);
   const whole = await obs.stopRecord();
   log(`OBS main recording stopped → ${whole}`);
-  if (!path.basename(d.recording).startsWith('clean heat'))
+  // Source Record's file (named `clean heat …` by the filter, `<run> - Clean` since the save), not OBS's own.
+  if (d.recording === whole || !/ - Clean( \(\d+\))?\.\w+$/.test(path.basename(d.recording)))
     fail(`the run was not recorded by Source Record: ${d.recording}`);
 }
 log('RACE DAY OK');

@@ -33,9 +33,11 @@ lives on the timer.
 ## Video companion
 
 The Overlays page also offers the **video companion**: a program for the OBS machine
-(Windows) that records each run clean, writes down where the start signal sits in the
-file, and renders the corrected overlay onto the recording after every save and marshal.
-It comes two ways:
+(Windows) that records each run clean — and, with a second scene named, the overlaid
+program too, so the finished video comes straight from OBS — writes down where the start
+signal sits in the file, names the files after the run (event, class, heat and round, or
+the RaceGOW name), and renders the corrected overlay onto the clean recording when a marshal
+changes the laps, when you ask, or after every save if you prefer. It comes two ways:
 
 - **GridFPV Video**, a small desktop app (the installer is on the repository's releases
   page, built for Windows by GitHub Actions). Profiles keep the settings per event — the

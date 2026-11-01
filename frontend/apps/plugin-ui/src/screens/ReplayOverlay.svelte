@@ -18,6 +18,7 @@
   import { fetchPilotRace, rh } from '../lib/rh.svelte.js';
   import {
     findSavedRace,
+    holeshotAt,
     lapsAt,
     lapStamps,
     rankRows,
@@ -26,7 +27,13 @@
     type ReplayInfo,
     type ReplayQuery
   } from '../lib/replay.js';
-  import { overlayRow, overlayTitle, phaseLabel, type OverlayTheme } from '../lib/overlay.js';
+  import {
+    overlayRow,
+    overlayTitle,
+    phaseLabel,
+    runFileName,
+    type OverlayTheme
+  } from '../lib/overlay.js';
   import { clockView, RACE_STATUS, type MarshalLap } from '../lib/race.js';
   import { classById, heatById, pilotById, START_BEHAVIOR, WIN_CONDITION } from '../lib/setup.js';
 
@@ -127,7 +134,9 @@
             color: pilot?.color ?? ''
           },
           lapMs,
-          windowN
+          windowN,
+          null,
+          holeshotAt(rec.laps, t, startBehavior)
         )
       );
     }
@@ -138,9 +147,9 @@
       ? (rows.find((r) => query.pilotId != null && r.pilotId === query.pilotId) ?? rows[0])
       : undefined
   );
-  const title = $derived(
+  const naming = $derived(
     saved
-      ? overlayTitle({
+      ? {
           racegow: {
             on: timer.mode === 'racegow',
             template: timer.racegow.nameTemplate,
@@ -151,9 +160,11 @@
           round: saved.round.round,
           eventName: timer.event.name,
           practice: saved.heat.heatId === 0
-        })
-      : ''
+        }
+      : null
   );
+  const title = $derived(naming ? overlayTitle(naming) : '');
+  const runName = $derived(naming ? runFileName(naming) : '');
   const notice = $derived(
     missing
       ? 'no such saved race'
@@ -170,6 +181,7 @@
           heatId: saved.heat.heatId,
           round: saved.round.round,
           title,
+          runName,
           startBehavior,
           unlimitedTime: race?.unlimitedTime ?? true,
           durationMs: race && !race.unlimitedTime ? race.raceTimeSec * 1000 : null,

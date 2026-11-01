@@ -53,7 +53,7 @@ describe("display preferences (RotorHazard's rotorhazard.display_* keys)", () =>
     expect(chips.map((c) => c.lap.number)).toEqual([2, 1, 0]);
     expect(chips[0].label).toBe('L2');
     expect(chips[0].extra).toEqual(['@0:02.900', '+0:02.600']);
-    expect(chips[2].label).toBe('start');
+    expect(chips[2].label).toBe('HS');
     expect(chips[2].extra).toEqual(['@0:00.300', '+0:00.000']);
     expect(stampText(61_005)).toBe('1:01.005');
   });

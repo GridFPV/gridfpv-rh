@@ -79,7 +79,7 @@ export function lapChips(
     if (prefs.display_time_first_pass) extra.push(`+${stampText(lap.stampMs - first)}`);
     const label = prefs.display_lap_id
       ? lap.number === 0
-        ? 'start'
+        ? 'HS'
         : lap.number < 0
           ? 'late'
           : `L${lap.number}`

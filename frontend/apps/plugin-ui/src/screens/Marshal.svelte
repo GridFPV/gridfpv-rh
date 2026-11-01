@@ -482,7 +482,7 @@
               onclick={() => toggle(i)}
               title={l.deleted ? 'Click to restore' : 'Click to delete'}
             >
-              <td>{l.deleted ? '—' : n === 0 ? 'start' : n}</td>
+              <td>{l.deleted ? '—' : n === 0 ? 'HS' : n}</td>
               <td class="t">{l.deleted ? '—' : formatLapMs(l.timeMs)}</td>
               <td class="t">{formatLapMs(l.stampMs)}</td>
               <td>{l.peakRssi ?? ''}</td>

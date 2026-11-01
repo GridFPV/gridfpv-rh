@@ -11,6 +11,7 @@ import path from 'node:path';
 import { raceStartInRecording } from './clock.js';
 import { probeDuration } from './render.js';
 import {
+  freeName,
   lapsHash,
   listSidecars,
   safeFileName,
@@ -20,6 +21,9 @@ import {
   writeSidecar
 } from './sidecar.js';
 import { RACE, roundsOf, scoredStamps } from './timer.js';
+
+/** A run in the log: its name once it has one, else heat and round. */
+const label = (data) => data.name ?? `heat ${data.heat_id} round ${data.round}`;
 
 export class Session extends EventEmitter {
   /**
@@ -322,54 +326,94 @@ export class Session extends EventEmitter {
         this.changed();
         if (this.cfg.trashDiscarded)
           this.tasks = this.tasks.then(() => this.trash(file, data, 'round deleted'));
-        else
-          this.log(
-            `round deleted: heat ${data.heat_id} round ${data.round}; recording kept (trashDiscarded is off)`
-          );
+        else this.log(`round deleted: ${label(data)}; recording kept (trashDiscarded is off)`);
       }
     }
   }
 
   /**
-   * A run has its round (#105): name it as the overlay page would; an overlaid recording takes
-   * that name and is the finished video; then render now, or only mark what needs one.
+   * A run has its round: name it as the overlay page would (RaceGOW's template, or event,
+   * class, heat and round), and the files take the name — `<name> - Clean.ext`, and
+   * `<name> - Overlay.ext` for an overlaid recording, which is then the finished video
+   * (#105). The laps as they stand are read from the timer, the same way a later marshal
+   * check reads them, so the first check after a save finds nothing changed. Then render
+   * now, or only mark what needs one.
    */
   async onSaved(sidecarFile, data) {
+    let file = sidecarFile;
     try {
-      if (this.d.title && (data.overlaid_recording || this.cfg.renderWhen === 'later')) {
+      if (this.d.title) {
         const t = await this.d.title({ sidecarFile, data });
         data.name = t.title ?? data.name;
-        // The laps and the look as they stand: a later marshal or move is judged against these.
-        if (t.lapStamps) data.laps_hash = lapsHash(t.lapStamps);
+        if (t.firstLapCounts != null) data.first_lap_counts = t.firstLapCounts;
         if (t.look) data.look = t.look;
+        const fromTimer = await this.currentLapsHash(data).catch((e) => {
+          this.log(`could not read the laps from the timer: ${e.message}`);
+          return null;
+        });
+        data.laps_hash = fromTimer ?? (t.lapStamps ? lapsHash(t.lapStamps) : data.laps_hash);
       }
-      if (data.overlaid_recording && data.name) {
-        const dir = path.dirname(data.overlaid_recording);
-        const ext = path.extname(data.overlaid_recording);
-        const dest = path.join(dir, safeFileName(data.name) + ext);
-        if (dest !== data.overlaid_recording) {
-          await fs.rename(data.overlaid_recording, dest);
-          data.overlaid_recording = dest;
-        }
-        data.deliverable = dest;
-        this.log(`finished video from OBS: ${path.basename(dest)}`);
+      if (data.name) file = await this.nameFiles(sidecarFile, data);
+      if (data.overlaid_recording) {
+        data.deliverable = data.overlaid_recording;
+        this.log(`finished video from OBS: ${path.basename(data.deliverable)}`);
       }
-      await writeSidecar(sidecarFile, data);
+      await writeSidecar(file, data);
     } catch (e) {
       this.log(`could not name the run: ${e.message}`);
     }
     if (this.cfg.renderWhen === 'later') {
-      if (!data.deliverable) await this.markNeedsRender(sidecarFile, data, 'no overlaid recording');
-    } else void this.queueRender(sidecarFile, data);
+      if (!data.deliverable) await this.markNeedsRender(file, data, 'no overlaid recording');
+    } else void this.queueRender(file, data);
     this.changed();
   }
 
+  /**
+   * The recording, its overlaid twin and the sidecar renamed after the run; a name already
+   * taken (the same round recorded twice) gets ` (2)`. Returns the sidecar's new path, which
+   * is the run's key from here on.
+   */
+  async nameFiles(sidecarFile, data) {
+    const stem = safeFileName(data.name);
+    const move = async (from, suffix) => {
+      if (!from) return from;
+      const dest = path.join(path.dirname(from), `${stem} - ${suffix}${path.extname(from)}`);
+      if (dest === from) return from;
+      const free = await freeName(dest);
+      await fs.rename(from, free);
+      return free;
+    };
+    data.recording = await move(data.recording, 'Clean');
+    data.overlaid_recording = await move(data.overlaid_recording, 'Overlay');
+    const dest = sidecarPathFor(data.recording);
+    if (dest !== sidecarFile) {
+      await fs.rename(sidecarFile, dest).catch(() => {});
+      if (this.known.get(sidecarFile) === data) {
+        this.known.delete(sidecarFile);
+        this.known.set(dest, data);
+      }
+    }
+    this.log(`run named: ${path.basename(data.recording)}`);
+    return dest;
+  }
+
+  /** The hash of the run's laps as the timer has them now (null when the round is not listed). */
+  async currentLapsHash(data) {
+    if (data.race_id == null) return null;
+    const round = roundsOf(this.d.timer.raceList, data.heat_id).find(
+      (r) => r.raceId === data.race_id
+    );
+    if (!round) return null;
+    const prs = [];
+    for (const pr of round.pilotraces) prs.push(await this.d.timer.pilotRace(pr.pilotraceId));
+    return lapsHash(scoredStamps(prs, data.first_lap_counts));
+  }
+
   async markNeedsRender(sidecarFile, data, why) {
+    if (data.needs_render) return; // already marked; the first reason stands until it renders
     data.needs_render = why;
     await writeSidecar(sidecarFile, data).catch(() => {});
-    this.log(
-      `needs a render (${why}): heat ${data.heat_id} round ${data.round} — render it from the window`
-    );
+    this.log(`needs a render (${why}): ${label(data)} — render it from the window`);
     this.changed();
   }
 
@@ -435,9 +479,16 @@ export class Session extends EventEmitter {
         if (!r) return;
         data.name = r.title ?? data.name;
         data.laps_hash = lapsHash(r.lapStamps);
+        if (r.firstLapCounts != null) data.first_lap_counts = r.firstLapCounts;
         if (r.look) data.look = r.look;
         data.rendered = { at: new Date().toISOString(), files: r.files };
         data.needs_render = null;
+        // A file that stood where a render landed (OBS's overlaid one, named alike) was moved.
+        for (const [from, to] of Object.entries(r.superseded ?? {})) {
+          this.log(`superseded: ${path.basename(from)} → superseded/`);
+          if (data.overlaid_recording === from) data.overlaid_recording = to;
+          if (data.deliverable === from) data.deliverable = null;
+        }
         const composite = r.files.find((f) => /\.mp4$/i.test(f));
         if (composite) {
           if (data.deliverable && data.deliverable !== composite) {
@@ -488,16 +539,14 @@ export class Session extends EventEmitter {
       );
       if (!round) continue;
       try {
-        const prs = [];
-        for (const pr of round.pilotraces) prs.push(await this.d.timer.pilotRace(pr.pilotraceId));
-        const hash = lapsHash(scoredStamps(prs, data.first_lap_counts));
+        const hash = await this.currentLapsHash(data);
         if (hash !== data.laps_hash) {
-          this.log(`laps changed for heat ${data.heat_id} round ${data.round}`);
+          this.log(`laps changed for ${label(data)}`);
           data.laps_hash_pending = hash;
           await this.queueRender(file, data, 'the laps changed');
         }
       } catch (e) {
-        this.log(`could not check heat ${data.heat_id} round ${data.round}: ${e.message}`);
+        this.log(`could not check ${label(data)}: ${e.message}`);
       }
     }
   }

@@ -9,7 +9,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { compositeArgs, frameCount, overlayArgs, walkFrames } from './frames.js';
-import { safeFileName } from './sidecar.js';
+import { safeFileName, supersede } from './sidecar.js';
 
 const READY_TIMEOUT_MS = 30_000;
 
@@ -26,12 +26,35 @@ export function replayUrl(cfg, data) {
 }
 
 /** The files a run renders to, by name. */
+/**
+ * The run's name for files: the page's `runName` (event, class, heat, round — or RaceGOW's
+ * template) when the plugin offers one, else its title, else heat and round.
+ */
+export function runNameOf(info, data) {
+  return info.runName || info.title || data.name || `heat ${data.heat_id} round ${data.round}`;
+}
+/** Whether the first pass counts as a lap (RotorHazard start behaviour 1), when the page says. */
+export function firstLapCountsOf(info) {
+  return info.startBehavior == null ? null : Number(info.startBehavior) === 1;
+}
+
+/**
+ * What a render is named after: the clean recording's own stem when it carries the run's
+ * name (`<name> - Clean.ext`, perhaps `<name> - Clean (2).ext` for a round recorded twice),
+ * so the render sits beside its recording and never lands on another run's; else the name.
+ */
+export function renderStem(data, name) {
+  const base = data.recording ? path.basename(data.recording, path.extname(data.recording)) : '';
+  const m = /^(.*) - Clean( \(\d+\))?$/.exec(base);
+  return m ? m[1] + (m[2] ?? '') : name;
+}
+
 export function outputsFor(cfg, dir, name) {
   const stem = path.join(dir, safeFileName(name));
   const out = {};
-  if (cfg.composite) out.composite = `${stem}.mp4`;
-  if (cfg.overlayOnly === 'vp9') out.overlay = `${stem} overlay.webm`;
-  else if (cfg.overlayOnly === 'prores') out.overlay = `${stem} overlay.mov`;
+  if (cfg.composite) out.composite = `${stem} - Overlay.mp4`;
+  if (cfg.overlayOnly === 'vp9') out.overlay = `${stem} - Overlay alpha.webm`;
+  else if (cfg.overlayOnly === 'prores') out.overlay = `${stem} - Overlay alpha.mov`;
   return out;
 }
 
@@ -120,8 +143,8 @@ export async function renderRun({ cfg, data, log = () => {} }) {
         ]),
       READY_TIMEOUT_MS
     );
-    const title = info.title || data.name || `heat ${data.heat_id} round ${data.round}`;
-    const outputs = outputsFor(cfg, dir, title);
+    const title = runNameOf(info, data);
+    const outputs = outputsFor(cfg, dir, renderStem(data, title));
     log(
       `render: "${title}" — ${frameCount(durationMs, cfg.fps)} frames at ${cfg.fps} fps from ${url}`
     );
@@ -190,14 +213,27 @@ export async function renderRun({ cfg, data, log = () => {} }) {
     for (const e of encoders) e.proc.stdin.end();
     await Promise.all(encoders.map((e) => e.done));
     const files = [];
+    const superseded = {};
     for (const [kind, part] of Object.entries(parts)) {
-      await fs.rename(part, outputs[kind]);
-      files.push(outputs[kind]);
+      const final = outputs[kind];
+      // A file already of that name that is not an earlier render of this run (OBS's own
+      // overlaid recording, named alike) is kept, in superseded/ — never written over.
+      if ((await exists(final)) && !(data.rendered?.files ?? []).includes(final))
+        superseded[final] = await supersede(final);
+      await fs.rename(part, final);
+      files.push(final);
     }
     log(
       `render: done in ${((Date.now() - started) / 1000).toFixed(1)} s — ${counts.frames} frames, ${counts.shots} screenshots`
     );
-    return { files, lapStamps: info.lapStamps, title, look: info.look };
+    return {
+      files,
+      superseded,
+      lapStamps: info.lapStamps,
+      firstLapCounts: firstLapCountsOf(info),
+      title,
+      look: info.look
+    };
   } catch (e) {
     for (const enc of encoders) enc.proc.kill('SIGKILL');
     throw e;
@@ -233,8 +269,9 @@ export async function runTitle({ cfg, data, log = () => {} }) {
       READY_TIMEOUT_MS
     );
     return {
-      title: info.title || data.name || `heat ${data.heat_id} round ${data.round}`,
+      title: runNameOf(info, data),
       lapStamps: info.lapStamps,
+      firstLapCounts: firstLapCountsOf(info),
       look: info.look
     };
   } finally {

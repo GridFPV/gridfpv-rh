@@ -164,6 +164,20 @@ export function lapsAt(laps: readonly MarshalLap[], t: number, startBehavior: nu
   return out;
 }
 
+/**
+ * The hole shot by race time `t`: the first counted crossing's race time when the format has
+ * one (every start behaviour but "first lap counts") and it has happened; else undefined.
+ */
+export function holeshotAt(
+  laps: readonly MarshalLap[],
+  t: number,
+  startBehavior: number
+): number | undefined {
+  if (startBehavior === START_BEHAVIOR.FIRST_LAP) return undefined;
+  const first = laps.filter((l) => !l.deleted).sort((a, b) => a.stampMs - b.stampMs)[0];
+  return first && first.stampMs <= t ? first.stampMs : undefined;
+}
+
 /** Every scored crossing's race time across the pilots, sorted: where a frame changes. */
 export function lapStamps(
   pilots: ReadonlyArray<{ laps: readonly MarshalLap[] }>,
@@ -219,6 +233,8 @@ export type ReplayInfo = {
   heatId: number;
   round: number;
   title: string;
+  /** The run's name for files (event, class, heat, round; or RaceGOW's template). */
+  runName: string;
   startBehavior: number;
   unlimitedTime: boolean;
   /** The race length (ms) for a timed format, null when unlimited. */

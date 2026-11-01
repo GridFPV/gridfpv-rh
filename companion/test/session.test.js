@@ -5,7 +5,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Session } from '../src/session.js';
-import { readSidecar, sidecarPathFor } from '../src/sidecar.js';
+import { readSidecar, sidecarPathFor, writeSidecar } from '../src/sidecar.js';
 
 /** A race day in a box: fake timer, fake OBS, a render that records what it was asked. */
 function rig({ trashDiscarded = true } = {}) {
@@ -300,7 +300,7 @@ test("render later (#105): the overlaid file takes the run's name at the save, a
   };
   deps.render = async ({ data }) => {
     renders.push({ ...data });
-    const out = path.join(dir, 'RaceGOW 6 Track 2 Round 7.mp4');
+    const out = path.join(dir, 'RaceGOW 6 Track 2 Round 7 - Overlay.mp4');
     await fs.writeFile(out, 'rendered');
     return { title: 'RaceGOW 6 Track 2 Round 7', look: 'L1', lapStamps: [2000], files: [out] };
   };
@@ -355,17 +355,26 @@ test("render later (#105): the overlaid file takes the run's name at the save, a
   timer.emit('race_list', timer.raceList);
   await s.tasks;
   await tick();
-  // Named from the page, the overlaid file renamed to it, nothing rendered.
+  // Named from the page: both files and the sidecar take the name; nothing rendered.
   assert.deepEqual(titles, [7]);
   assert.equal(renders.length, 0);
-  const side = sidecarPathFor(obs.file);
+  const clean = path.join(dir, 'RaceGOW 6 Track 2 Round 7 - Clean.mkv');
+  const side = sidecarPathFor(clean);
   let data = await readSidecar(side);
   assert.equal(data.name, 'RaceGOW 6 Track 2 Round 7');
-  assert.equal(data.deliverable, path.join(dir, 'RaceGOW 6 Track 2 Round 7.mkv'));
+  assert.equal(data.recording, clean);
+  assert.equal(data.deliverable, path.join(dir, 'RaceGOW 6 Track 2 Round 7 - Overlay.mkv'));
   assert.equal(data.overlaid_recording, data.deliverable);
   assert.equal(data.needs_render, null);
-  assert.ok((await fs.readdir(dir)).includes('RaceGOW 6 Track 2 Round 7.mkv'));
+  assert.deepEqual((await fs.readdir(dir)).sort(), [
+    'RaceGOW 6 Track 2 Round 7 - Clean.mkv',
+    'RaceGOW 6 Track 2 Round 7 - Clean.mkv.gridfpv.json',
+    'RaceGOW 6 Track 2 Round 7 - Overlay.mkv'
+  ]);
   assert.equal(s.runs().find((r) => r.round === 7).state, 'ready');
+  // The laps as the timer has them are the baseline: the first check after the save is quiet.
+  await s.checkResults();
+  assert.equal((await readSidecar(side)).needs_render, null);
 
   // A marshal: the laps differ from the hash taken at the save → marked, still not rendered.
   timer.races[1].laps[1].deleted = true;
@@ -383,9 +392,63 @@ test("render later (#105): the overlaid file takes the run's name at the save, a
   assert.equal(renders.length, 1);
   data = await readSidecar(side);
   assert.equal(data.needs_render, null);
-  assert.equal(data.deliverable, path.join(dir, 'RaceGOW 6 Track 2 Round 7.mp4'));
+  assert.equal(data.deliverable, path.join(dir, 'RaceGOW 6 Track 2 Round 7 - Overlay.mp4'));
   assert.deepEqual(await fs.readdir(path.join(dir, 'superseded')), [
-    'RaceGOW 6 Track 2 Round 7.mkv'
+    'RaceGOW 6 Track 2 Round 7 - Overlay.mkv'
   ]);
   assert.equal(s.runs().find((r) => r.round === 7).state, 'rendered');
+  await fs.rm(dir, { recursive: true });
+});
+
+test('a save takes its lap baseline from the timer, not the page: a format whose first pass counts does not read as a marshal', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'gridfpv-baseline-'));
+  const { timer, deps, tick } = rig();
+  const logs = [];
+  deps.log = (l) => logs.push(l);
+  // The page (a "first lap counts" format) lists every crossing; before, the helper's own
+  // check dropped the first one and saw a change on every save.
+  deps.title = async () => ({
+    title: 'Open Class Heat 2 Round 3',
+    lapStamps: [500, 2000, 3600],
+    firstLapCounts: true,
+    look: 'L1'
+  });
+  timer.raceList = [
+    { heatId: 2, rounds: [{ round: 3, raceId: 20, pilotraces: [{ pilotraceId: 5 }] }] }
+  ];
+  timer.races[5] = {
+    pilotraceId: 5,
+    laps: [{ stampMs: 500 }, { stampMs: 2000 }, { stampMs: 3600 }]
+  };
+  const s = new Session({ tailSeconds: 1, discardAfterSeconds: 5, renderWhen: 'later' }, deps);
+  s.look = 'L1';
+  const rec = path.join(dir, 'clean heat 2 2026-11-01 15-01-16.mp4');
+  await fs.writeFile(rec, '');
+  const side = sidecarPathFor(rec);
+  const data = {
+    recording: rec,
+    overlaid_recording: null,
+    heat_id: 2,
+    round: 3,
+    race_id: 20,
+    name: null,
+    duration_ms: 64_500
+  };
+  await writeSidecar(side, data);
+  s.known.set(side, data);
+  await s.onSaved(side, data);
+  await tick();
+  const named = path.join(dir, 'Open Class Heat 2 Round 3 - Clean.mp4');
+  assert.ok((await fs.readdir(dir)).includes('Open Class Heat 2 Round 3 - Clean.mp4'));
+  assert.equal(data.first_lap_counts, true);
+  assert.equal(data.needs_render, 'no overlaid recording'); // the one true reason, kept
+  assert.ok([...s.known.keys()].includes(sidecarPathFor(named)));
+  await s.checkResults();
+  assert.ok(!logs.some((l) => l.startsWith('laps changed')), logs.join('\n'));
+  assert.equal(data.needs_render, 'no overlaid recording');
+  // A real marshal still counts.
+  timer.races[5].laps[1].deleted = true;
+  await s.checkResults();
+  assert.ok(logs.some((l) => l === 'laps changed for Open Class Heat 2 Round 3'));
+  await fs.rm(dir, { recursive: true });
 });
