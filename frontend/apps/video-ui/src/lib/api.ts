@@ -71,6 +71,8 @@ export type ProfilesPayload = {
 export type Probe = {
   timer: {
     ok: boolean;
+    /** Not tried: the probe was asked for OBS alone. */
+    skipped?: boolean;
     synced?: boolean;
     differential?: number | null;
     heats?: number;
@@ -78,6 +80,7 @@ export type Probe = {
   };
   obs: {
     ok: boolean;
+    skipped?: boolean;
     version?: string;
     recordDirectory?: string;
     scenes?: { name: string; sourceRecordFilters: string[] }[];
@@ -111,7 +114,8 @@ export const api = {
   render: (sidecar: string) => call<{ ok: true }>('POST', '/api/render', { sidecar }),
   renderAll: () => call<{ ok: true }>('POST', '/api/render-all'),
   open: (path: string) => call<{ ok: true }>('POST', '/api/open', { path }),
-  probe: (settings: Settings) => call<Probe>('POST', '/api/probe', { settings }),
+  probe: (settings: Settings, opts: { only?: 'obs' | 'timer'; timeoutMs?: number } = {}) =>
+    call<Probe>('POST', '/api/probe', { settings, ...opts }),
   pick: (kind: 'folder' | 'file', start?: string) =>
     call<{ path?: string | null; unsupported?: boolean }>('POST', '/api/pick', { kind, start }),
   browse: (dir?: string) =>

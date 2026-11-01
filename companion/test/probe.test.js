@@ -99,6 +99,27 @@ test('a probe says what failed: a silent timer, a refused OBS, a missing plugin'
   assert.equal(r2.obs.sourceRecord, false);
 });
 
+test('a probe of OBS alone never touches the timer (the window reconnects to OBS by itself)', async () => {
+  class NoTimer {
+    constructor() {
+      throw new Error('the timer was tried');
+    }
+  }
+  const r = await probeSettings(
+    { timer: 'http://down', obs: 'ws://o', obsPass: 'ok' },
+    { Timer: NoTimer, Obs: FakeObs, timeoutMs: 200, only: 'obs' }
+  );
+  assert.deepEqual(r.timer, { ok: false, skipped: true, error: null });
+  assert.equal(r.obs.ok, true);
+  assert.equal(r.obs.scenes.length, 2);
+  const r2 = await probeSettings(
+    { timer: 'http://t', obs: 'ws://o', obsPass: 'wrong' },
+    { Timer: FakeTimer, Obs: FakeObs, timeoutMs: 200, only: 'timer' }
+  );
+  assert.equal(r2.timer.ok, true);
+  assert.equal(r2.obs.skipped, true);
+});
+
 test('the native picker command follows the platform; a missing dialog or a cancel is reported, not thrown', async () => {
   assert.equal(pickCommand('folder', '', 'win32').cmd, 'powershell');
   assert.match(

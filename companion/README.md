@@ -19,7 +19,10 @@ repository's releases page). Install it, and:
   files go, the look of the render. A new profile asks for the timer and OBS first and
   **tries both** before showing the rest, so the rest can offer what OBS has — its scenes,
   with the ones carrying a Source Record filter marked — instead of asking for names typed;
-  _Try the connections_ does the same on an existing profile. Paths have a **Browse…**
+  opening an existing profile connects to OBS by itself (three tries, a moment apart) so the
+  scene lists are current, and says when it cannot — the names are then typed, exactly as
+  OBS shows them — with **Connect to OBS** to try again and _Try the timer too_ for both.
+  Paths have a **Browse…**
   button (the OS's own dialog; a folder browser of the helper's when there is none). The
   Source Record filter's name is only asked when a scene carries more than one. Add,
   duplicate, rename, delete; the last one used starts selected. A `gridfpv-video.json`

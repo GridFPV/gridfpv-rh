@@ -2,6 +2,8 @@
  * A profile's connections, tried (#99): the timer and OBS from a few settings, so the window
  * can say "connected" before the rest of the form, and fill its choices — OBS's scenes, the
  * Source Record filters on each, its recording folder — instead of asking for them typed.
+ * `only: 'obs'` (or `'timer'`) tries that one alone — the window reconnects to OBS by itself
+ * when a profile with an OBS address is opened, and should not wait on a timer that is off.
  * Everything is injectable; both connections are closed before returning.
  */
 import { Obs } from './obs.js';
@@ -10,11 +12,12 @@ import { Timer } from './timer.js';
 
 export async function probeSettings(
   cfg,
-  { Timer: T = Timer, Obs: O = Obs, timeoutMs = 8000, log = () => {} } = {}
+  { Timer: T = Timer, Obs: O = Obs, timeoutMs = 8000, only = null, log = () => {} } = {}
 ) {
+  const skipped = { ok: false, skipped: true, error: null };
   const [timer, obs] = await Promise.all([
-    probeTimer(cfg, T, timeoutMs, log),
-    probeObs(cfg, O, timeoutMs, log)
+    only === 'obs' ? skipped : probeTimer(cfg, T, timeoutMs, log),
+    only === 'timer' ? skipped : probeObs(cfg, O, timeoutMs, log)
   ]);
   return { timer, obs };
 }

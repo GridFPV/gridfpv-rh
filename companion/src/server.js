@@ -14,7 +14,7 @@
  *   POST /api/stop
  *   POST /api/render                     { sidecar } — this run, now
  *   POST /api/render-all                 every run that needs a render, in order
- *   POST /api/probe                      { settings } → { timer: {ok,…}, obs: {ok, scenes, …} } — tried, then closed
+ *   POST /api/probe                      { settings, only?: 'obs'|'timer', timeoutMs? } → { timer: {ok,…}, obs: {ok, scenes, …} } — tried, then closed
  *   POST /api/pick                       { kind: 'folder'|'file', start } → { path } | { path: null } | { unsupported: true }
  *   POST /api/open                       { path } — the folder (or file) in the OS's file manager
  *   GET  /api/browse?dir=                list a folder (for picking one)
@@ -127,8 +127,11 @@ export function startServer({
       return json(res, 202, { ok: true });
     }
     if (m === 'POST' && head === 'probe') {
-      const { settings } = await body(req);
-      return json(res, 200, await probe(Profiles.effective(settings ?? {})));
+      const { settings, only, timeoutMs } = await body(req);
+      const opts = {};
+      if (only === 'obs' || only === 'timer') opts.only = only;
+      if (Number.isFinite(timeoutMs)) opts.timeoutMs = Math.min(30_000, Math.max(1000, timeoutMs));
+      return json(res, 200, await probe(Profiles.effective(settings ?? {}), opts));
     }
     if (m === 'POST' && head === 'pick') {
       const { kind, start } = await body(req);
@@ -189,9 +192,10 @@ function json(res, status, data) {
 
 async function serveStatic(res, pathname, uiDir) {
   if (!uiDir) return json(res, 404, { error: 'no UI files configured' });
+  uiDir = path.resolve(uiDir); // a relative --ui would otherwise fail its own guard below
   let rel = decodeURIComponent(pathname).replace(/^\/+/, '') || 'index.html';
   let file = path.join(uiDir, rel);
-  if (!file.startsWith(path.resolve(uiDir))) return json(res, 403, { error: 'no' });
+  if (!file.startsWith(uiDir)) return json(res, 403, { error: 'no' });
   let st = await fs.stat(file).catch(() => null);
   if (!st || st.isDirectory()) {
     file = path.join(uiDir, 'index.html');

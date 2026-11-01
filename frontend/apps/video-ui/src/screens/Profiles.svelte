@@ -3,8 +3,10 @@
    * Profiles: the list on the left, the chosen one's settings on the right, grouped the way
    * the helper describes them (`fields`). A new profile starts with the connections alone;
    * the helper tries them, and the rest of the form offers what OBS has — its scenes, the
-   * Source Record filters on the chosen scene — instead of asking for it typed. Paths get a
-   * picker. Save writes the file; Use starts with it.
+   * Source Record filters on the chosen scene — instead of asking for it typed. Opening a
+   * profile connects to OBS by itself (a few tries) so the scene lists are current; when OBS
+   * cannot be reached the names are typed, and the page says so. Paths get a picker. Save
+   * writes the file; Use starts with it.
    */
   import { Badge, Button, Card, Field, Input, Select } from '@gridfpv/components';
   import { api, type Field as FieldDef, type Probe, type Settings } from '../lib/api.js';
@@ -19,6 +21,13 @@
   let note = $state('');
   let probe = $state<Probe | null>(null);
   let probing = $state(false);
+
+  // OBS on its own: tried when a profile opens, and on the button.
+  const OBS_TRIES = 3;
+  const OBS_RETRY_MS = 1500;
+  let obsState = $state<'idle' | 'connecting' | 'connected' | 'failed'>('idle');
+  let obsTry = $state(0);
+  let obsAttempt = 0; // bumps when the profile changes, so a stale connect loop stops
 
   // A new profile: name + the connections, tried, then the rest.
   let creating = $state(false);
@@ -48,6 +57,9 @@
     dirty = false;
     note = '';
     probe = null;
+    obsState = 'idle';
+    obsAttempt++;
+    if (valueOf('obs')) void connectObs();
   }
 
   function startCreating(copy: boolean) {
@@ -59,6 +71,8 @@
     dirty = false;
     note = '';
     probe = null;
+    obsState = 'idle';
+    obsAttempt++;
   }
 
   const shown = (f: FieldDef) =>
@@ -93,19 +107,67 @@
   async function tryConnections() {
     probing = true;
     ui.error = null;
+    obsAttempt++;
     try {
       probe = await api.probe(trimmed());
-      // What OBS has, offered: the first scene with a Source Record filter is the likely one.
-      if (probe.obs.ok && !valueOf('scene') && probe.obs.scenes?.length) {
-        const withFilter = probe.obs.scenes.find((s) => s.sourceRecordFilters.length);
-        if (withFilter) draft = { ...draft, scene: withFilter.name };
-      }
+      obsState = probe.obs.ok ? 'connected' : 'failed';
+      offerScene();
     } catch (e) {
       ui.error = e instanceof Error ? e.message : String(e);
     } finally {
       probing = false;
     }
   }
+
+  /** What OBS has, offered: the first scene with a Source Record filter is the likely one. */
+  function offerScene() {
+    if (probe?.obs.ok && !valueOf('scene') && probe.obs.scenes?.length) {
+      const withFilter = probe.obs.scenes.find((s) => s.sourceRecordFilters.length);
+      if (withFilter) draft = { ...draft, scene: withFilter.name };
+    }
+  }
+
+  /**
+   * OBS alone, a few tries a moment apart (it may be starting, or the password just typed).
+   * The timer's answer, if there was one, is kept. A profile switch mid-loop ends it quietly.
+   */
+  async function connectObs() {
+    const attempt = ++obsAttempt;
+    obsState = 'connecting';
+    for (let i = 1; i <= OBS_TRIES; i++) {
+      obsTry = i;
+      let r: Probe | null = null;
+      try {
+        r = await api.probe(trimmed(), { only: 'obs', timeoutMs: 5000 });
+      } catch {
+        r = null;
+      }
+      if (attempt !== obsAttempt) return;
+      if (r) probe = { timer: probe?.timer ?? r.timer, obs: r.obs };
+      if (r?.obs.ok) {
+        obsState = 'connected';
+        offerScene();
+        return;
+      }
+      if (i < OBS_TRIES) await new Promise((res) => setTimeout(res, OBS_RETRY_MS));
+      if (attempt !== obsAttempt) return;
+    }
+    obsState = 'failed';
+  }
+
+  const obsWords = $derived.by(() => {
+    const at = String(valueOf('obs') ?? '');
+    switch (obsState) {
+      case 'connecting':
+        return `Connecting to OBS at ${at}… (try ${obsTry} of ${OBS_TRIES})`;
+      case 'connected':
+        return "Connected — OBS's scenes are offered below.";
+      case 'failed':
+        return `Couldn't reach OBS at ${at} after ${OBS_TRIES} tries. Type the scene names by hand, exactly as OBS shows them, or start OBS (with its WebSocket server on) and connect again.`;
+      default:
+        return 'Connects to OBS with the settings above and offers its scenes below.';
+    }
+  });
 
   async function save() {
     const name = creating ? newName.trim() : editing;
@@ -163,11 +225,13 @@
 
 {#snippet fieldInput(f: FieldDef)}
   {#if f.type === 'boolean'}
-    <label class="check">
-      <input type="checkbox" checked={Boolean(valueOf(f.key))} onchange={(e) => onInput(f, e)} />
-      <span>{f.label}</span>
+    <div class="check">
+      <label>
+        <input type="checkbox" checked={Boolean(valueOf(f.key))} onchange={(e) => onInput(f, e)} />
+        <span>{f.label}</span>
+      </label>
       {#if f.help}<span class="muted small">{f.help}</span>{/if}
-    </label>
+    </div>
   {:else}
     <Field label={f.label} hint={f.help}>
       {#if f.type === 'select'}
@@ -232,13 +296,18 @@
       <a class="fieldlink small" href={f.link.href} target="_blank" rel="noopener">{f.link.label}</a
       >
     {/if}
+    {#if f.choices === 'scenes' && obsState === 'failed'}
+      <span class="fieldlink small muted">Typed by hand — OBS isn't connected.</span>
+    {/if}
   {/if}
 {/snippet}
 
 {#snippet connections(p: Probe)}
   {@const w = connectionWords(p)}
   <ul class="probe" aria-label="Connections">
-    <li><Badge tone={p.timer.ok ? 'success' : 'danger'} dot>{w.timer}</Badge></li>
+    {#if !p.timer.skipped}
+      <li><Badge tone={p.timer.ok ? 'success' : 'danger'} dot>{w.timer}</Badge></li>
+    {/if}
     <li>
       <Badge tone={p.obs.ok ? (needsPlugin(p) ? 'warn' : 'success') : 'danger'} dot>{w.obs}</Badge>
     </li>
@@ -381,12 +450,21 @@
                 <Button
                   size="sm"
                   variant="secondary"
-                  disabled={probing}
-                  loading={probing}
-                  onclick={tryConnections}>Try the connections</Button
+                  disabled={probing || obsState === 'connecting'}
+                  loading={obsState === 'connecting'}
+                  onclick={() => void connectObs()}
+                  >{obsState === 'connected' ? 'Refresh from OBS' : 'Connect to OBS'}</Button
                 >
-                <span class="muted small"
-                  >Checks the timer and OBS with the settings above, and offers OBS's scenes below.</span
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={probing || obsState === 'connecting'}
+                  loading={probing}
+                  title="The timer and OBS both, with the settings above"
+                  onclick={tryConnections}>Try the timer too</Button
+                >
+                <span class="muted small" aria-live="polite" class:warn={obsState === 'failed'}
+                  >{obsWords}</span
                 >
               </div>
               {#if probe}{@render connections(probe)}{/if}
@@ -469,13 +547,15 @@
   }
   .check {
     display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 0 var(--gf-space-2);
-    align-items: center;
+    gap: var(--gf-space-1);
     font-size: var(--gf-font-size-sm);
   }
-  .check .small {
-    grid-column: 2;
+  .check label {
+    display: inline-flex;
+    gap: var(--gf-space-2);
+    align-items: center;
+    width: fit-content; /* only the box and its words take a click, not the whole cell */
+    cursor: pointer;
   }
   .tryrow {
     grid-column: 1 / -1;
@@ -502,9 +582,14 @@
   }
   .fieldlink {
     display: block;
+    width: fit-content; /* a link as wide as its text; the rest of the row is not a link */
+    justify-self: start;
     margin-top: calc(-1 * var(--gf-space-2));
   }
   .small {
     font-size: var(--gf-font-size-xs);
+  }
+  .warn {
+    color: var(--gf-warn, var(--gf-text-muted));
   }
 </style>

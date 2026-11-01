@@ -148,8 +148,8 @@ test('the server answers the window: status, profiles round trip, start/stop, an
     helper,
     port: 0,
     uiDir,
-    probe: async (cfg) => ({
-      timer: { ok: cfg.timer === 'http://t:5000' },
+    probe: async (cfg, opts = {}) => ({
+      timer: { ok: cfg.timer === 'http://t:5000', ...opts },
       obs: { ok: true, scenes: [{ name: 'Clean', sourceRecordFilters: [] }] }
     }),
     pick: async (kind, start) =>
@@ -222,6 +222,11 @@ test('the server answers the window: status, profiles round trip, start/stop, an
       timer: { ok: true },
       obs: { ok: true, scenes: [{ name: 'Clean', sourceRecordFilters: [] }] }
     });
+    // OBS alone, on a short leash (clamped to a second at least); anything else is ignored.
+    r = await api('POST', '/api/probe', { settings: {}, only: 'obs', timeoutMs: 200 });
+    assert.deepEqual(r.body.timer, { ok: false, only: 'obs', timeoutMs: 1000 });
+    r = await api('POST', '/api/probe', { settings: {}, only: 'everything' });
+    assert.deepEqual(r.body.timer, { ok: false });
     r = await api('POST', '/api/pick', { kind: 'folder', start: 'D:' });
     assert.deepEqual(r.body, { path: '/picked/D:' });
     r = await api('POST', '/api/pick', { kind: 'file' });
