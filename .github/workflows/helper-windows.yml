@@ -119,7 +119,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-          pre=""; case "$tag" in *-*) pre="--prerelease";; esac
+          pre=""; case "${tag#video-v}" in *-*) pre="--prerelease";; esac  # a dash in the version (rc, beta), not the one in "video-v"
           gh release create "$tag" helper/src-tauri/target/release/bundle/nsis/*.exe $pre \
             --title "GridFPV Video $tag" \
             --notes "The Windows installer for the GridFPV Video helper (#99). Per-user install, no admin. Needs OBS 28+ with its WebSocket server on; for a per-race recording independent of the stream, the Source Record plugin (#98)." \
