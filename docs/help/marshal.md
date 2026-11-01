@@ -2,7 +2,10 @@
 
 Fix a saved race after the fact, the way RotorHazard's own Marshal page does, with the
 same results. Pick the race and the pilot; the RSSI trace shows what the timer saw, the
-ticks along the top are the passes it recorded, and the table lists the laps.
+ticks along the top are the passes it recorded, and the table lists the laps. In RaceGOW
+mode the race list holds the track on the timer alone, since a season's tracks run to
+many rounds; **Show every track** lists them all, and a race reached by link from another
+track shows them too.
 
 ## Recalculate from the signal
 

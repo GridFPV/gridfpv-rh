@@ -38,6 +38,7 @@
     cleanDeletedLaps
   } from '../lib/race.js';
   import { href, link } from '../lib/router.svelte.js';
+  import { currentTrack, tracksOf } from '../lib/racegow.js';
   import { heatById, pilotById, classById, ROUND_TYPE } from '../lib/setup.js';
 
   const timer = rh();
@@ -46,6 +47,21 @@
   // A stopped race can be marshalled before it is saved, but only a heat's: RotorHazard's
   // emit_race_marshal_data answers nothing for a practice race, so one is not listed.
   const currentAvailable = $derived(timer.race.status === RACE_STATUS.DONE && !!timer.race.heatId);
+  // RaceGOW (#95): a season is many tracks, each flown many times, and the picker drowned in
+  // them — it lists the track on the timer alone unless asked for all.
+  const trackOnTimer = $derived(
+    timer.mode === 'racegow'
+      ? currentTrack(tracksOf(setup, timer.results), timer.current.heatId)
+      : undefined
+  );
+  let allTracks = $state(false);
+  const focusHeatId = $derived(!allTracks && trackOnTimer?.heat ? trackOnTimer.heat.id : null);
+  const shownList = $derived(
+    focusHeatId == null ? raceList : raceList.filter((h) => h.heatId === focusHeatId)
+  );
+  const hiddenRounds = $derived(
+    raceList.reduce((n, h) => n + (shownList.includes(h) ? 0 : h.rounds.length), 0)
+  );
 
   // ---- picking a race ----
   /** 'current' for the stopped, unsaved race, else `${heatId}:${round}`. */
@@ -84,10 +100,14 @@
   $effect(() => {
     if (source || !raceList.length) return;
     if (currentAvailable) return void (source = 'current');
-    const latest = raceList
+    const latest = (shownList.length ? shownList : raceList)
       .flatMap((h) => h.rounds.map((r) => ({ h, r })))
       .sort((a, b) => b.r.startTime - a.r.startTime)[0];
     if (latest) source = `${latest.h.heatId}:${latest.r.round}`;
+  });
+  // A race outside the track on the timer (a link, a move to another heat): show every track.
+  $effect(() => {
+    if (focusHeatId != null && picked && picked.heat.heatId !== focusHeatId) allTracks = true;
   });
   $effect(() => {
     if (source === 'current' && !timer.marshal.current) void requestMarshalCurrent();
@@ -405,7 +425,7 @@
         <span>Race</span>
         <Select bind:value={source} disabled={busy}>
           {#if currentAvailable}<option value="current">Stopped race, not saved yet</option>{/if}
-          {#each raceList as h (h.heatId)}
+          {#each shownList as h (h.heatId)}
             <optgroup label={h.name}>
               {#each h.rounds as r (r.round)}
                 <option value="{h.heatId}:{r.round}"
@@ -415,6 +435,23 @@
             </optgroup>
           {/each}
         </Select>
+        {#if trackOnTimer?.heat}
+          <span class="hint">
+            {#if allTracks}
+              Every track.
+              <button type="button" class="linkish" onclick={() => (allTracks = false)}
+                >Only {trackOnTimer.cls.name}</button
+              >
+            {:else}
+              {trackOnTimer.cls.name} only{#if hiddenRounds}.
+                <button type="button" class="linkish" onclick={() => (allTracks = true)}
+                  >Show every track ({hiddenRounds} more round{hiddenRounds === 1
+                    ? ''
+                    : 's'})</button
+                >{/if}
+            {/if}
+          </span>
+        {/if}
       </label>
       <label class="field grow">
         <span>Pilot</span>
