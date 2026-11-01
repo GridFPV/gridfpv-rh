@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { SceneRecorder } from '../src/sceneRecord.js';
 
 /** An obs-websocket that answers like OBS 32 + Source Record 0.4.8 did in the spike (#98). */
@@ -72,7 +73,7 @@ test('records the scene to a file named for the heat, via Source Record, and fin
   });
   assert.deepEqual(await rec.recordStatus(), { active: true, paused: false, durationMs: 1234 });
   const file = await rec.stopRecord();
-  assert.equal(file, '/rec/clean heat 4 2026-11-01 09-05-07.mkv');
+  assert.equal(file, path.join('/rec', 'clean heat 4 2026-11-01 09-05-07.mkv'));
   assert.deepEqual(await rec.recordStatus(), { active: false, paused: false, durationMs: 0 });
 });
 
@@ -86,7 +87,7 @@ test("with no filter on the scene yet, Source Record makes one named after the f
   );
   await rec.startRecord();
   assert.equal(rec.filterName, 'clean 2026-01-02 03-04-05');
-  assert.equal(await rec.stopRecord(), '/obs-default/clean 2026-01-02 03-04-05.mkv');
+  assert.equal(await rec.stopRecord(), path.join('/obs-default', 'clean 2026-01-02 03-04-05.mkv'));
 });
 
 test('a configured folder and filter name win, and a missing plugin is said plainly', async () => {
@@ -99,7 +100,7 @@ test('a configured folder and filter name win, and a missing plugin is said plai
   );
   await rec.startRecord();
   assert.ok(!calls.some(([t]) => t === 'GetSourceFilterList' || t === 'GetRecordDirectory'));
-  assert.equal(await rec.stopRecord(), '/mine/clean 2026-01-02 03-04-05.mkv');
+  assert.equal(await rec.stopRecord(), path.join('/mine', 'clean 2026-01-02 03-04-05.mkv'));
 
   const noPlugin = new SceneRecorder(
     {

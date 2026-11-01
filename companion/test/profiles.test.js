@@ -11,7 +11,7 @@ test('the home folder follows the platform, and GRIDFPV_VIDEO_HOME wins', () => 
     path.join('C:\\Users\\ryan\\AppData\\Roaming', 'GridFPV Video')
   );
   assert.ok(homeDir({}, 'darwin').endsWith(path.join('Application Support', 'GridFPV Video')));
-  assert.equal(homeDir({ XDG_CONFIG_HOME: '/cfg' }, 'linux'), '/cfg/gridfpv-video');
+  assert.equal(homeDir({ XDG_CONFIG_HOME: '/cfg' }, 'linux'), path.join('/cfg', 'gridfpv-video'));
   assert.equal(homeDir({ GRIDFPV_VIDEO_HOME: '/portable' }, 'win32'), '/portable');
 });
 

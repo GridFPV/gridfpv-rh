@@ -127,6 +127,16 @@ for (let i = 0; i < PILOTS; i++) {
         ?.nodes_pilots?.[String(SEATS[i])] === pilotIds[i]
   );
 }
+// Every seat in use needs a frequency, or its crossings go nowhere (the rig's profile only
+// tunes a few): Raceband 1–4.
+const FREQS = [5658, 5695, 5732, 5769];
+for (let i = 0; i < PILOTS; i++)
+  rig.emit('set_frequency', {
+    node: SEATS[i],
+    frequency: FREQS[SEATS[i]],
+    band: 'R',
+    channel: SEATS[i] + 1
+  });
 rig.emit('set_current_heat', { heat: heat.heat_id });
 await until('heat loaded', async () => (await status()).current_heat === heat.heat_id);
 log(
@@ -279,6 +289,11 @@ if (po.streams?.[0]?.codec_name !== 'vp9' || !alpha)
 // ---- 2. a marshal: delete the second crossing; the run re-renders, once ----
 const list = await loadData('race_list');
 const saved = Object.values(list.heats).find((h) => Number(h.heat_id) === heat.heat_id).rounds['1'];
+// RotorHazard agrees: every pilot on a seat has a saved race in the round (so the field has
+// them all); it also keeps one per tuned seat with no pilot, which the overlay does not list.
+const flown = saved.pilotraces.filter((x) => pilotIds.includes(Number(x.pilot_id)));
+if (flown.length !== PILOTS)
+  fail(`RotorHazard saved races for ${flown.length} of the ${PILOTS} pilots in round 1`);
 const pr = saved.pilotraces.find((x) => Number(x.pilot_id) === pilotId);
 const details = await new Promise((resolve) => {
   rig.once('race_details', resolve);
