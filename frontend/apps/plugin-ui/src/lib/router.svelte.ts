@@ -40,9 +40,13 @@ export function go(path: string, replace = false): void {
  * does not linger behind the back button), else `fallback`, which takes the modal's place.
  */
 export function back(fallback: string): void {
-  if (state.from != null) history.back();
-  else go(fallback, true);
+  if (backPending) return; // asked twice before the browser answered: one step, not two
+  if (state.from != null) {
+    backPending = true;
+    history.back();
+  } else go(fallback, true);
 }
+let backPending = false;
 
 /** Absolute href for a route, for <a> tags so middle-click and copy-link work. */
 export function href(path: string): string {
@@ -61,6 +65,7 @@ export function link(event: MouseEvent): void {
 }
 
 window.addEventListener('popstate', () => {
+  backPending = false;
   state.path = normalize(window.location.pathname);
   state.from = null;
 });

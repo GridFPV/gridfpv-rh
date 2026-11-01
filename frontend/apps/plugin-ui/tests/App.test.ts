@@ -96,6 +96,18 @@ describe('router back()', () => {
     back('seats');
     await popped;
     expect(route()).toBe('run');
+    // Asked twice before the browser answers (a dialog reporting its close twice): one step.
+    go('', true);
+    go('run');
+    go('seats/0');
+    const popped2 = new Promise<void>((r) =>
+      window.addEventListener('popstate', () => r(), { once: true })
+    );
+    back('seats');
+    back('seats');
+    await popped2;
+    await new Promise((r) => setTimeout(r, 20));
+    expect(route()).toBe('run');
   });
 });
 

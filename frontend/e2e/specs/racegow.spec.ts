@@ -126,10 +126,15 @@ test('RaceGOW: a new season, the pilot, two tracks — and RotorHazard holds the
 
   // Tuning the seat opens the modal at /grid/seats/1; closing it comes back to Run, the
   // page it was opened from, not to a Seats page this mode has no nav for.
-  await page.getByRole('link', { name: 'Tune this seat' }).click();
-  await expect(page).toHaveURL(/\/grid\/seats\/1$/);
-  await expect(page.getByRole('dialog').getByRole('heading', { name: 'Seat 2' })).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page).toHaveURL(/\/grid\/run$/);
-  await expect(page.getByRole('combobox', { name: 'On the timer' })).toBeVisible();
+  // The × button reported the close twice once, and two history steps went to the page
+  // before Run (0.10.7); each way of closing must come back to Run exactly.
+  for (const close of ['button', 'escape'] as const) {
+    await page.getByRole('link', { name: 'Tune this seat' }).click();
+    await expect(page).toHaveURL(/\/grid\/seats\/1$/);
+    await expect(page.getByRole('dialog').getByRole('heading', { name: 'Seat 2' })).toBeVisible();
+    if (close === 'button') await page.getByRole('button', { name: 'Close' }).click();
+    else await page.keyboard.press('Escape');
+    await expect(page).toHaveURL(/\/grid\/run$/);
+    await expect(page.getByRole('combobox', { name: 'On the timer' })).toBeVisible();
+  }
 });

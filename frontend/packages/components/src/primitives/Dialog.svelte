@@ -35,9 +35,21 @@
     else if (!open && el.open) el.close();
   });
 
-  function close() {
+  /**
+   * The native `close` event is the one place `onclose` fires, so a dismissal is reported
+   * exactly once however it came about — Esc, the × button, the backdrop, or the parent
+   * flipping `open` (the effect above closes the element, which fires this). The × button
+   * used to call `onclose` itself and then close the element, which fired it again; a
+   * parent whose `onclose` is a history back went back two pages.
+   */
+  function onNativeClose() {
     open = false;
     onclose?.();
+  }
+  /** The × button and the backdrop: ask the element to close; the event reports it. */
+  function dismiss() {
+    if (dialog?.open) dialog.close();
+    else onNativeClose();
   }
 
   /**
@@ -61,7 +73,7 @@
         e.clientY <= r.bottom + b;
       if (nearPanel) return; // within the buffer — a near-miss, don't close
     }
-    close();
+    dismiss();
   }
 </script>
 
@@ -69,7 +81,7 @@
   bind:this={dialog}
   class="gf-dialog"
   data-size={size}
-  onclose={close}
+  onclose={onNativeClose}
   oncancel={(e) => {
     if (!dismissable) e.preventDefault();
   }}
@@ -80,7 +92,8 @@
       <header class="gf-dialog-head">
         {#if title}<h2 class="gf-dialog-title">{title}</h2>{/if}
         {#if dismissable}
-          <button type="button" class="gf-dialog-close" onclick={close} aria-label="Close">×</button
+          <button type="button" class="gf-dialog-close" onclick={dismiss} aria-label="Close"
+            >×</button
           >
         {/if}
       </header>
