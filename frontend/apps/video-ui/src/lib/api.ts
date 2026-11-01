@@ -2,13 +2,20 @@
  * The helper's local API (companion/src/server.js): JSON calls and the event stream. Same
  * origin as the page, whether the desktop shell or a browser shows it.
  */
-export type RunState = 'recording' | 'tail' | 'waiting' | 'saved' | 'rendering' | 'rendered';
+export type RunState =
+  'recording' | 'tail' | 'waiting' | 'saved' | 'ready' | 'needs render' | 'rendering' | 'rendered';
 export type Run = {
   state: RunState;
   heat_id: number;
   round: number | null;
   name: string | null;
   recording: string | null;
+  /** The overlaid scene's file (#105), when a second scene is recorded. */
+  overlaid?: string | null;
+  /** The finished video: OBS's overlaid file, or the composite once rendered. */
+  deliverable?: string | null;
+  /** Why a render is wanted, when one is. */
+  needs_render?: string | null;
   sidecar: string | null;
   started_at: string | null;
   rendered_at?: string | null;
@@ -102,6 +109,7 @@ export const api = {
   start: (profile: string) => call<Snapshot>('POST', '/api/start', { profile }),
   stop: () => call<Snapshot>('POST', '/api/stop'),
   render: (sidecar: string) => call<{ ok: true }>('POST', '/api/render', { sidecar }),
+  renderAll: () => call<{ ok: true }>('POST', '/api/render-all'),
   open: (path: string) => call<{ ok: true }>('POST', '/api/open', { path }),
   probe: (settings: Settings) => call<Probe>('POST', '/api/probe', { settings }),
   pick: (kind: 'folder' | 'file', start?: string) =>

@@ -14,13 +14,17 @@
   let chosen = $state<string>('');
 
   onMount(() => {
+    window.addEventListener('click', outsideLink);
     const off = connect();
     void loadProfiles().then(() => {
       if (!chosen)
         chosen = ui.snapshot?.running?.profile ?? ui.lastProfile ?? ui.profiles[0]?.name ?? '';
       if (!ui.profiles.length) tab = 'profiles';
     });
-    return off;
+    return () => {
+      window.removeEventListener('click', outsideLink);
+      off();
+    };
   });
 
   const snap = $derived(ui.snapshot);
@@ -47,6 +51,18 @@
           : { status: 'live', label: `OBS ${snap!.status.obs.version || ''}`.trim() }
         : { status: 'reconnecting', label: 'OBS offline' }
   );
+
+  /**
+   * A link to an outside page (#103): the desktop window is a webview that refuses a new window
+   * and has no Tauri API here, so the sidecar hands the address to the OS's browser instead.
+   * In a plain browser the same call works too, so there is one path.
+   */
+  function outsideLink(e: MouseEvent) {
+    const a = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+    if (!a || !/^https?:/i.test(a.href) || a.origin === window.location.origin) return;
+    e.preventDefault();
+    void act(() => api.open(a.href));
+  }
 
   async function startStop() {
     if (running) await act(() => api.stop());

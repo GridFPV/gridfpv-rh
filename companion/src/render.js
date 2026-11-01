@@ -156,7 +156,8 @@ export async function renderRun({ cfg, data, log = () => {} }) {
               recording: data.recording,
               out: parts.composite,
               crf: cfg.crf,
-              blend: cfg.blend
+              blend: cfg.blend,
+              videoEncoder: cfg.videoEncoder
             }),
             'composite'
           )
@@ -200,6 +201,42 @@ export async function renderRun({ cfg, data, log = () => {} }) {
   } catch (e) {
     for (const enc of encoders) enc.proc.kill('SIGKILL');
     throw e;
+  } finally {
+    await browser.close();
+  }
+}
+
+/**
+ * The run's name as the overlay page composes it (event, heat, round; or the RaceGOW template),
+ * without drawing a frame: the page is opened, asked, closed. For naming the overlaid file at
+ * the save when nothing is rendered yet (#105).
+ */
+export async function runTitle({ cfg, data, log = () => {} }) {
+  const browser = await launch(cfg, log);
+  try {
+    const ctx = await browser.newContext({
+      viewport: { width: 640, height: 360 },
+      httpCredentials: cfg.timerUser
+        ? { username: cfg.timerUser, password: cfg.timerPass }
+        : undefined
+    });
+    const page = await ctx.newPage();
+    await page.goto(replayUrl(cfg, data), { waitUntil: 'load' });
+    const info = await page.evaluate(
+      (ms) =>
+        Promise.race([
+          window.gridfpvReplay.ready(),
+          new Promise((_, rej) =>
+            setTimeout(() => rej(new Error('the replay page did not become ready')), ms)
+          )
+        ]),
+      READY_TIMEOUT_MS
+    );
+    return {
+      title: info.title || data.name || `heat ${data.heat_id} round ${data.round}`,
+      lapStamps: info.lapStamps,
+      look: info.look
+    };
   } finally {
     await browser.close();
   }

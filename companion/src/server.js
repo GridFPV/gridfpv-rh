@@ -12,7 +12,8 @@
  *   POST /api/profiles/<name>/rename     { to }
  *   POST /api/start                      { profile }
  *   POST /api/stop
- *   POST /api/render                     { sidecar }
+ *   POST /api/render                     { sidecar } — this run, now
+ *   POST /api/render-all                 every run that needs a render, in order
  *   POST /api/probe                      { settings } → { timer: {ok,…}, obs: {ok, scenes, …} } — tried, then closed
  *   POST /api/pick                       { kind: 'folder'|'file', start } → { path } | { path: null } | { unsupported: true }
  *   POST /api/open                       { path } — the folder (or file) in the OS's file manager
@@ -134,6 +135,10 @@ export function startServer({
       const r = await pick(kind === 'file' ? 'file' : 'folder', start || '');
       return json(res, 200, r && typeof r === 'object' ? r : { path: r });
     }
+    if (m === 'POST' && head === 'render-all') {
+      helper.renderAll().catch((e) => helper.log(`render all failed: ${e.message}`));
+      return json(res, 202, { ok: true });
+    }
     if (m === 'POST' && head === 'open') {
       const { path: target } = await body(req);
       await openInFileManager(target);
@@ -203,7 +208,7 @@ async function serveStatic(res, pathname, uiDir) {
   res.end(await fs.readFile(file));
 }
 
-/** Show a path in the OS's file manager: Explorer, Finder, or xdg-open's choice. */
+/** Show a path in the OS's file manager — or a URL in its browser: Explorer, Finder/open, or xdg-open's choice. */
 export function openInFileManager(target) {
   return new Promise((resolve, reject) => {
     let cmd, args;

@@ -19,7 +19,7 @@ import { io } from 'socket.io-client';
 import { loadConfig } from '../src/config.js';
 import { Obs } from '../src/obs.js';
 import { recorderFor } from '../src/cli.js';
-import { renderRun } from '../src/render.js';
+import { renderRun, runTitle } from '../src/render.js';
 import { Session } from '../src/session.js';
 import { listSidecars } from '../src/sidecar.js';
 import { replayUrl } from '../src/render.js';
@@ -38,6 +38,11 @@ const RECORD_FROM = process.env.GRIDFPV_RECORD_FROM ?? 'obs';
 // A race day's heat (#100): this many pilots on seats, every one flying, and the overlay in its
 // field form — the table of the heat — rendered onto the one clean recording. 1 = RaceGOW (solo).
 const PILOTS = Math.max(1, Math.min(4, Number(process.env.GRIDFPV_PILOTS ?? 1)));
+// 'later' (#105): a second, overlaid scene is recorded too; its file takes the run's name at
+// the save and nothing renders until asked — a marshal and a move only mark the run, and
+// `renderAll()` does the rendering, superseding OBS's file.
+const RENDER_WHEN = process.env.GRIDFPV_RENDER_WHEN === 'later' ? 'later' : 'now';
+const LATER = RENDER_WHEN === 'later';
 const CALLSIGNS = ['Ace', 'Bee', 'Cal', 'Dee'];
 // Seat 2 (node 1) stays Ace's, as the marshal step expects; the rest fill seats 1, 3, 4.
 const SEATS = [1, 0, 2, 3];
@@ -170,8 +175,12 @@ const cfg = {
   fps: 30,
   recordFrom: RECORD_FROM,
   scene: process.env.GRIDFPV_SCENE ?? 'Clean',
-  layout: PILOTS > 1 ? 'field' : 'solo'
+  layout: PILOTS > 1 ? 'field' : 'solo',
+  renderWhen: RENDER_WHEN,
+  // The plain colour scene stands in for "the program with the live overlay" here.
+  overlayScene: LATER ? (process.env.GRIDFPV_OVERLAY_SCENE ?? 'Scene') : ''
 };
+log(`renders ${LATER ? 'only when asked (two scenes recorded)' : 'after every save and marshal'}`);
 const companionLines = [];
 log(
   `recording from ${RECORD_FROM === 'scene' ? `the "${cfg.scene}" scene (Source Record)` : "OBS's own Record output"}`
@@ -204,7 +213,8 @@ const session = new Session(cfg, {
   setTimeout,
   clearTimeout,
   log: clog,
-  render: ({ data }) => renderRun({ cfg, data, log: clog })
+  render: ({ data }) => renderRun({ cfg, data, log: clog }),
+  title: ({ data }) => runTitle({ cfg, data, log: clog })
 }).start();
 // The sync may already have happened while OBS was being started: poll, do not wait for the event.
 await until('the clock sync', async () => timer.differential != null, 30_000, 100);
@@ -239,6 +249,28 @@ log('run 1 saved on the timer');
 
 const sidecarOf = async () =>
   (await listSidecars(RECORDINGS)).find((s) => !before.has(path.basename(s.file)));
+if (LATER) {
+  const named = await until(
+    'the run named and its overlaid file as the finished video',
+    async () => {
+      const s = await sidecarOf();
+      return s?.data.deliverable ? s : null;
+    },
+    60_000,
+    1000
+  );
+  log(
+    `finished video from OBS: ${path.basename(named.data.deliverable)} (name "${named.data.name}")`
+  );
+  if (!/Video A/.test(named.data.name ?? '')) fail(`the run's name is ${named.data.name}`);
+  if (!(await fs.stat(named.data.deliverable)).size) fail('the overlaid file is empty');
+  await sleep(6000);
+  if ((await sidecarOf()).data.rendered) fail('rendered on its own although renderWhen is later');
+  if ((await sidecarOf()).data.needs_render)
+    fail(`marked as needing a render at the save: ${(await sidecarOf()).data.needs_render}`);
+  log("nothing rendered on its own; asking for this run (the window's Render button)");
+  await session.renderNow(named.file, session.known.get(named.file), 'asked for');
+}
 const side = await until(
   'the sidecar, rendered',
   async () => {
@@ -248,6 +280,15 @@ const side = await until(
   180_000,
   1000
 );
+if (LATER) {
+  // The render took the run's name; OBS's file went to superseded/.
+  if (!/\.mp4$/.test(side.data.deliverable))
+    fail(`the finished video is still ${side.data.deliverable}`);
+  const superseded = await fs.readdir(path.join(RECORDINGS, 'superseded')).catch(() => []);
+  if (!superseded.some((n) => /^Video A/.test(n)))
+    fail(`nothing of this run in superseded/: ${superseded.join(', ')}`);
+  log(`superseded: ${superseded.filter((n) => /^Video A/.test(n)).join(', ')}`);
+}
 const d = side.data;
 log(`sidecar: ${path.basename(side.file)}`);
 log(
@@ -388,6 +429,14 @@ rig.emit('resave_laps', {
   exit_at: details.exit_at
 });
 log('marshalled: crossing 2 deleted');
+if (LATER) {
+  await until(
+    'the run marked as needing a render after the marshal',
+    async () => (await sidecarOf())?.data.needs_render === 'the laps changed'
+  );
+  log('marked: the laps changed (not rendered on its own)');
+  await session.renderAll();
+}
 const again = await until(
   'the re-render',
   async () => {
@@ -408,6 +457,14 @@ if ((await sidecarOf()).data.rendered.at !== again.data.rendered.at)
 const renderedBeforeLook = again.data.rendered.at;
 log(`rig socket connected: ${rig.connected}; emitting the placement change`);
 rig.emit('gridfpv_overlay_set', { corner: 'bottom-right', x: 40, y: 30, scale: 150 });
+if (LATER) {
+  await until(
+    'the run marked as needing a render after the move',
+    async () => (await sidecarOf())?.data.needs_render === 'the overlay moved'
+  );
+  log('marked: the overlay moved (not rendered on its own)');
+  await session.renderAll();
+}
 const moved = await until(
   'the re-render after the placement change',
   async () => {

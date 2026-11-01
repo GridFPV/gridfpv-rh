@@ -48,6 +48,7 @@ export class SceneRecorder {
     this.log = log;
     this.fs = fs;
     this.now = now;
+    this.prefix = cfg.filePrefix ?? 'clean';
     this.current = null; // { name, dir } while a recording is on
   }
 
@@ -101,7 +102,8 @@ export class SceneRecorder {
     const d = this.now();
     const p = (n) => String(n).padStart(2, '0');
     const stamp = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
-    return heatId != null ? `clean heat ${heatId} ${stamp}` : `clean ${stamp}`;
+    const word = this.prefix ?? 'clean';
+    return heatId != null ? `${word} heat ${heatId} ${stamp}` : `${word} ${stamp}`;
   }
 
   /**
@@ -242,5 +244,43 @@ export class SceneRecorder {
         );
       throw e;
     }
+  }
+}
+
+/**
+ * Two scenes recorded together (#105): the clean one (the alignment, the source of renders)
+ * and the overlaid one (the program with the live overlay — the finished file, free from
+ * OBS). The clean recording starts first and alone, so the caller's clock at the return is
+ * its time zero; the overlaid one follows at once. The stop returns both files.
+ */
+export class TwoSceneRecorder {
+  constructor(clean, overlaid, { log = () => {} } = {}) {
+    this.clean = clean;
+    this.overlaid = overlaid;
+    this.log = log;
+    this.overlaidStart = null;
+  }
+  recordStatus() {
+    return this.clean.recordStatus();
+  }
+  async startRecord(run) {
+    await this.clean.startRecord(run);
+    this.overlaidStart = this.overlaid.startRecord(run).catch((e) => {
+      this.log(`overlaid recording: could not start: ${e.message}`);
+      return null;
+    });
+  }
+  async stopRecord() {
+    await this.overlaidStart;
+    const [file, overlaid] = await Promise.all([
+      this.clean.stopRecord(),
+      this.overlaid.current
+        ? this.overlaid.stopRecord().catch((e) => {
+            this.log(`overlaid recording: could not stop: ${e.message}`);
+            return null;
+          })
+        : null
+    ]);
+    return { file, overlaid };
   }
 }

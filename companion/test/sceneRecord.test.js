@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { SceneRecorder } from '../src/sceneRecord.js';
+import { SceneRecorder, TwoSceneRecorder } from '../src/sceneRecord.js';
 
 /** An obs-websocket that answers like OBS 32 + Source Record 0.4.8 did in the spike (#98). */
 function fakeObs({
@@ -148,4 +148,30 @@ test("a file that is not where it was told to go is found in one of OBS's other 
   };
   assert.equal(await rec.stopRecord(), path.join('/ffmpeg-out', 'clean 2026-01-02 03-04-05.mkv'));
   assert.ok(lines.some((l) => /not in \/rec but in \/ffmpeg-out/.test(l)));
+});
+
+test('two scenes: the clean one starts first and alone; the stop returns both files', async () => {
+  const order = [];
+  const fake = (name) => ({
+    async startRecord() {
+      order.push(`start ${name}`);
+      await new Promise((r) => setTimeout(r, name === 'overlaid' ? 30 : 5));
+      this.current = { name };
+    },
+    async stopRecord() {
+      order.push(`stop ${name}`);
+      return `/rec/${name}.mkv`;
+    },
+    async recordStatus() {
+      return { active: Boolean(this.current), durationMs: 0 };
+    }
+  });
+  const two = new TwoSceneRecorder(fake('clean'), fake('overlaid'));
+  await two.startRecord({ heatId: 1 });
+  // startRecord returned when the clean one was up; the overlaid one was still starting.
+  assert.deepEqual(order, ['start clean', 'start overlaid']);
+  assert.deepEqual(await two.stopRecord(), {
+    file: '/rec/clean.mkv',
+    overlaid: '/rec/overlaid.mkv'
+  });
 });

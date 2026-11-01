@@ -23,7 +23,7 @@ import { Helper } from './helper.js';
 import { Profiles, homeDir } from './profiles.js';
 import { startServer } from './server.js';
 import { Obs } from './obs.js';
-import { SceneRecorder } from './sceneRecord.js';
+import { SceneRecorder, TwoSceneRecorder } from './sceneRecord.js';
 import { renderRun } from './render.js';
 import { Session } from './session.js';
 import { readSidecar, sidecarPathFor, writeSidecar, lapsHash } from './sidecar.js';
@@ -179,7 +179,14 @@ async function watch(cfg) {
 export function recorderFor(cfg, obs, log = () => {}) {
   if (cfg.recordFrom !== 'scene') return obs;
   if (!cfg.scene) throw new Error('recordFrom is "scene" but no "scene" is named');
-  return new SceneRecorder(obs, cfg, { log });
+  const clean = new SceneRecorder(obs, cfg, { log });
+  if (!cfg.overlayScene) return clean;
+  const overlaid = new SceneRecorder(
+    obs,
+    { scene: cfg.overlayScene, sceneFilter: '', recordDir: cfg.recordDir, filePrefix: 'live' },
+    { log }
+  );
+  return new TwoSceneRecorder(clean, overlaid, { log });
 }
 
 async function render(cfg, target) {

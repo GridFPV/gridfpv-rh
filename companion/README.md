@@ -47,6 +47,22 @@ repository's releases page). Install it, and:
   looks. `sceneFilter` is only needed when the scene carries several filters; a scene with
   none gets one made, named "Source Record".
 
+**Race day (#105): record two scenes, render later.** Rendering on the race PC while it
+streams is the expensive part (a headless browser drawing frames into two ffmpeg encodes),
+so the profile has two more choices:
+
+- `overlayScene` — a second scene recorded alongside the clean one: the program with the
+  live overlay on it. Its file is renamed to the run's name at the save (`RaceGOW 6 Track 2
+Round 3.mkv`) and is the **finished video, free from OBS**, right as long as the laps
+  stand. The clean file stays beside it with the sidecar.
+- `renderWhen: "later"` (the default) — nothing renders on its own. A marshal that changes
+  a run's laps, a move of the overlay, or a run with no overlaid file marks the run **needs
+  a render**; the Session tab shows how many and has **Render all** (and Render per run), for
+  when the PC has the room. A render's composite takes the run's name and the file OBS made
+  moves to `superseded/` (never deleted). `"now"` renders after every save and marshal, as
+  before — right for a practice laptop with nothing else going on.
+- `videoEncoder` — `h264_nvenc`, `h264_qsv` or `h264_amf` when ffmpeg has it; x264 otherwise.
+
 The console form below does everything the window does, from a terminal; `gridfpv-video.cmd ui`
 (or `npx gridfpv-video serve --open`) opens the same window in a browser.
 
@@ -132,11 +148,20 @@ to check a frame by eye; Grid's Overlays page builds the link.
 
 ## How the picture lines up
 
-OBS made the recording, so nothing is recovered from pixels. At the start signal the
-companion reads how long OBS has been recording and how old the race is on the timer's own
-clock (sampled ten times at connect, median kept, like Grid's run page), and the difference
-is where the start sits in the file. The overlay is then drawn frame by frame at exactly
-that race time; the clock's tenths and each lap land on the frame they belong to.
+OBS made the recording, so nothing is recovered from pixels. The companion notes its own
+clock at the moment the output begins (file time zero — `OUTPUT_STARTED` for OBS's
+recording, the Source Record output listed and active for a scene) and converts the timer's
+start stamp to that clock (sampled ten times at connect, median kept, like Grid's run page);
+the difference is where the start sits in the file. Not the output's duration counter: that
+counts encoded frames and runs a second or more behind the file on x264 and NVENC (their
+lookahead and B-frame queues), which is where an early-by-a-second overlay came from. A
+recording already running at staging still has to use the counter, and the stop corrects it
+by the lag it measures (the file ends up longer than the counter said by exactly the frames
+that were still in the encoder). The overlay is then drawn frame by frame at exactly that
+race time, and composited in **linear light** as OBS composites its browser source, so a
+re-render is the same shade as the live one. The headless OBS in `make video-test` measures
+both — a time bar in the picture for the start, the live panel beside the rendered one for
+the shade — and the race day fails past 150 ms or a few levels of colour.
 
 ## Tests
 

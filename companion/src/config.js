@@ -28,6 +28,18 @@ export const DEFAULTS = Object.freeze({
   sceneFilter: '',
   /** Where Source Record writes; empty = the filter's own path, else OBS's recording folder. */
   recordDir: '',
+  /**
+   * A second scene recorded alongside the clean one (#105): the program with the live overlay
+   * on it. Its file is renamed to the run's name at the save — the finished video, free from
+   * OBS, right as long as the laps stand. Empty = clean only. Only with recordFrom 'scene'.
+   */
+  overlayScene: '',
+  /**
+   * When renders happen (#105): 'later' — never on their own; runs that need one (a marshal
+   * changed the laps, the placement moved, no overlaid file) are marked and rendered from the
+   * window, when the race PC has the room; 'now' — after every save and marshal, as before.
+   */
+  renderWhen: 'later',
   /** Where renders go; empty = beside the recording. */
   outDir: '',
   /** Seconds of recording kept after the race stops, so the last lap and the FINISHED clock are in the file. */
@@ -57,6 +69,8 @@ export const DEFAULTS = Object.freeze({
   browserChannel: 'chrome',
   /** x264 quality for the composite (lower is better/bigger). */
   crf: 18,
+  /** The composite's video encoder: 'libx264', or a hardware one ffmpeg has — 'h264_nvenc', 'h264_qsv', 'h264_amf'. */
+  videoEncoder: 'libx264',
   /** How the overlay is blended onto the recording: 'linear' (light, as OBS composites its browser source) or 'srgb' (on the encoded values). */
   blend: 'linear',
   /** Milliseconds between the timer's clock samples; ten are taken, the median kept, as Grid's run page does. */

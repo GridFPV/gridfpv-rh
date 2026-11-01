@@ -13,6 +13,8 @@
     tail: 'accent',
     waiting: 'warn',
     saved: 'info',
+    ready: 'success',
+    'needs render': 'warn',
     rendering: 'info',
     rendered: 'success'
   };
@@ -21,9 +23,13 @@
     tail: 'Finishing',
     waiting: 'Waiting for the save',
     saved: 'Saved',
+    ready: 'Ready (from OBS)',
+    'needs render': 'Needs a render',
     rendering: 'Rendering',
     rendered: 'Rendered'
   };
+  const needing = $derived(runs.filter((r) => r.state === 'needs render').length);
+  const rendering = $derived(runs.some((r) => r.state === 'rendering'));
   const base = (p: string | null | undefined) => (p ? p.split(/[\\/]/).pop() : '');
   const folder = (p: string) => p.replace(/[\\/][^\\/]*$/, '');
   const when = (iso: string | null | undefined) => {
@@ -58,6 +64,19 @@
 {/if}
 
 <Card title="Runs" subtitle={running ? `Profile “${running.profile}”` : undefined}>
+  {#snippet actions()}
+    {#if running && (needing || rendering)}
+      <Badge tone={needing ? 'warn' : 'info'} dot={rendering}
+        >{rendering ? 'Rendering…' : `${needing} need${needing === 1 ? 's' : ''} a render`}</Badge
+      >
+      <Button
+        size="sm"
+        disabled={!needing || ui.busy}
+        title="Render every run that needs one, one at a time — when this PC has the room"
+        onclick={() => act(() => api.renderAll())}>Render all</Button
+      >
+    {/if}
+  {/snippet}
   {#if !runs.length}
     <p class="muted">
       {running ? 'Nothing recorded yet this session. Stage a race on the timer.' : 'No session.'}
@@ -72,7 +91,11 @@
           <tr>
             <td>
               <div class="name">{title(r)}</div>
+              {#if r.deliverable}<div class="small">{base(r.deliverable)}</div>{/if}
               {#if r.recording}<div class="muted small">{base(r.recording)}</div>{/if}
+              {#if r.needs_render}<div class="muted small">
+                  needs a render: {r.needs_render}
+                </div>{/if}
             </td>
             <td
               ><Badge tone={TONE[r.state]} dot={r.state === 'recording' || r.state === 'rendering'}
@@ -95,7 +118,7 @@
               {/if}
               {#if r.sidecar && r.round != null && r.state !== 'rendering'}
                 <Button size="sm" variant="ghost" onclick={() => act(() => api.render(r.sidecar!))}
-                  >Render again</Button
+                  >{r.rendered_at ? 'Render again' : 'Render'}</Button
                 >
               {/if}
             </td>

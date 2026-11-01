@@ -13,8 +13,13 @@ import path from 'node:path';
 import { DEFAULTS } from './config.js';
 import { Obs } from './obs.js';
 import { Profiles } from './profiles.js';
-import { renderRun } from './render.js';
-import { SceneRecorder, SOURCE_RECORD_URL, sourceRecordLoaded } from './sceneRecord.js';
+import { renderRun, runTitle } from './render.js';
+import {
+  SceneRecorder,
+  SOURCE_RECORD_URL,
+  sourceRecordLoaded,
+  TwoSceneRecorder
+} from './sceneRecord.js';
 import { Session } from './session.js';
 import { Timer } from './timer.js';
 
@@ -30,6 +35,7 @@ export class Helper extends EventEmitter {
       Obs: deps.Obs ?? Obs,
       SceneRecorder: deps.SceneRecorder ?? SceneRecorder,
       render: deps.render ?? (({ cfg, data, log }) => renderRun({ cfg, data, log })),
+      title: deps.title ?? (({ cfg, data, log }) => runTitle({ cfg, data, log })),
       now: deps.now ?? (() => performance.now()),
       setTimeout: deps.setTimeout ?? setTimeout,
       clearTimeout: deps.clearTimeout ?? clearTimeout,
@@ -109,7 +115,25 @@ export class Helper extends EventEmitter {
     });
     obs.on?.('closed', () => this.setStatus('obs', { connected: false, recording: false }));
     await obs.connect();
-    const recorder = cfg.recordFrom === 'scene' ? new this.d.SceneRecorder(obs, cfg, { log }) : obs;
+    let recorder = obs;
+    if (cfg.recordFrom === 'scene') {
+      recorder = new this.d.SceneRecorder(obs, cfg, { log });
+      if (cfg.overlayScene)
+        recorder = new TwoSceneRecorder(
+          recorder,
+          new this.d.SceneRecorder(
+            obs,
+            {
+              scene: cfg.overlayScene,
+              sceneFilter: '',
+              recordDir: cfg.recordDir,
+              filePrefix: 'live'
+            },
+            { log }
+          ),
+          { log }
+        );
+    }
     const session = new Session(cfg, {
       timer,
       obs: recorder,
@@ -117,7 +141,8 @@ export class Helper extends EventEmitter {
       setTimeout: this.d.setTimeout,
       clearTimeout: this.d.clearTimeout,
       log,
-      render: ({ data }) => this.d.render({ cfg, data, log })
+      render: ({ data }) => this.d.render({ cfg, data, log }),
+      title: ({ data }) => this.d.title({ cfg, data, log })
     }).start();
     session.on('change', () => this.changed());
     this.running = {
@@ -178,7 +203,7 @@ export class Helper extends EventEmitter {
     if (session) {
       const data = session.known.get(sidecarFile);
       if (!data) throw new Error(`the running session does not know ${sidecarFile}`);
-      return session.queueRender(sidecarFile, data);
+      return session.renderNow(sidecarFile, data, 'asked for');
     }
     const { readSidecar, writeSidecar, lapsHash } = await import('./sidecar.js');
     const data = await readSidecar(sidecarFile);
@@ -188,6 +213,13 @@ export class Helper extends EventEmitter {
     data.rendered = { at: new Date().toISOString(), files: out.files };
     await writeSidecar(sidecarFile, data);
     return out;
+  }
+
+  /** Every run of the running session that needs a render, rendered — one at a time, in order. */
+  renderAll() {
+    const session = this.running?.session;
+    if (!session) throw new Error('no session is running');
+    return session.renderAll();
   }
 
   /** The settings form's vocabulary: every key, its default, and a short description. */
@@ -257,6 +289,15 @@ export const FIELDS = [
     when: { recordFrom: 'scene' }
   },
   {
+    key: 'overlayScene',
+    label: 'Overlaid scene to record as well',
+    help: 'The program with the live overlay on it: its file becomes the finished video at the save, free from OBS; the clean one stays for a re-render if the laps change. Blank: clean only',
+    group: 'Recording',
+    type: 'text',
+    choices: 'scenes',
+    when: { recordFrom: 'scene' }
+  },
+  {
     key: 'sceneFilter',
     label: 'Source Record filter on that scene',
     help: 'Only when the scene carries more than one; otherwise the one it has is used, or Source Record makes one',
@@ -297,6 +338,17 @@ export const FIELDS = [
     label: 'Move a discarded run to trash/',
     group: 'Recording',
     type: 'boolean'
+  },
+  {
+    key: 'renderWhen',
+    label: 'Render',
+    help: 'Later: nothing renders on its own — runs that need one (a marshal changed the laps, the placement moved, no overlaid file) are marked and rendered from this window when the PC has the room. Now: after every save and marshal, on the race PC',
+    group: 'Renders',
+    type: 'select',
+    options: [
+      { value: 'later', label: 'Later, when I say (race day)' },
+      { value: 'now', label: 'Now, after every save and marshal' }
+    ]
   },
   {
     key: 'outDir',
@@ -354,6 +406,19 @@ export const FIELDS = [
     type: 'number',
     min: 0,
     max: 51
+  },
+  {
+    key: 'videoEncoder',
+    label: 'Video encoder for the composite',
+    help: 'A hardware encoder, when ffmpeg has it, costs the PC far less than x264',
+    group: 'Renders',
+    type: 'select',
+    options: [
+      { value: 'libx264', label: 'x264 (software)' },
+      { value: 'h264_nvenc', label: 'NVIDIA NVENC' },
+      { value: 'h264_qsv', label: 'Intel Quick Sync' },
+      { value: 'h264_amf', label: 'AMD AMF' }
+    ]
   },
   {
     key: 'blend',

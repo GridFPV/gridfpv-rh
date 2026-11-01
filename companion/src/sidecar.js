@@ -77,7 +77,13 @@ export async function trashRecording(sidecarFile, data) {
   const dir = path.dirname(sidecarFile);
   const trash = path.join(dir, 'trash');
   await fs.mkdir(trash, { recursive: true });
-  const files = [data.recording, sidecarFile, ...(data.rendered?.files ?? [])].filter(Boolean);
+  const files = [
+    data.recording,
+    data.overlaid_recording,
+    data.deliverable,
+    sidecarFile,
+    ...(data.rendered?.files ?? [])
+  ].filter(Boolean);
   const moved = [];
   for (const f of files) {
     const abs = path.isAbsolute(f) ? f : path.join(dir, f);
@@ -104,4 +110,14 @@ export async function freeName(file) {
       return candidate;
     }
   }
+}
+
+/** Move a file out of the way into `superseded/` beside it (a render replaced it); returns where. */
+export async function supersede(file) {
+  const dir = path.dirname(file);
+  const keep = path.join(dir, 'superseded');
+  await fs.mkdir(keep, { recursive: true });
+  const dest = await freeName(path.join(keep, path.basename(file)));
+  await fs.rename(file, dest);
+  return dest;
 }

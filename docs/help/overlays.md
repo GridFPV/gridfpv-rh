@@ -49,4 +49,7 @@ Both carry their own Node and JavaScript, fetch ffmpeg once on first run, and dr
 with Edge. **What records each run** is a profile choice: OBS's own recording, started and
 stopped per run (a session where nothing else is being recorded), or a **clean scene of its
 own** through the Source Record filter, so OBS can stream the program and record the whole
-day while every run still lands in a clean file. Details in the companion's README.
+day while every run still lands in a clean file. On a race day a **second, overlaid scene**
+can be recorded too: its file becomes the finished video at the save, free from OBS, and
+nothing renders until you ask — a marshal only marks the run, and **Render all** in the
+helper does the rendering when the PC has the room. Details in the companion's README.

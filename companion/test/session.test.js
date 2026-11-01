@@ -149,6 +149,7 @@ test('staging starts the recording, the start is pinned by elapsed time, the sto
   await advance(300);
   assert.ok(timer.asked >= 1, 'asked RotorHazard for the saved races after Ready');
   timer.emit('race_list', timer.raceList);
+  await s.tasks; // the save names the run first, then renders
   await s.renderQueue;
   await tick();
   assert.equal(renders.length, 1);
@@ -279,4 +280,112 @@ test('a placement change re-renders the known runs even when the baseline arrive
   await tick();
   await s.renderQueue;
   assert.equal(renders.length, 1);
+});
+
+test("render later (#105): the overlaid file takes the run's name at the save, a marshal only marks the run, Render all renders and supersedes", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'gridfpv-later-'));
+  const { timer, obs, deps, renders, advance, tick } = rig();
+  obs.file = path.join(dir, 'clean heat 4.mkv');
+  const overlaid = path.join(dir, 'live heat 4.mkv');
+  await fs.writeFile(obs.file, '');
+  await fs.writeFile(overlaid, 'overlaid');
+  obs.stopRecord = async () => {
+    obs.active = false;
+    return { file: obs.file, overlaid };
+  };
+  const titles = [];
+  deps.title = async ({ data }) => {
+    titles.push(data.round);
+    return { title: `RaceGOW 6 Track 2 Round ${data.round}`, lapStamps: [2000, 3600], look: 'L1' };
+  };
+  deps.render = async ({ data }) => {
+    renders.push({ ...data });
+    const out = path.join(dir, 'RaceGOW 6 Track 2 Round 7.mp4');
+    await fs.writeFile(out, 'rendered');
+    return { title: 'RaceGOW 6 Track 2 Round 7', look: 'L1', lapStamps: [2000], files: [out] };
+  };
+  const s = new Session(
+    { tailSeconds: 1, discardAfterSeconds: 5, trashDiscarded: true, renderWhen: 'later' },
+    deps
+  ).start();
+  timer.emit('stage_ready', {
+    status: 3,
+    heatId: 4,
+    nextRound: 7,
+    startsAt: 602.5,
+    stagingAt: 600
+  });
+  await tick();
+  await advance(2500);
+  timer.emit('race_status', {
+    status: 1,
+    heatId: 4,
+    nextRound: 7,
+    startsAt: 602.5,
+    stagingAt: 600
+  });
+  await tick();
+  await advance(10_000);
+  timer.emit('race_status', {
+    status: 2,
+    heatId: 4,
+    nextRound: 7,
+    startsAt: 602.5,
+    stagingAt: 600
+  });
+  await tick();
+  await advance(1100);
+  await tick();
+  timer.raceList = [
+    { heatId: 4, rounds: [{ round: 7, raceId: 70, pilotraces: [{ pilotraceId: 1 }] }] }
+  ];
+  timer.races = {
+    1: {
+      pilotraceId: 1,
+      pilotId: 1,
+      laps: [
+        { stampMs: 0, deleted: false },
+        { stampMs: 2000, deleted: false },
+        { stampMs: 3600, deleted: false }
+      ]
+    }
+  };
+  timer.emit('race_status', { status: 0, heatId: 4, nextRound: 8 });
+  await advance(300);
+  timer.emit('race_list', timer.raceList);
+  await s.tasks;
+  await tick();
+  // Named from the page, the overlaid file renamed to it, nothing rendered.
+  assert.deepEqual(titles, [7]);
+  assert.equal(renders.length, 0);
+  const side = sidecarPathFor(obs.file);
+  let data = await readSidecar(side);
+  assert.equal(data.name, 'RaceGOW 6 Track 2 Round 7');
+  assert.equal(data.deliverable, path.join(dir, 'RaceGOW 6 Track 2 Round 7.mkv'));
+  assert.equal(data.overlaid_recording, data.deliverable);
+  assert.equal(data.needs_render, null);
+  assert.ok((await fs.readdir(dir)).includes('RaceGOW 6 Track 2 Round 7.mkv'));
+  assert.equal(s.runs().find((r) => r.round === 7).state, 'ready');
+
+  // A marshal: the laps differ from the hash taken at the save → marked, still not rendered.
+  timer.races[1].laps[1].deleted = true;
+  timer.emit('result_data');
+  await new Promise((r) => setTimeout(r, 1700));
+  await tick();
+  assert.equal(renders.length, 0);
+  data = await readSidecar(side);
+  assert.equal(data.needs_render, 'the laps changed');
+  assert.equal(s.runs().find((r) => r.round === 7).state, 'needs render');
+
+  // Render all: rendered, the OBS file superseded, the composite now the finished video.
+  await s.renderAll();
+  await tick();
+  assert.equal(renders.length, 1);
+  data = await readSidecar(side);
+  assert.equal(data.needs_render, null);
+  assert.equal(data.deliverable, path.join(dir, 'RaceGOW 6 Track 2 Round 7.mp4'));
+  assert.deepEqual(await fs.readdir(path.join(dir, 'superseded')), [
+    'RaceGOW 6 Track 2 Round 7.mkv'
+  ]);
+  assert.equal(s.runs().find((r) => r.round === 7).state, 'rendered');
 });

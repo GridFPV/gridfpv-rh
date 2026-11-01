@@ -120,7 +120,21 @@ export function compositeFilter(blend = 'linear') {
   ].join(';');
 }
 
-export function compositeArgs({ fps, recording, out, crf, blend = 'linear' }) {
+/** The encoder's arguments at a given quality: CRF for x264, its nearest cousin elsewhere. */
+export function encoderArgs(encoder, crf) {
+  switch (encoder) {
+    case 'h264_nvenc':
+      return ['-c:v', 'h264_nvenc', '-preset', 'p4', '-rc', 'vbr', '-cq', String(crf), '-b:v', '0'];
+    case 'h264_qsv':
+      return ['-c:v', 'h264_qsv', '-global_quality', String(crf), '-look_ahead', '0'];
+    case 'h264_amf':
+      return ['-c:v', 'h264_amf', '-rc', 'cqp', '-qp_i', String(crf), '-qp_p', String(crf)];
+    default:
+      return ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(crf)];
+  }
+}
+
+export function compositeArgs({ fps, recording, out, crf, blend = 'linear', videoEncoder }) {
   return [
     '-y',
     '-hide_banner',
@@ -140,12 +154,7 @@ export function compositeArgs({ fps, recording, out, crf, blend = 'linear' }) {
     '[v]',
     '-map',
     '0:a?',
-    '-c:v',
-    'libx264',
-    '-preset',
-    'veryfast',
-    '-crf',
-    String(crf),
+    ...encoderArgs(videoEncoder, crf),
     '-pix_fmt',
     'yuv420p',
     '-c:a',

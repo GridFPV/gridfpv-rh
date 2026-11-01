@@ -6,10 +6,19 @@
  * trashes. Everything with a side effect is injected, so the whole loop runs in a test.
  */
 import { EventEmitter } from 'node:events';
+import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { raceStartInRecording } from './clock.js';
 import { probeDuration } from './render.js';
-import { lapsHash, listSidecars, sidecarPathFor, trashRecording, writeSidecar } from './sidecar.js';
+import {
+  lapsHash,
+  listSidecars,
+  safeFileName,
+  sidecarPathFor,
+  supersede,
+  trashRecording,
+  writeSidecar
+} from './sidecar.js';
 import { RACE, roundsOf, scoredStamps } from './timer.js';
 
 export class Session extends EventEmitter {
@@ -17,6 +26,7 @@ export class Session extends EventEmitter {
    * @param deps.timer   a Timer (events race_status/stage_ready/race_list/result_data/races_deleted; localMs(); pilotRace(); raceList)
    * @param deps.obs     recordStatus()/startRecord()/stopRecord()
    * @param deps.render  async ({sidecarFile, data}) => { files, lapStamps, title }
+   * @param deps.title   async ({data}) => { title, lapStamps, look } — the run's name without a render (#105)
    * @param deps.now     performance.now()
    * @param deps.setTimeout/clearTimeout  for the tail and the discard wait (fakeable)
    */
@@ -63,11 +73,22 @@ export class Session extends EventEmitter {
       });
     for (const [file, data] of this.known)
       out.push({
-        state: this.rendering.has(file) ? 'rendering' : data.rendered ? 'rendered' : 'saved',
+        state: this.rendering.has(file)
+          ? 'rendering'
+          : data.needs_render
+            ? 'needs render'
+            : data.rendered
+              ? 'rendered'
+              : data.deliverable
+                ? 'ready'
+                : 'saved',
         heat_id: data.heat_id,
         round: data.round,
         name: data.name,
         recording: data.recording,
+        overlaid: data.overlaid_recording ?? null,
+        deliverable: data.deliverable ?? null,
+        needs_render: data.needs_render ?? null,
         sidecar: file,
         started_at: data.recorded_at ?? null,
         rendered_at: data.rendered?.at ?? null,
@@ -219,8 +240,10 @@ export class Session extends EventEmitter {
       const st = await this.d.obs.recordStatus();
       const counterMs = st.durationMs;
       rec.durationMs = counterMs;
-      const file = await this.d.obs.stopRecord();
+      const stopped = await this.d.obs.stopRecord();
+      const file = typeof stopped === 'string' || stopped == null ? stopped : stopped.file;
       rec.recording = file;
+      rec.overlaid = typeof stopped === 'object' && stopped ? (stopped.overlaid ?? null) : null;
       // The file's own length wins; the difference from the counter is the encoder's lag
       // (frames still queued when the counter was read, flushed into the file at the stop).
       const probed = this.cfg.ffmpeg ? await probeDuration(this.cfg, file) : null;
@@ -246,6 +269,9 @@ export class Session extends EventEmitter {
     const sidecarFile = sidecarPathFor(rec.recording);
     const data = {
       recording: rec.recording,
+      overlaid_recording: rec.overlaid ?? null,
+      deliverable: null,
+      needs_render: null,
       heat_id: rec.heatId,
       round: null,
       race_id: null,
@@ -281,10 +307,8 @@ export class Session extends EventEmitter {
       rec.data.round = round.round;
       rec.data.race_id = round.raceId;
       this.known.set(rec.sidecarFile, rec.data);
-      this.log(
-        `run saved: heat ${rec.heatId} round ${round.round} (race ${round.raceId}) → render`
-      );
-      this.queueRender(rec.sidecarFile, rec.data);
+      this.log(`run saved: heat ${rec.heatId} round ${round.round} (race ${round.raceId})`);
+      this.tasks = this.tasks.then(() => this.onSaved(rec.sidecarFile, rec.data));
       this.changed();
     }
     // A round that is gone (the plugin's delete, #36): its recording and renders go to trash.
@@ -304,6 +328,68 @@ export class Session extends EventEmitter {
           );
       }
     }
+  }
+
+  /**
+   * A run has its round (#105): name it as the overlay page would; an overlaid recording takes
+   * that name and is the finished video; then render now, or only mark what needs one.
+   */
+  async onSaved(sidecarFile, data) {
+    try {
+      if (this.d.title && (data.overlaid_recording || this.cfg.renderWhen === 'later')) {
+        const t = await this.d.title({ sidecarFile, data });
+        data.name = t.title ?? data.name;
+        // The laps and the look as they stand: a later marshal or move is judged against these.
+        if (t.lapStamps) data.laps_hash = lapsHash(t.lapStamps);
+        if (t.look) data.look = t.look;
+      }
+      if (data.overlaid_recording && data.name) {
+        const dir = path.dirname(data.overlaid_recording);
+        const ext = path.extname(data.overlaid_recording);
+        const dest = path.join(dir, safeFileName(data.name) + ext);
+        if (dest !== data.overlaid_recording) {
+          await fs.rename(data.overlaid_recording, dest);
+          data.overlaid_recording = dest;
+        }
+        data.deliverable = dest;
+        this.log(`finished video from OBS: ${path.basename(dest)}`);
+      }
+      await writeSidecar(sidecarFile, data);
+    } catch (e) {
+      this.log(`could not name the run: ${e.message}`);
+    }
+    if (this.cfg.renderWhen === 'later') {
+      if (!data.deliverable) await this.markNeedsRender(sidecarFile, data, 'no overlaid recording');
+    } else void this.queueRender(sidecarFile, data);
+    this.changed();
+  }
+
+  async markNeedsRender(sidecarFile, data, why) {
+    data.needs_render = why;
+    await writeSidecar(sidecarFile, data).catch(() => {});
+    this.log(
+      `needs a render (${why}): heat ${data.heat_id} round ${data.round} — render it from the window`
+    );
+    this.changed();
+  }
+
+  /** Render this run now, whatever `renderWhen` says. */
+  renderNow(sidecarFile, data, why = 'asked for') {
+    return this.queueRender(sidecarFile, data, why, true);
+  }
+
+  /** Every known run that needs a render, in the order they were recorded. */
+  renderAll() {
+    const todo = [...this.known]
+      .filter(([, d]) => d.round != null && (d.needs_render || (!d.rendered && !d.deliverable)))
+      .sort(([, a], [, b]) =>
+        String(a.recorded_at ?? '').localeCompare(String(b.recorded_at ?? ''))
+      );
+    this.log(`render all: ${todo.length} run(s)`);
+    let last = Promise.resolve();
+    for (const [file, data] of todo)
+      last = this.renderNow(file, data, data.needs_render ?? 'never rendered');
+    return last;
   }
 
   async discard(rec) {
@@ -331,7 +417,16 @@ export class Session extends EventEmitter {
   }
 
   // ---- renders ----
-  queueRender(sidecarFile, data) {
+  /**
+   * Render, or — with `renderWhen: 'later'` and not forced — only mark that one is needed.
+   * A render that produces the finished video supersedes the one OBS made (moved to
+   * `superseded/`, never deleted).
+   */
+  queueRender(sidecarFile, data, why = 'saved', force = false) {
+    if (this.cfg.renderWhen === 'later' && !force) {
+      void this.markNeedsRender(sidecarFile, data, why);
+      return this.renderQueue;
+    }
     this.rendering.add(sidecarFile);
     this.changed();
     this.renderQueue = this.renderQueue
@@ -342,6 +437,19 @@ export class Session extends EventEmitter {
         data.laps_hash = lapsHash(r.lapStamps);
         if (r.look) data.look = r.look;
         data.rendered = { at: new Date().toISOString(), files: r.files };
+        data.needs_render = null;
+        const composite = r.files.find((f) => /\.mp4$/i.test(f));
+        if (composite) {
+          if (data.deliverable && data.deliverable !== composite) {
+            const kept = await supersede(data.deliverable).catch((e) => {
+              this.log(`could not move the superseded file: ${e.message}`);
+              return null;
+            });
+            if (kept) this.log(`superseded: ${path.basename(data.deliverable)} → superseded/`);
+            if (data.overlaid_recording === data.deliverable) data.overlaid_recording = kept;
+          }
+          data.deliverable = composite;
+        }
         await writeSidecar(sidecarFile, data);
         this.log(`rendered: ${r.files.map((f) => path.basename(f)).join(', ')}`);
       })
@@ -362,8 +470,8 @@ export class Session extends EventEmitter {
     if (look === this.look) return;
     this.look = look;
     const stale = [...this.known].filter(([, data]) => data.round != null && data.look !== look);
-    this.log(`overlay placement changed → re-render ${stale.length} run(s)`);
-    for (const [file, data] of stale) void this.queueRender(file, data);
+    this.log(`overlay placement changed → ${stale.length} run(s) to render again`);
+    for (const [file, data] of stale) void this.queueRender(file, data, 'the overlay moved');
   }
 
   /** Results changed (a marshal, somewhere): re-render every known run whose laps differ from what was rendered. */
@@ -384,8 +492,9 @@ export class Session extends EventEmitter {
         for (const pr of round.pilotraces) prs.push(await this.d.timer.pilotRace(pr.pilotraceId));
         const hash = lapsHash(scoredStamps(prs, data.first_lap_counts));
         if (hash !== data.laps_hash) {
-          this.log(`laps changed for heat ${data.heat_id} round ${data.round} → re-render`);
-          await this.queueRender(file, data);
+          this.log(`laps changed for heat ${data.heat_id} round ${data.round}`);
+          data.laps_hash_pending = hash;
+          await this.queueRender(file, data, 'the laps changed');
         }
       } catch (e) {
         this.log(`could not check heat ${data.heat_id} round ${data.round}: ${e.message}`);
