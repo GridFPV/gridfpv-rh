@@ -74,6 +74,35 @@ jobs:
         shell: bash
         run: ls -la helper/src-tauri/target/release/bundle/nsis/
 
+      # Does it start? The build proves it compiles and bundles, not that the shell finds its
+      # sidecar and resources (Tauri lays them out beside the unbundled exe too). The app must
+      # start node, which must print its address, and the API must answer with the version.
+      - name: Smoke-test the built app (does it start and serve?)
+        shell: bash
+        run: |
+          set -uo pipefail
+          BIN="helper/src-tauri/target/release/gridfpv-video.exe"
+          LOG="$LOCALAPPDATA/org.gridfpv.video/logs/helper.log"
+          rm -f "$LOG"
+          "$BIN" & APP=$!
+          for _ in $(seq 1 45); do
+            sleep 1
+            grep -qs "listening http" "$LOG" && break
+          done
+          if ! grep -qs "listening http" "$LOG"; then
+            echo "::error::gridfpv-video never wrote its listening line — the sidecar did not come up"
+            cat "$LOG" 2>/dev/null || echo "(no log at $LOG)"
+            exit 1
+          fi
+          url=$(grep -o 'listening http://[^ ]*' "$LOG" | tail -1 | cut -d' ' -f2)
+          echo "sidecar at $url"
+          curl -fsS "$url/api/status" | tee status.json
+          grep -q '"version":"' status.json || { echo "::error::the API did not answer with a version"; exit 1; }
+          curl -fsS "$url/" | grep -q "GridFPV Video" || { echo "::error::the window's page is not served"; exit 1; }
+          taskkill //F //T //IM gridfpv-video.exe >/dev/null 2>&1 || true
+          taskkill //F //IM node.exe >/dev/null 2>&1 || true
+          echo "--- helper.log ---"; cat "$LOG"
+
       - uses: actions/upload-artifact@v4
         with:
           name: gridfpv-video-windows-installer
