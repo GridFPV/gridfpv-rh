@@ -5,13 +5,14 @@
  * discard, and the recording goes to trash; a changed result re-renders; a deleted round
  * trashes. Everything with a side effect is injected, so the whole loop runs in a test.
  */
+import { EventEmitter } from 'node:events';
 import path from 'node:path';
 import { raceStartInRecording } from './clock.js';
 import { probeDuration } from './render.js';
 import { lapsHash, listSidecars, sidecarPathFor, trashRecording, writeSidecar } from './sidecar.js';
 import { RACE, roundsOf, scoredStamps } from './timer.js';
 
-export class Session {
+export class Session extends EventEmitter {
   /**
    * @param deps.timer   a Timer (events race_status/stage_ready/race_list/result_data/races_deleted; localMs(); pilotRace(); raceList)
    * @param deps.obs     recordStatus()/startRecord()/stopRecord()
@@ -20,6 +21,7 @@ export class Session {
    * @param deps.setTimeout/clearTimeout  for the tail and the discard wait (fakeable)
    */
   constructor(cfg, deps) {
+    super();
     this.cfg = cfg;
     this.d = deps;
     this.log = deps.log ?? (() => {});
@@ -29,6 +31,49 @@ export class Session {
     /** Trash moves, in order; tests await it. */
     this.tasks = Promise.resolve();
     this.known = new Map(); // sidecar file → data, for re-renders and trashing
+    this.rendering = new Set(); // sidecar files with a render under way
+  }
+
+  changed() {
+    this.emit('change');
+  }
+
+  /** Every run this session knows, newest first, with where it stands — for a window. */
+  runs() {
+    const out = [];
+    if (this.recording)
+      out.push({
+        state: this.recording.endMs == null ? 'recording' : 'tail',
+        heat_id: this.recording.heatId,
+        round: null,
+        name: null,
+        recording: null,
+        sidecar: null,
+        started_at: this.recording.startedAt
+      });
+    for (const rec of this.pending)
+      out.push({
+        state: 'waiting',
+        heat_id: rec.heatId,
+        round: null,
+        name: null,
+        recording: rec.recording,
+        sidecar: rec.sidecarFile,
+        started_at: rec.startedAt
+      });
+    for (const [file, data] of this.known)
+      out.push({
+        state: this.rendering.has(file) ? 'rendering' : data.rendered ? 'rendered' : 'saved',
+        heat_id: data.heat_id,
+        round: data.round,
+        name: data.name,
+        recording: data.recording,
+        sidecar: file,
+        started_at: data.recorded_at ?? null,
+        rendered_at: data.rendered?.at ?? null,
+        files: data.rendered?.files ?? []
+      });
+    return out.sort((a, b) => String(b.started_at ?? '').localeCompare(String(a.started_at ?? '')));
   }
 
   start() {
@@ -46,6 +91,7 @@ export class Session {
   async adopt(dir) {
     for (const s of await listSidecars(dir, this.log)) this.known.set(s.file, s.data);
     this.log(`adopted ${this.known.size} sidecar(s) from ${dir}`);
+    this.changed();
   }
 
   // ---- recording ----
@@ -74,6 +120,7 @@ export class Session {
       this.log(`recording: OBS refused to start: ${e.message}`);
       this.recording = null;
     }
+    this.changed();
   }
 
   async onRaceStatus(race) {
@@ -94,6 +141,7 @@ export class Session {
         `race: stopped at ${rec.endMs == null ? '?' : (rec.endMs / 1000).toFixed(1)} s; recording ${this.cfg.tailSeconds} s more`
       );
       this.d.setTimeout(() => this.finishRecording(rec), this.cfg.tailSeconds * 1000);
+      this.changed();
     }
   }
 
@@ -153,6 +201,7 @@ export class Session {
     } catch (e) {
       this.log(`recording: could not stop: ${e.message}`);
       this.recording = null;
+      this.changed();
       return;
     }
     const sidecarFile = sidecarPathFor(rec.recording);
@@ -173,6 +222,7 @@ export class Session {
     rec.data = data;
     this.pending.push(rec);
     this.recording = null;
+    this.changed();
     // The save may already have been listed while the tail ran — or not asked for yet.
     this.onRaceList(this.d.timer.raceList);
     this.askRaceList();
@@ -194,6 +244,7 @@ export class Session {
         `run saved: heat ${rec.heatId} round ${round.round} (race ${round.raceId}) → render`
       );
       this.queueRender(rec.sidecarFile, rec.data);
+      this.changed();
     }
     // A round that is gone (the plugin's delete, #36): its recording and renders go to trash.
     for (const [file, data] of [...this.known]) {
@@ -203,6 +254,7 @@ export class Session {
       );
       if (!still) {
         this.known.delete(file);
+        this.changed();
         if (this.cfg.trashDiscarded)
           this.tasks = this.tasks.then(() => this.trash(file, data, 'round deleted'));
         else
@@ -223,6 +275,7 @@ export class Session {
     this.pending = this.pending.filter((x) => x !== rec);
     if (this.cfg.trashDiscarded) await this.trash(rec.sidecarFile, rec.data, 'run discarded');
     else this.log(`run discarded: ${rec.recording} kept (trashDiscarded is off)`);
+    this.changed();
   }
 
   async trash(sidecarFile, data, why) {
@@ -238,6 +291,8 @@ export class Session {
 
   // ---- renders ----
   queueRender(sidecarFile, data) {
+    this.rendering.add(sidecarFile);
+    this.changed();
     this.renderQueue = this.renderQueue
       .then(() => this.d.render({ sidecarFile, data }))
       .then(async (r) => {
@@ -249,7 +304,11 @@ export class Session {
         await writeSidecar(sidecarFile, data);
         this.log(`rendered: ${r.files.map((f) => path.basename(f)).join(', ')}`);
       })
-      .catch((e) => this.log(`render failed for ${path.basename(sidecarFile)}: ${e.message}`));
+      .catch((e) => this.log(`render failed for ${path.basename(sidecarFile)}: ${e.message}`))
+      .finally(() => {
+        this.rendering.delete(sidecarFile);
+        this.changed();
+      });
     return this.renderQueue;
   }
 

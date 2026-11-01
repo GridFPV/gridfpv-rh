@@ -2,22 +2,25 @@
   "name": "@gridfpv/rh-frontend",
   "version": "0.0.0",
   "private": true,
-  "description": "GridFPV for RotorHazard — frontend workspace (component library + the plugin UI).",
+  "description": "GridFPV for RotorHazard \u2014 frontend workspace (component library + the plugin UI).",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "workspaces": [
     "packages/components",
     "apps/plugin-ui",
+    "apps/video-ui",
     "e2e"
   ],
   "scripts": {
-    "build": "npm run build --workspace @gridfpv/components && npm run build --workspace @gridfpv/plugin-ui",
+    "build": "npm run build --workspace @gridfpv/components && npm run build --workspace @gridfpv/plugin-ui && npm run build --workspace @gridfpv/video-ui",
     "check": "npm run check --workspaces --if-present",
     "test": "npm test --workspaces --if-present",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "dev": "npm run dev --workspace @gridfpv/plugin-ui",
-    "e2e": "npm run e2e --workspace @gridfpv/e2e"
+    "e2e": "npm run e2e --workspace @gridfpv/e2e",
+    "build:video": "npm run build --workspace @gridfpv/components && npm run build --workspace @gridfpv/video-ui",
+    "dev:video": "npm run dev --workspace @gridfpv/video-ui"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

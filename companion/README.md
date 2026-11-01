@@ -1,17 +1,51 @@
-# gridfpv-video — the RaceGOW video companion
+# gridfpv-video — the GridFPV video companion
 
 A small program for the **OBS machine** (not the timer). It listens to RotorHazard, has OBS
 record each run clean, writes down where the start signal sits in the file, and after every
 save — and again after every marshal — renders the corrected overlay onto the recording.
 The finished file just appears: `RaceGOW 2 Track 4 Round 7.mp4`, with `… overlay.webm`
 (the overlay alone, with alpha) beside it for a vertical cut in Resolve. It never uploads
-anything. Design and reasons: GridFPV/gridfpv-rh#96.
+anything. Design and reasons: GridFPV/gridfpv-rh#96; the window and the independent
+recording: #99, #98 (plan: #101).
+
+## The window: GridFPV Video
+
+The same pipeline behind a small desktop app (`helper/`, Tauri 2; the installer for Windows
+is built by GitHub Actions — `.github/workflows/helper-windows.yml` — and published on the
+repository's releases page). Install it, and:
+
+- **Profiles** (the Profiles tab): a named set of settings, kept per user in
+  `%APPDATA%\GridFPV Video\profiles\*.json` — the timer, OBS, what records each run, where
+  files go, the look of the render. Add, duplicate, rename, delete; the last one used starts
+  selected. A `gridfpv-video.json` beside the console program is imported as the first
+  profile.
+- **Start / Stop** in the header with the profile to use; two pills say whether the timer
+  is synced and OBS is connected.
+- **Session** shows every run this session knows — recording, finishing, waiting for the
+  save, saved, rendering, rendered — with _Open folder_ and _Render again_, and the log.
+
+**What records each run** (`recordFrom`):
+
+- `obs` — OBS's own Record output, started on staging and stopped after the tail. Right for
+  a practice session where nothing else is being recorded.
+- `scene` — a scene of your own (`scene`, e.g. `Clean`: the capture feed, no overlay),
+  recorded by exeldro's **[Source Record](https://obsproject.com/forum/resources/source-record.1285/)**
+  filter to its own file, while OBS's Stream and Record outputs run untouched. The
+  race-day shape: OBS streams the program and records the whole day, and every run still
+  lands in a clean file. Install Source Record in OBS (0.4.8 or newer; OBS 30–33), add the
+  filter to the scene (set its encoder and folder there), name the scene in the profile.
+  The helper starts and stops it over obs-websocket (`source-record` vendor requests) and
+  names the files `clean heat N <date time>.<ext>`; `sceneFilter` and `recordDir` are only
+  needed when the scene has several filters or you want the files elsewhere.
+
+The console form below does everything the window does, from a terminal; `gridfpv-video.cmd ui`
+(or `npx gridfpv-video serve --open`) opens the same window in a browser.
 
 ## What it does on race day
 
 | Timer says                     | Companion does                                                                              |
 | ------------------------------ | ------------------------------------------------------------------------------------------- |
-| Staging                        | starts the OBS recording (unless one is already on)                                         |
+| Staging                        | starts the recording — OBS's own, or the clean scene's (Source Record) — unless one is on   |
 | Start                          | notes how far into the recording the start signal is (the timer's clock, synced)            |
 | Stop                           | records a few more seconds, stops OBS, writes `<recording>.gridfpv.json`                    |
 | Round saved                    | names the run from the timer (`RaceGOW {season} {track} Round {round}`) and renders         |

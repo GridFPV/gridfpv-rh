@@ -19,7 +19,7 @@ COMPOSE     := docker compose -f dev/docker-compose.yml
 RH_VERSION  ?= 4.4.0
 RH_SRC      := dev/rh-src/$(RH_VERSION)
 
-.PHONY: help setup build check lint format test py-test zip zip-overlay deploy deploy-overlay clean ci \
+.PHONY: help setup build check lint format test py-test zip zip-overlay deploy deploy-overlay clean ci helper-stage \
         rig-up rig-down rig-restart rig-logs dev e2e e2e-install e2e-docker coverage coverage-scrape rig-main-up rig-main-down e2e-main check-offline
 
 help: ## Show this help
@@ -38,6 +38,9 @@ $(VENV)/.ok: plugin/requirements-dev.txt
 build: companion-dist ## Build the SPA into $(STATIC_DIR), with the video companion's Windows zip under downloads/
 	cd frontend && npm run build
 	mkdir -p $(STATIC_DIR)/downloads && cp companion/dist/gridfpv-video-win64.zip $(STATIC_DIR)/downloads/
+
+helper-stage: ## Stage what the desktop helper bundles (companion + node.exe) for `tauri build` (#99; CI does this on Windows)
+	python3 -I dev/stage_helper.py
 
 companion-dist: ## Package the video companion for Windows (carries node.exe and its JavaScript; see dev/package_companion.py)
 	python3 -I dev/package_companion.py companion companion/dist/gridfpv-video-win64.zip

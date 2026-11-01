@@ -58,6 +58,10 @@ def main(companion: str, out: str) -> None:
         for name in SHIP:
             shutil.copy(os.path.join(companion, name), root)
         shutil.copytree(os.path.join(companion, "src"), os.path.join(root, "src"))
+        # The helper's window (#99), if built: `gridfpv-video.cmd ui` serves it in the browser.
+        ui = os.path.join(companion, "ui")
+        if os.path.isfile(os.path.join(ui, "index.html")):
+            shutil.copytree(ui, os.path.join(root, "ui"))
         subprocess.run(["npm", "ci", "--omit=dev", "--no-fund", "--no-audit", "--ignore-scripts"], cwd=root, check=True)
         with zipfile.ZipFile(node_zip) as z:
             for info in z.infolist():

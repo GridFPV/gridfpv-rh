@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "GridFPV Video",
+  "version": "0.11.0",
+  "identifier": "org.gridfpv.video",
+  "build": {
+    "frontendDist": "../shell-ui"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "externalBin": ["binaries/node"],
+    "resources": {
+      "resources/companion/": "companion/"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Video",
+    "shortDescription": "GridFPV Video — records each run clean in OBS and renders the corrected overlay onto it.",
+    "longDescription": "GridFPV Video listens to a RotorHazard timer running the GridFPV plugin, has OBS record each run clean (its own recording, or a dedicated scene through the Source Record filter while OBS streams and records the whole day), writes down where the start signal sits in the file, and renders the corrected overlay onto the recording after every save and marshal. Profiles keep the settings per event. Nothing is uploaded.",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["English"]
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The window loads the sidecar's own page over loopback HTTP and talks to its API there; it needs no Tauri JS surface.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

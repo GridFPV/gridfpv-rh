@@ -73,6 +73,8 @@
   let replaySeconds = $state('0');
   /** The companion's Windows zip, shipped inside the plugin (#96). */
   const downloadUrl = `${BASE}/downloads/gridfpv-video-win64.zip`;
+  /** The desktop helper's installer (#99) is built per platform by GitHub Actions, so it lives on the releases page. */
+  const releasesUrl = 'https://github.com/GridFPV/gridfpv-rh/releases';
   const replayUrl = $derived(
     replayRace
       ? overlayUrl(window.location.origin, 'race', themes.race) +
@@ -312,23 +314,33 @@
         <p class="muted">
           The program for the <strong>OBS machine</strong> that records each run clean, and puts the corrected
           overlay on the recording after every save and marshal — the finished file just appears. It carries
-          everything it needs; ffmpeg is fetched once on first run.
+          everything it needs; ffmpeg is fetched once on first run. Two forms of the same program:
         </p>
         <div class="actions">
-          <a class="download" href={downloadUrl} download>Download for Windows (zip)</a>
+          <a class="download" href={releasesUrl} target="_blank" rel="noopener"
+            >GridFPV Video for Windows (installer, from the releases page)</a
+          >
+          <a class="download" href={downloadUrl} download
+            >Console companion (zip, inside this plugin)</a
+          >
           <span class="muted">gridfpv-video {timer.hello?.plugin_version ?? ''}</span>
         </div>
         <ol class="steps">
-          <li>Unzip it anywhere on the OBS machine, e.g. <code>C:\gridfpv-video</code>.</li>
           <li>
-            In OBS: Tools → WebSocket Server Settings → enable the server and set a password. Record
-            the clean capture (no overlay in the recorded scene).
+            <strong>The window</strong> (GridFPV Video): install it, make a profile — the timer's
+            address is
+            <code>{window.location.origin}</code> — with the RotorHazard login and the OBS password, choose
+            what records each run (OBS's own recording, or a clean scene through the Source Record filter
+            while OBS streams and records the whole day), press Start. Profiles are kept per event.
           </li>
           <li>
-            Double-click <code>gridfpv-video.cmd</code>. The first run asks for the timer's address
-            —
-            <code>{window.location.origin}</code> — the RotorHazard login, and the OBS password, then
-            watches. Leave it open while you fly.
+            <strong>The console zip</strong>: unzip anywhere, e.g. <code>C:\gridfpv-video</code>;
+            double-click <code>gridfpv-video.cmd</code> and answer three questions, or run
+            <code>gridfpv-video.cmd ui</code> for the same window in your browser.
+          </li>
+          <li>
+            Either way, in OBS: Tools → WebSocket Server Settings → enable the server and set a
+            password. Record the clean capture (no overlay in the recorded scene).
           </li>
         </ol>
       </div>

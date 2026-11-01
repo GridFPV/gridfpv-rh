@@ -6,6 +6,8 @@
  *   gridfpv-video render <sidecar> render (again) from a sidecar; also takes the recording's path
  *   gridfpv-video probe            check the timer, its clock sync, OBS and ffmpeg
  *   gridfpv-video init             write gridfpv-video.json from a few questions (the Windows launcher runs it first)
+ *   gridfpv-video serve [--port N] [--home DIR] [--ui DIR] [--open] [--exit-with-stdin]
+ *                                  the helper behind a window (#99): profiles, a local API and the page on 127.0.0.1
  *
  * Settings: gridfpv-video.json in the working directory (see README), or the environment.
  */
@@ -14,7 +16,12 @@ import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
+import { fileURLToPath } from 'node:url';
 import { loadConfig, requireTimer } from './config.js';
+import { ffmpegPath } from './ffmpeg.js';
+import { Helper } from './helper.js';
+import { Profiles, homeDir } from './profiles.js';
+import { startServer } from './server.js';
 import { Obs } from './obs.js';
 import { SceneRecorder } from './sceneRecord.js';
 import { renderRun } from './render.js';
@@ -28,6 +35,7 @@ async function main(argv) {
   const [cmd = 'watch', arg] = argv;
   if (cmd === 'help' || cmd === '--help' || cmd === '-h') return usage();
   if (cmd === 'init') return init();
+  if (cmd === 'serve') return serve(argv.slice(1));
   const cfg = loadConfig();
   if (cmd === 'watch') return watch(requireTimer(cfg));
   if (cmd === 'render') return render(requireTimer(cfg), arg);
@@ -37,7 +45,55 @@ async function main(argv) {
 }
 
 function usage() {
-  console.log('usage: gridfpv-video watch | render <sidecar.json|recording> | probe | init');
+  console.log(
+    'usage: gridfpv-video watch | render <sidecar.json|recording> | probe | init | serve [--port N] [--home DIR] [--ui DIR] [--open]'
+  );
+}
+
+/** The helper behind a window: profiles in the per-user folder, the API and the page on loopback. */
+async function serve(args) {
+  const opt = { port: 0, home: homeDir(), ui: null, open: false, exitWithStdin: false };
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--port') opt.port = Number(args[++i]);
+    else if (args[i] === '--home') opt.home = args[++i];
+    else if (args[i] === '--ui') opt.ui = args[++i];
+    else if (args[i] === '--open') opt.open = true;
+    else if (args[i] === '--exit-with-stdin') opt.exitWithStdin = true;
+  }
+  const uiDir = opt.ui ?? fileURLToPath(new URL('../ui/', import.meta.url));
+  const profiles = new Profiles({ dir: opt.home });
+  // The console companion's file beside the program becomes the first profile.
+  await profiles.importLegacy(path.join(process.cwd(), 'gridfpv-video.json'));
+  const version = JSON.parse(
+    await fs.readFile(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')
+  ).version;
+  const helper = new Helper({
+    profiles,
+    version,
+    deps: { ffmpegPath: (cfg, hlog) => ffmpegPath(cfg, opt.home, hlog) }
+  });
+  helper.on('log', (l) => log(l.text));
+  const { origin } = await startServer({ helper, port: opt.port, uiDir, log });
+  // The desktop shell reads this line to find the window's address.
+  console.log(`listening ${origin}`);
+  if (opt.open) {
+    const { openInFileManager } = await import('./server.js');
+    await openInFileManager(origin).catch(() => {});
+  }
+  const stop = async () => {
+    await helper.stop().catch(() => {});
+    process.exit(0);
+  };
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
+  // Under the desktop shell, stdin is the shell's pipe: it closing means the shell is gone,
+  // and the pipeline must not outlive its window.
+  if (opt.exitWithStdin) {
+    process.stdin.on('end', stop);
+    process.stdin.on('close', stop);
+    process.stdin.resume();
+  }
+  await new Promise(() => {});
 }
 
 /** A few questions → gridfpv-video.json beside the program; everything else keeps its default. */

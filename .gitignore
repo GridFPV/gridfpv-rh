@@ -33,3 +33,10 @@ __pycache__/
 /companion/node_modules/
 /companion/.cache/
 /companion/dist/
+/companion/ui/
+
+# Video helper desktop shell (helper/)
+/helper/src-tauri/target/
+/helper/src-tauri/gen/
+/helper/src-tauri/resources/
+/helper/src-tauri/binaries/

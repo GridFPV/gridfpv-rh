@@ -32,9 +32,21 @@ lives on the timer.
 
 ## Video companion
 
-The Overlays page also offers the **video companion** for download: a program for the OBS
-machine (Windows) that records each run clean, writes down where the start signal sits in
-the file, and renders the corrected overlay onto the recording after every save and
-marshal. The zip carries its own Node and JavaScript; it fetches ffmpeg once on first run,
-and draws frames with Edge. Unzip, enable OBS's WebSocket server, double-click
-`gridfpv-video.cmd`, answer three questions. Details in the companion's README.
+The Overlays page also offers the **video companion**: a program for the OBS machine
+(Windows) that records each run clean, writes down where the start signal sits in the
+file, and renders the corrected overlay onto the recording after every save and marshal.
+It comes two ways:
+
+- **GridFPV Video**, a small desktop app (the installer is on the repository's releases
+  page, built for Windows by GitHub Actions). Profiles keep the settings per event — the
+  timer, OBS, what records each run, where files go, the look of the render — and the
+  window shows the session's runs and the log. Press Start and fly.
+- The **console companion**, a zip inside this plugin: unzip, enable OBS's WebSocket
+  server, double-click `gridfpv-video.cmd`, answer three questions. `gridfpv-video.cmd ui`
+  opens the same window in your browser.
+
+Both carry their own Node and JavaScript, fetch ffmpeg once on first run, and draw frames
+with Edge. **What records each run** is a profile choice: OBS's own recording, started and
+stopped per run (a session where nothing else is being recorded), or a **clean scene of its
+own** through the Source Record filter, so OBS can stream the program and record the whole
+day while every run still lands in a clean file. Details in the companion's README.

@@ -3,10 +3,12 @@
  * calls: start, stop (which names the file), and how long the recording is right now — the
  * last is what pins the race start inside the file.
  */
+import { EventEmitter } from 'node:events';
 import OBSWebSocket from 'obs-websocket-js';
 
-export class Obs {
+export class Obs extends EventEmitter {
   constructor(url, password, log = () => {}) {
+    super();
     this.url = url;
     this.password = password;
     this.log = log;
@@ -15,6 +17,7 @@ export class Obs {
     this.ws.on('ConnectionClosed', () => {
       if (this.connected) this.log('obs: connection closed');
       this.connected = false;
+      this.emit('closed');
       this.retry();
     });
   }
@@ -26,19 +29,26 @@ export class Obs {
       this.log(
         `obs: connected — OBS ${v.obsVersion ?? '?'} on ${v.platform ?? '?'}, obs-websocket ${obsWebSocketVersion}`
       );
+      this.emit('connected', {
+        obsVersion: v.obsVersion,
+        platform: v.platform,
+        obsWebSocketVersion
+      });
     } catch (e) {
       this.log(`obs: cannot connect to ${this.url}: ${e.message ?? e}`);
       this.retry();
     }
   }
+  close() {
+    clearTimeout(this.retryTimer);
+    this.closing = true;
+    return this.ws.disconnect();
+  }
   retry() {
+    if (this.closing) return;
     clearTimeout(this.retryTimer);
     this.retryTimer = setTimeout(() => this.connect(), 5000);
     this.retryTimer.unref?.();
-  }
-  close() {
-    clearTimeout(this.retryTimer);
-    return this.ws.disconnect();
   }
   /** Milliseconds recorded so far, and whether a recording is on. */
   async recordStatus() {

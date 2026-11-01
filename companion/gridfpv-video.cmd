@@ -1,6 +1,7 @@
 @echo off
 rem gridfpv-video — the RaceGOW video companion, for Windows. Double-click to watch; or
-rem run with a command: gridfpv-video.cmd probe | render "<recording>" | init.
+rem run with a command: gridfpv-video.cmd probe | render "<recording>" | init | ui
+rem (`ui` opens the helper's window in your browser: profiles, the session, the log).
 rem It carries its own Node (node.exe) and JavaScript; ffmpeg is fetched once, below.
 setlocal
 cd /d "%~dp0"
@@ -22,6 +23,8 @@ if not exist "gridfpv-video.json" (
 
 if "%~1"=="" (
   "%~dp0node.exe" "%~dp0src\cli.js" watch
+) else if /i "%~1"=="ui" (
+  "%~dp0node.exe" "%~dp0src\cli.js" serve --port 5055 --open
 ) else (
   "%~dp0node.exe" "%~dp0src\cli.js" %*
 )

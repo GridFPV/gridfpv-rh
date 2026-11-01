@@ -1,0 +1,35 @@
+# GridFPV Video — the helper's desktop shell (Tauri 2, #99). A window around the Node
+# pipeline in `companion/`: on launch it starts `node companion/src/cli.js serve` as a sidecar
+# (node.exe is bundled as the `node` external binary), reads the address it prints, and opens
+# the window there. The page and the API are the sidecar's; the shell owns nothing else.
+#
+# Built per platform (webkit on Linux, WebView2 on Windows): see .github/workflows/helper-windows.yml.
+[package]
+name = "gridfpv-video"
+version = "0.11.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/GridFPV/gridfpv-rh"
+description = "GridFPV Video — records each run clean in OBS and renders the corrected overlay onto it."
+default-run = "gridfpv-video"
+
+# Standalone: this repo has no Rust workspace otherwise.
+[workspace]
+
+[lib]
+name = "gridfpv_video_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[[bin]]
+name = "gridfpv-video"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
