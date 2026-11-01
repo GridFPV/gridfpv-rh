@@ -19,6 +19,15 @@ function fakeObs({
           return { filterSettings: { path: '/rec', rec_format: 'mkv' } };
         case 'GetRecordDirectory':
           return { recordDirectory: '/obs-default' };
+        case 'SetSourceFilterSettings':
+          state.pathSet = data.filterSettings.path;
+          return {};
+        case 'CreateSourceFilter':
+          state.created = data;
+          state.pathSet = data.filterSettings.path;
+          return {};
+        case 'GetProfileParameter':
+          return { parameterValue: data.parameterName === 'FFFilePath' ? '/ffmpeg-out' : '' };
         case 'GetOutputStatus':
           if (!state.active)
             throw new Error(`No output was found with the name \`${data.outputName}\`.`);
@@ -71,6 +80,8 @@ test('records the scene to a file named for the heat, via Source Record, and fin
     filter: 'Source Record',
     filename: 'clean heat 4 2026-11-01 09-05-07'
   });
+  // The folder is set on the filter before the start, so the file is where we look.
+  assert.equal(state.pathSet, '/rec');
   assert.deepEqual(await rec.recordStatus(), { active: true, paused: false, durationMs: 1234 });
   const file = await rec.stopRecord();
   assert.equal(file, path.join('/rec', 'clean heat 4 2026-11-01 09-05-07.mkv'));
@@ -86,7 +97,9 @@ test("with no filter on the scene yet, Source Record makes one named after the f
     { fs, now: () => new Date(2026, 0, 2, 3, 4, 5) }
   );
   await rec.startRecord();
-  assert.equal(rec.filterName, 'clean 2026-01-02 03-04-05');
+  assert.equal(rec.filterName, 'Source Record');
+  assert.equal(state.created.filterKind, 'source_record_filter');
+  assert.equal(state.pathSet, '/obs-default');
   assert.equal(await rec.stopRecord(), path.join('/obs-default', 'clean 2026-01-02 03-04-05.mkv'));
 });
 
@@ -105,8 +118,9 @@ test('a configured folder and filter name win, and a missing plugin is said plai
   const noPlugin = new SceneRecorder(
     {
       ws: {
-        call: async () => {
-          throw new Error('No vendor was found by that name.');
+        call: async (type) => {
+          if (type === 'CallVendorRequest') throw new Error('No vendor was found by that name.');
+          return {};
         }
       }
     },
@@ -114,4 +128,24 @@ test('a configured folder and filter name win, and a missing plugin is said plai
     { fs }
   );
   await assert.rejects(() => noPlugin.startRecord(), /Source Record plugin is not loaded/);
+});
+
+test("a file that is not where it was told to go is found in one of OBS's other folders, and said", async () => {
+  const { ws, fs, state } = fakeObs();
+  fs.readdir = async (dir) => (dir === '/ffmpeg-out' ? [...state.files] : []);
+  const lines = [];
+  const rec = new SceneRecorder(
+    { ws },
+    { scene: 'Clean' },
+    { fs, now: () => new Date(2026, 0, 2, 3, 4, 5), log: (m) => lines.push(m) }
+  );
+  await rec.startRecord();
+  // findFile waits for its folder; keep the test quick by looking straight away.
+  rec.findFile = async (dir, name) => {
+    const names = await fs.readdir(dir);
+    const hit = names.find((n) => n.startsWith(name + '.'));
+    return hit ? path.join(dir, hit) : null;
+  };
+  assert.equal(await rec.stopRecord(), path.join('/ffmpeg-out', 'clean 2026-01-02 03-04-05.mkv'));
+  assert.ok(lines.some((l) => /not in \/rec but in \/ffmpeg-out/.test(l)));
 });

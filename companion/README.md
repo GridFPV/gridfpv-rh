@@ -40,8 +40,12 @@ repository's releases page). Install it, and:
   lands in a clean file. Install Source Record in OBS (0.4.8 or newer; OBS 30–33), add the
   filter to the scene (set its encoder and folder there), name the scene in the profile.
   The helper starts and stops it over obs-websocket (`source-record` vendor requests) and
-  names the files `clean heat N <date time>.<ext>`; `sceneFilter` and `recordDir` are only
-  needed when the scene has several filters or you want the files elsewhere.
+  names the files `clean heat N <date time>.<ext>`. The helper sets the filter's folder itself
+  before every start — `recordDir`, else the folder the filter already had, else OBS's
+  recording folder — because Source Record's own default is a different OBS setting (the
+  "Custom Output (FFmpeg)" path in Advanced output mode) and a file would land where nobody
+  looks. `sceneFilter` is only needed when the scene carries several filters; a scene with
+  none gets one made, named "Source Record".
 
 The console form below does everything the window does, from a terminal; `gridfpv-video.cmd ui`
 (or `npx gridfpv-video serve --open`) opens the same window in a browser.

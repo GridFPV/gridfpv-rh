@@ -104,17 +104,37 @@ export class SceneRecorder {
     return heatId != null ? `clean heat ${heatId} ${stamp}` : `clean ${stamp}`;
   }
 
+  /**
+   * Start. The folder is set on the filter first, every time: Source Record's own default is
+   * not OBS's recording folder (in Advanced output mode it takes the "Custom Output (FFmpeg)"
+   * path), so a file would otherwise land where nobody looks — as Ryan's first run did. A
+   * scene with no filter yet gets one made here, with the folder, before the start.
+   */
   async startRecord(run = {}) {
     if (!this.scene) throw new Error('scene recording: no scene configured ("scene")');
     const dir = await this.resolveDir();
     const name = this.fileNameFor(run);
-    const filter = await this.findFilter();
-    const requestData = { source: this.scene, filename: name };
-    if (filter) requestData.filter = filter;
-    const r = await this.vendor('record_start', requestData);
+    let filter = await this.findFilter();
+    if (filter) {
+      await this.ws.call('SetSourceFilterSettings', {
+        sourceName: this.scene,
+        filterName: filter,
+        filterSettings: { path: dir },
+        overlay: true
+      });
+    } else {
+      filter = 'Source Record';
+      await this.ws.call('CreateSourceFilter', {
+        sourceName: this.scene,
+        filterName: filter,
+        filterKind: FILTER_KIND,
+        filterSettings: { path: dir }
+      });
+      this.filterName = filter;
+      this.log(`scene recording: made a Source Record filter on "${this.scene}"`);
+    }
+    const r = await this.vendor('record_start', { source: this.scene, filter, filename: name });
     if (!r.success) throw new Error(`Source Record refused to start: ${r.error ?? 'no reason'}`);
-    // A filter Source Record made for us is named after the file; that is the output's name too.
-    if (!filter) this.filterName = name;
     this.current = { name, dir, startedAt: Date.now() };
     this.log(`scene recording: "${this.scene}" → ${path.join(dir, name)}.*`);
   }
@@ -136,14 +156,46 @@ export class SceneRecorder {
       await new Promise((res) => setTimeout(res, 100));
     }
     this.current = null;
-    const file = await this.findFile(cur.dir, cur.name);
-    if (!file) throw new Error(`scene recording: no file named "${cur.name}.*" in ${cur.dir}`);
+    let file = await this.findFile(cur.dir, cur.name);
+    if (!file) {
+      // Not where it was told to go: look where OBS might have put it instead, and say so.
+      const others = (await this.otherFolders()).filter((d) => d && d !== cur.dir);
+      for (const d of others) {
+        file = await this.findFile(d, cur.name, 1000);
+        if (file) {
+          this.log(`scene recording: the file was not in ${cur.dir} but in ${d}`);
+          break;
+        }
+      }
+      if (!file)
+        throw new Error(
+          `scene recording: no file named "${cur.name}.*" in ${[cur.dir, ...others].join(', ')}`
+        );
+    }
     await this.settled(file);
     return file;
   }
 
-  async findFile(dir, name) {
-    const deadline = Date.now() + 10_000;
+  /** OBS's other output folders, the places Source Record may default to. */
+  async otherFolders() {
+    const out = [];
+    const rec = await this.ws.call('GetRecordDirectory').catch(() => ({}));
+    out.push(rec.recordDirectory);
+    for (const [cat, name] of [
+      ['AdvOut', 'FFFilePath'],
+      ['AdvOut', 'RecFilePath'],
+      ['SimpleOutput', 'FilePath']
+    ]) {
+      const r = await this.ws
+        .call('GetProfileParameter', { parameterCategory: cat, parameterName: name })
+        .catch(() => ({}));
+      out.push(r.parameterValue);
+    }
+    return [...new Set(out.filter(Boolean))];
+  }
+
+  async findFile(dir, name, waitMs = 10_000) {
+    const deadline = Date.now() + waitMs;
     while (Date.now() < deadline) {
       const names = await this.fs.readdir(dir).catch(() => []);
       const hit = names.find(
