@@ -57,6 +57,8 @@ export const DEFAULTS = Object.freeze({
   browserChannel: 'chrome',
   /** x264 quality for the composite (lower is better/bigger). */
   crf: 18,
+  /** How the overlay is blended onto the recording: 'linear' (light, as OBS composites its browser source) or 'srgb' (on the encoded values). */
+  blend: 'linear',
   /** Milliseconds between the timer's clock samples; ten are taken, the median kept, as Grid's run page does. */
   syncEveryMs: 400
 });

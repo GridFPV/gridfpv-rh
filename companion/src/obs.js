@@ -59,8 +59,41 @@ export class Obs extends EventEmitter {
       durationMs: Number(r.outputDuration)
     };
   }
+  /**
+   * Start, and return once the output is really running (`OUTPUT_STARTED`: frames flowing,
+   * file time zero) — the caller's clock at that moment is where the file begins. The
+   * output's own duration counter is not used for that: it counts encoded frames, which run
+   * a lookahead or a B-frame queue behind the file's timeline (a second or more on x264 and
+   * NVENC), and a start pinned by it lands early by that much.
+   */
   async startRecord() {
-    await this.ws.call('StartRecord');
+    // OBS ignores a start that lands while the previous recording is still stopping, and
+    // says nothing: if the output has not come up in a moment, ask once more.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const started = this.nextState('OBS_WEBSOCKET_OUTPUT_STARTED', 2500);
+      await this.ws.call('StartRecord').catch((e) => {
+        if (!/already active/i.test(e.message ?? '')) throw e;
+      });
+      if (await started) return;
+      if ((await this.recordStatus()).active) return;
+      this.log('obs: the recording did not start; asking again');
+    }
+    throw new Error('OBS did not start recording');
+  }
+  /** Resolves true at the next RecordStateChanged with this state, false after `ms`. */
+  nextState(state, ms) {
+    return new Promise((resolve) => {
+      const on = (e) => {
+        if (e.outputState === state) {
+          this.ws.off('RecordStateChanged', on);
+          clearTimeout(t);
+          resolve(true);
+        }
+      };
+      const t = setTimeout(() => (this.ws.off('RecordStateChanged', on), resolve(false)), ms);
+      t.unref?.();
+      this.ws.on('RecordStateChanged', on);
+    });
   }
   /**
    * Stops and returns the file OBS wrote — once OBS has finished writing it. `StopRecord`

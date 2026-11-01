@@ -24,6 +24,8 @@ import { Session } from '../src/session.js';
 import { listSidecars } from '../src/sidecar.js';
 import { replayUrl } from '../src/render.js';
 import { chromium } from 'playwright-core';
+import { measureLook } from './sync.mjs';
+import { fileTimeOf, measureTimeline } from './timebar.mjs';
 import { Timer } from '../src/timer.js';
 
 const RH_URL = process.env.RH_URL ?? 'http://localhost:5050';
@@ -97,6 +99,9 @@ await until(
     (await api('/api/heat/all')).heats &&
     Object.keys((await api('/api/heat/all')).heats).length === 0
 );
+// The overlay's placement back to the default first: a run that died mid-way leaves it moved,
+// and the placement step below needs a change to see.
+rig.emit('gridfpv_overlay_set', { corner: 'top-left', x: 24, y: 24, scale: 100, opacity: 90 });
 rig.emit('set_min_lap', { min_lap: 1 });
 rig.emit('set_min_lap_behavior', { min_lap_behavior: 0 });
 const pilotIds = [];
@@ -181,9 +186,15 @@ const timer = new Timer(cfg.timer, {
 const obs = new Obs(cfg.obs, cfg.obsPass, clog);
 await obs.connect();
 if (!obs.connected) fail(`no OBS at ${cfg.obs} (make obs-up)`);
+// A recording left running by an earlier run would be the wrong length for everything below.
+if ((await obs.recordStatus()).active) {
+  await obs.stopRecord();
+  await sleep(1500); // OBS ignores a start that lands while the stop is still settling
+  log('stopped a leftover OBS recording');
+}
 if (RECORD_FROM === 'scene') {
   // The whole-day recording OBS keeps regardless of the runs.
-  if (!(await obs.recordStatus()).active) await obs.startRecord();
+  await obs.startRecord();
   log('OBS main recording ON for the whole day; the runs must not touch it');
 }
 const session = new Session(cfg, {
@@ -195,13 +206,21 @@ const session = new Session(cfg, {
   log: clog,
   render: ({ data }) => renderRun({ cfg, data, log: clog })
 }).start();
-await new Promise((resolve) => timer.once('synced', resolve));
+// The sync may already have happened while OBS was being started: poll, do not wait for the event.
+await until('the clock sync', async () => timer.differential != null, 30_000, 100);
 log(`companion synced to the timer's clock (${timer.samples.length} samples)`);
 
 // ---- 1. a run: stage, fly three crossings, stop, save ----
 rig.emit('stage_race');
 await until('racing', async () => (await raceStatus()) === 1, 30_000, 100);
 const started = Date.now();
+// The start signal as a wall-clock instant, through the companion's own synced clock: what
+// the recording's time bar is read against.
+const startWall = await until('the start stamp', async () => {
+  const s = timer.race?.startsAt;
+  const local = s == null ? null : timer.localMs(s);
+  return local == null ? null : performance.timeOrigin + local;
+});
 // Ace's three crossings; the other pilots cross a little later each, so the field has an order.
 const crossings = [];
 for (let i = 0; i < PILOTS; i++)
@@ -296,6 +315,36 @@ log(
   `overlay:   ${path.basename(overlay)} — ${po.streams?.[0]?.codec_name} ${po.streams?.[0]?.pix_fmt}, ${po.streams?.[0]?.nb_read_frames} frames`
 );
 if (video?.codec_name !== 'h264') fail('the composite is not h264');
+{
+  // The Clean scene (the program) carries the timer's live overlay on its right half (x = 640 + 24): the
+  // composite holds OBS's live panel and the helper's rendered one (top-left), so the shift
+  // that makes the two crops agree is the render's error, and the colour delta its look.
+  const panel = { w: 380, h: 300 };
+  const look = await measureLook({
+    ffmpeg: cfg.ffmpeg,
+    file: composite,
+    left: { x: 16, y: 16, ...panel },
+    right: { x: 656, y: 16, ...panel },
+    fps: cfg.fps
+  });
+  log(
+    `look: glass tone rendered ${look.left.join('/')} vs live ${look.right.join('/')} → delta ${look.delta.join('/')} (RGB, over ${look.frames} frames)`
+  );
+  // Ground truth: the clean recording's time bar says which file time the start signal fell on.
+  const fit = await measureTimeline({ ffmpeg: cfg.ffmpeg, file: d.recording, fps: cfg.fps });
+  const trueStartMs = fileTimeOf(fit, startWall);
+  const pinError = d.race_start_ms - trueStartMs;
+  log(
+    `timeline: the start signal is at ${trueStartMs.toFixed(0)} ms in the file by the time bar (fit over ${fit.readable}/${fit.frames} frames, slope ${fit.slope.toFixed(4)}, residual ${fit.residualMs.toFixed(0)} ms); the sidecar pinned it at ${d.race_start_ms.toFixed(0)} ms → pinned ${pinError >= 0 ? `${pinError.toFixed(0)} ms late` : `${(-pinError).toFixed(0)} ms early`}`
+  );
+  const SYNC_TOLERANCE_MS = Number(process.env.GRIDFPV_SYNC_TOLERANCE_MS ?? 150);
+  if (Math.abs(pinError) > SYNC_TOLERANCE_MS)
+    fail(
+      `the start is pinned ${pinError.toFixed(0)} ms off the recording's own timeline (tolerance ${SYNC_TOLERANCE_MS} ms)`
+    );
+  if (look.delta.some((v) => Math.abs(v) > 8))
+    fail(`the render's glass differs from the live overlay by ${look.delta.join('/')} (RGB)`);
+}
 const prec = await probe(d.recording);
 log(
   `recording: ${Number(prec.format?.duration).toFixed(2)} s on disk (sidecar says ${d.duration_ms} ms)`
@@ -357,6 +406,7 @@ if ((await sidecarOf()).data.rendered.at !== again.data.rendered.at)
 
 // ---- 2b. the overlay moves on the timer: the run renders again, with the new look ----
 const renderedBeforeLook = again.data.rendered.at;
+log(`rig socket connected: ${rig.connected}; emitting the placement change`);
 rig.emit('gridfpv_overlay_set', { corner: 'bottom-right', x: 40, y: 30, scale: 150 });
 const moved = await until(
   'the re-render after the placement change',
@@ -369,7 +419,7 @@ const moved = await until(
 );
 if (!/bottom-right/.test(moved.data.look ?? '')) fail(`the sidecar's look is ${moved.data.look}`);
 log(`re-rendered for the new placement: look ${moved.data.look}`);
-rig.emit('gridfpv_overlay_set', { corner: 'top-left', x: 24, y: 24, scale: 100 });
+rig.emit('gridfpv_overlay_set', { corner: 'top-left', x: 24, y: 24, scale: 100, opacity: 90 });
 await sleep(1000);
 
 // ---- 3. a discard: stage, stop, discard → trash ----

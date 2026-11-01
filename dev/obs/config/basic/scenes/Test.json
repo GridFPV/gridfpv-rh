@@ -1,6 +1,6 @@
 {
-  "current_program_scene": "Scene",
-  "current_scene": "Scene",
+  "current_program_scene": "Clean",
+  "current_scene": "Clean",
   "current_transition": "Cut",
   "name": "Test",
   "scene_order": [
@@ -166,7 +166,7 @@
       ],
       "settings": {
         "custom_size": false,
-        "id_counter": 1,
+        "id_counter": 3,
         "items": [
           {
             "name": "Clean colour",
@@ -175,6 +175,78 @@
             "locked": false,
             "pos": {
               "x": 0.0,
+              "y": 0.0
+            },
+            "scale": {
+              "x": 1.0,
+              "y": 1.0
+            },
+            "rot": 0.0,
+            "align": 5,
+            "bounds_type": 0,
+            "bounds_align": 0,
+            "bounds": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "crop_left": 0,
+            "crop_top": 0,
+            "crop_right": 0,
+            "crop_bottom": 0,
+            "scale_filter": "disable",
+            "blend_method": "default",
+            "blend_type": "normal",
+            "show_transition": {
+              "duration": 0
+            },
+            "hide_transition": {
+              "duration": 0
+            },
+            "private_settings": {}
+          },
+          {
+            "name": "Texture",
+            "id": 2,
+            "visible": true,
+            "locked": false,
+            "pos": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "scale": {
+              "x": 1.0,
+              "y": 1.0
+            },
+            "rot": 0.0,
+            "align": 5,
+            "bounds_type": 0,
+            "bounds_align": 0,
+            "bounds": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "crop_left": 0,
+            "crop_top": 0,
+            "crop_right": 0,
+            "crop_bottom": 0,
+            "scale_filter": "disable",
+            "blend_method": "default",
+            "blend_type": "normal",
+            "show_transition": {
+              "duration": 0
+            },
+            "hide_transition": {
+              "duration": 0
+            },
+            "private_settings": {}
+          },
+          {
+            "name": "Live overlay",
+            "id": 3,
+            "visible": true,
+            "locked": false,
+            "pos": {
+              "x": 640.0,
               "y": 0.0
             },
             "scale": {
@@ -233,6 +305,70 @@
         "color": 4278255360,
         "width": 1280,
         "height": 720
+      }
+    },
+    {
+      "name": "Texture",
+      "id": "browser_source",
+      "versioned_id": "browser_source",
+      "enabled": true,
+      "muted": false,
+      "volume": 1.0,
+      "balance": 0.5,
+      "sync": 0,
+      "flags": 0,
+      "mixers": 0,
+      "monitoring_type": 0,
+      "push-to-mute": false,
+      "push-to-mute-delay": 0,
+      "push-to-talk": false,
+      "push-to-talk-delay": 0,
+      "deinterlace_mode": 0,
+      "deinterlace_field_order": 0,
+      "hotkeys": {},
+      "prev_ver": 503316482,
+      "private_settings": {},
+      "filters": [],
+      "settings": {
+        "url": "data:text/html,<body style=\"margin:0;height:100vh;background:repeating-linear-gradient(45deg,%23c0392b 0 24px,%232980b9 24px 48px,%23b7950b 48px 72px)\"><div style=\"position:absolute;left:0;top:600px;width:1280px;height:60px;background:%23000\"></div><div id=b style=\"position:absolute;left:0;top:600px;height:60px;background:%23fff\"></div><script>const b=document.getElementById('b');(function f(){b.style.width=((Date.now()-Math.floor(Date.now()/60000)*60000)/60000*1280)+'px';requestAnimationFrame(f)})()</script></body>",
+        "width": 1280,
+        "height": 720,
+        "fps_custom": false,
+        "shutdown": false,
+        "restart_when_active": false,
+        "css": "body { margin: 0; overflow: hidden; }"
+      }
+    },
+    {
+      "name": "Live overlay",
+      "id": "browser_source",
+      "versioned_id": "browser_source",
+      "enabled": true,
+      "muted": false,
+      "volume": 1.0,
+      "balance": 0.5,
+      "sync": 0,
+      "flags": 0,
+      "mixers": 0,
+      "monitoring_type": 0,
+      "push-to-mute": false,
+      "push-to-mute-delay": 0,
+      "push-to-talk": false,
+      "push-to-talk-delay": 0,
+      "deinterlace_mode": 0,
+      "deinterlace_field_order": 0,
+      "hotkeys": {},
+      "prev_ver": 503316482,
+      "private_settings": {},
+      "filters": [],
+      "settings": {
+        "url": "http://rotorhazard:5000/grid/live/race",
+        "width": 1280,
+        "height": 720,
+        "fps_custom": false,
+        "shutdown": false,
+        "restart_when_active": true,
+        "css": "body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }"
       }
     }
   ]

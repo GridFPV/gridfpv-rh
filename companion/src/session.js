@@ -84,6 +84,10 @@ export class Session extends EventEmitter {
     t.on('result_data', () => this.onResults());
     t.on('races_deleted', () => void this.d.timer.refreshRaceList?.());
     t.on('overlay', (look) => this.onLook(look));
+    // The placement the timer last broadcast is the baseline — it usually arrived at connect,
+    // before this listener existed; without it the first real change would pass for the
+    // baseline and no run would be re-rendered.
+    if (t.overlayLook != null) this.look = t.overlayLook;
     return this;
   }
 
@@ -114,8 +118,16 @@ export class Session extends EventEmitter {
       const st = await this.d.obs.recordStatus();
       if (!st.active) {
         await this.d.obs.startRecord({ heatId: race.heatId });
+        // The file's time zero on our clock: startRecord returns as the output begins.
+        this.recording.outputStartLocal = this.d.now();
         this.log(`recording: started for heat ${race.heatId}`);
-      } else this.log(`recording: already on (${Math.round(st.durationMs / 1000)} s in); using it`);
+      } else {
+        // Already running: its time zero can only be guessed from the duration counter, which
+        // lags the file by the encoder's queue; the stop measures that lag and corrects it.
+        this.recording.outputStartLocal = null;
+        this.recording.counterStartLocal = this.d.now() - st.durationMs;
+        this.log(`recording: already on (${Math.round(st.durationMs / 1000)} s in); using it`);
+      }
     } catch (e) {
       this.log(`recording: OBS refused to start: ${e.message}`);
       this.recording = null;
@@ -169,7 +181,13 @@ export class Session extends EventEmitter {
       this.d.setTimeout(() => this.d.timer.refreshRaceList?.(), ms);
   }
 
-  /** Where the start signal sits in the file, from the recording's length against the race's age. */
+  /**
+   * Where the start signal sits in the file: the start's moment on our clock against the
+   * moment the output began (file time zero), both on the same clock. When the recording
+   * was already running at staging, the output's duration counter stands in for its start,
+   * and the stop corrects it by the encoder's lag (the file ends up longer than the counter
+   * said by exactly the frames that were still in the encoder).
+   */
   async pinStart(rec) {
     const startLocal = this.d.timer.localMs(rec.startsAt);
     if (startLocal == null)
@@ -177,27 +195,48 @@ export class Session extends EventEmitter {
         'race: started, but the timer clock is not synced yet; the start will be pinned at the stop'
       );
     try {
-      const st = await this.d.obs.recordStatus();
-      const now = this.d.now();
-      if (!st.active) return this.log('race: started, but OBS is not recording');
-      rec.raceStartMs = raceStartInRecording(st.durationMs, now, startLocal);
+      if (rec.outputStartLocal != null) {
+        rec.raceStartMs = startLocal - rec.outputStartLocal;
+        rec.pinnedBy = 'output start';
+      } else {
+        const st = await this.d.obs.recordStatus();
+        const now = this.d.now();
+        if (!st.active) return this.log('race: started, but OBS is not recording');
+        rec.raceStartMs = raceStartInRecording(st.durationMs, now, startLocal);
+        rec.pinnedBy = 'duration counter';
+      }
       rec.stagingMs = rec.stagingAt == null ? null : (rec.stagingAt - rec.startsAt) * 1000;
-      this.log(`race: start pinned ${(rec.raceStartMs / 1000).toFixed(3)} s into the recording`);
+      this.log(
+        `race: start pinned ${(rec.raceStartMs / 1000).toFixed(3)} s into the recording (by the ${rec.pinnedBy})`
+      );
     } catch (e) {
-      this.log(`race: could not read the recording length: ${e.message}`);
+      this.log(`race: could not pin the start: ${e.message}`);
     }
   }
 
   async finishRecording(rec) {
     try {
       const st = await this.d.obs.recordStatus();
-      rec.durationMs = st.durationMs;
+      const counterMs = st.durationMs;
+      rec.durationMs = counterMs;
       const file = await this.d.obs.stopRecord();
       rec.recording = file;
-      // OBS keeps writing for a moment after the length was read: the file's own length wins.
+      // The file's own length wins; the difference from the counter is the encoder's lag
+      // (frames still queued when the counter was read, flushed into the file at the stop).
       const probed = this.cfg.ffmpeg ? await probeDuration(this.cfg, file) : null;
-      if (probed != null) rec.durationMs = probed;
-      this.log(`recording: stopped → ${file} (${((rec.durationMs ?? 0) / 1000).toFixed(1)} s)`);
+      if (probed != null) {
+        rec.durationMs = probed;
+        rec.encoderLagMs = Math.max(0, probed - counterMs);
+        if (rec.pinnedBy === 'duration counter' && rec.raceStartMs != null) {
+          rec.raceStartMs += rec.encoderLagMs;
+          this.log(
+            `race: start moved to ${(rec.raceStartMs / 1000).toFixed(3)} s — the counter ran ${Math.round(rec.encoderLagMs)} ms behind the file`
+          );
+        }
+      }
+      this.log(
+        `recording: stopped → ${file} (${((rec.durationMs ?? 0) / 1000).toFixed(1)} s${rec.encoderLagMs != null ? `; encoder lag ${Math.round(rec.encoderLagMs)} ms` : ''})`
+      );
     } catch (e) {
       this.log(`recording: could not stop: ${e.message}`);
       this.recording = null;
@@ -215,6 +254,8 @@ export class Session extends EventEmitter {
       staging_ms: rec.stagingMs,
       end_ms: rec.endMs,
       duration_ms: rec.durationMs,
+      pinned_by: rec.pinnedBy ?? null,
+      encoder_lag_ms: rec.encoderLagMs ?? null,
       recorded_at: rec.startedAt
     };
     await writeSidecar(sidecarFile, data);

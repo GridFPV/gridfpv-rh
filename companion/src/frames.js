@@ -85,7 +85,42 @@ export function overlayArgs({ fps, codec, out }) {
   ];
 }
 
-export function compositeArgs({ fps, recording, out, crf }) {
+/**
+ * sRGB's transfer, as ffmpeg `lutrgb` expressions over 16-bit values: OBS composites a
+ * browser source in linear light (its texture decoded from sRGB, the blend done on linear
+ * values, the result encoded back), which lets the picture through a 90 %-dark panel
+ * noticeably brighter than a blend done on the encoded values would. The render matches
+ * that, so a re-rendered run looks like the live one beside it.
+ */
+const LIN = 'if(lt(val/65535,0.04045),val/65535/12.92,pow((val/65535+0.055)/1.055,2.4))*65535';
+const ENC = 'if(lt(val/65535,0.0031308),val/65535*12.92,1.055*pow(val/65535,1/2.4)-0.055)*65535';
+const LUT = (e) => `lutrgb=r='${e}':g='${e}':b='${e}'`;
+
+/**
+ * The composite's filter graph. `linear` (the default) blends in linear light at 16 bits —
+ * premultiplied overlay, as OBS does: out = lin(premul(src)) + lin(dst)·(1 − α) — then encodes
+ * back; `srgb` is a plain overlay on the encoded values. The overlay frames are scaled to the
+ * recording's size if they differ.
+ */
+export function compositeFilter(blend = 'linear') {
+  if (blend !== 'linear') return '[0:v][1:v]overlay=0:0:eof_action=repeat:format=auto[v]';
+  return [
+    `[0:v]format=gbrp16le,${LUT(LIN)}[base]`,
+    // The overlay at the recording's size, still 8-bit RGBA (alphaextract wants that), then
+    // one copy premultiplied and linearised, one copy's alpha inverted as a 16-bit mask.
+    '[1:v]format=rgba[o8]',
+    '[o8][base]scale2ref=flags=bicubic[os][base2]',
+    '[os]split[o1][o2]',
+    `[o1]format=gbrap16le,premultiply=inplace=1,format=gbrp16le,${LUT(LIN)}[src]`,
+    '[o2]alphaextract,negate,format=gray16le,split=3[a1][a2][a3]',
+    '[a1][a2][a3]mergeplanes=map0s=0:map0p=0:map1s=1:map1p=0:map2s=2:map2p=0:format=gbrp16le[inv]',
+    '[base2][inv]blend=all_mode=multiply:repeatlast=1[dst]',
+    '[dst][src]blend=all_mode=addition:repeatlast=1[lin]',
+    `[lin]${LUT(ENC)},format=yuv420p[v]`
+  ].join(';');
+}
+
+export function compositeArgs({ fps, recording, out, crf, blend = 'linear' }) {
   return [
     '-y',
     '-hide_banner',
@@ -100,7 +135,7 @@ export function compositeArgs({ fps, recording, out, crf }) {
     '-i',
     'pipe:0',
     '-filter_complex',
-    '[0:v][1:v]overlay=0:0:eof_action=repeat:format=auto[v]',
+    compositeFilter(blend),
     '-map',
     '[v]',
     '-map',

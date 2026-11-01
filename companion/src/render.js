@@ -155,7 +155,8 @@ export async function renderRun({ cfg, data, log = () => {} }) {
               fps: cfg.fps,
               recording: data.recording,
               out: parts.composite,
-              crf: cfg.crf
+              crf: cfg.crf,
+              blend: cfg.blend
             }),
             'composite'
           )

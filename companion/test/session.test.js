@@ -255,3 +255,28 @@ test('Ready with no new round is a discard: the recording goes to trash (or stay
     await fs.rm(dir, { recursive: true });
   }
 });
+
+test('a placement change re-renders the known runs even when the baseline arrived before the session listened', async () => {
+  const { timer, deps, renders, tick } = rig();
+  timer.overlayLook = '{"corner":"top-left"}'; // broadcast at connect, before start()
+  const s = new Session(
+    { tailSeconds: 1, discardAfterSeconds: 5, trashDiscarded: false },
+    deps
+  ).start();
+  s.known.set('/tmp/a.gridfpv.json', {
+    round: 1,
+    race_id: 1,
+    heat_id: 4,
+    look: '{"corner":"top-left"}',
+    recording: '/tmp/a.mkv'
+  });
+  timer.emit('overlay', '{"corner":"bottom-right"}');
+  await tick();
+  await s.renderQueue;
+  assert.equal(renders.length, 1);
+  // The same placement again: nothing to do.
+  timer.emit('overlay', '{"corner":"bottom-right"}');
+  await tick();
+  await s.renderQueue;
+  assert.equal(renders.length, 1);
+});

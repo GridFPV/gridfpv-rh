@@ -356,6 +356,17 @@ export const FIELDS = [
     max: 51
   },
   {
+    key: 'blend',
+    label: 'Blend the overlay',
+    help: "In linear light, as OBS composites its browser source (a re-render then matches the live picture); 'on the encoded values' is the plain overlay",
+    group: 'Renders',
+    type: 'select',
+    options: [
+      { value: 'linear', label: 'In linear light (as OBS does)' },
+      { value: 'srgb', label: 'On the encoded values' }
+    ]
+  },
+  {
     key: 'ffmpeg',
     label: 'ffmpeg',
     help: 'Blank or "ffmpeg": the one the helper fetched, or on the PATH',

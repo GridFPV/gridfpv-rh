@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { compositeArgs, frameCount, overlayArgs, raceTimeOf, walkFrames } from '../src/frames.js';
+import {
+  compositeArgs,
+  compositeFilter,
+  frameCount,
+  overlayArgs,
+  raceTimeOf,
+  walkFrames
+} from '../src/frames.js';
 
 test('frames cover the recording, the last partial frame included', () => {
   assert.equal(frameCount(1000, 30), 30);
@@ -54,4 +61,13 @@ test('ffmpeg arguments: alpha overlay (vp9 / prores) and the composite with audi
   assert.equal(c[c.indexOf('-i') + 1], 'r.mkv');
   assert.ok(c.includes('libx264') && c.includes('0:a?') && c.includes('-shortest'));
   assert.equal(c.at(-1), 'n.mp4');
+  // Linear light by default (OBS's way), 16-bit, premultiplied, encoded back to 4:2:0 at the end.
+  const graph = c[c.indexOf('-filter_complex') + 1];
+  assert.ok(
+    graph.includes('gbrp16le') &&
+      graph.includes('premultiply') &&
+      graph.endsWith('format=yuv420p[v]')
+  );
+  assert.ok(graph.includes('pow((val/65535+0.055)/1.055,2.4)') && graph.includes('1/2.4'));
+  assert.equal(compositeFilter('srgb'), '[0:v][1:v]overlay=0:0:eof_action=repeat:format=auto[v]');
 });

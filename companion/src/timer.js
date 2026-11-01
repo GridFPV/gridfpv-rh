@@ -24,6 +24,8 @@ export class Timer extends EventEmitter {
     this.race = null;
     this.raceList = [];
     this.pending = [];
+    /** The overlay's placement as last broadcast (JSON), so a late listener knows the baseline. */
+    this.overlayLook = null;
   }
 
   connect() {
@@ -80,7 +82,12 @@ export class Timer extends EventEmitter {
     s.on('result_data', () => this.emit('result_data'));
     s.on('gridfpv_races_deleted', (p) => this.emit('races_deleted', p));
     // The overlay's placement (#96): a change makes every render stale.
-    s.on('gridfpv_overlay', (p) => this.emit('overlay', JSON.stringify(p ?? {})));
+    s.on('gridfpv_overlay', (p) => {
+      const look = JSON.stringify(p ?? {});
+      if (process.env.GRIDFPV_DEBUG) this.log(`timer: overlay placement ${look}`);
+      this.overlayLook = look;
+      this.emit('overlay', look);
+    });
     s.on('race_details', (p) => this.resolvePending('race_details', p));
     return this;
   }

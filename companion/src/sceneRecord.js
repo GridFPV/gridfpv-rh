@@ -135,6 +135,15 @@ export class SceneRecorder {
     }
     const r = await this.vendor('record_start', { source: this.scene, filter, filename: name });
     if (!r.success) throw new Error(`Source Record refused to start: ${r.error ?? 'no reason'}`);
+    // Source Record starts its output on the graphics thread after answering: return once
+    // the output is listed and active — frames flowing, file time zero — so the caller's
+    // clock at that moment is where the file begins (see Obs.startRecord for why not the
+    // duration counter).
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+      if ((await this.recordStatus()).active) break;
+      await new Promise((res) => setTimeout(res, 20));
+    }
     this.current = { name, dir, startedAt: Date.now() };
     this.log(`scene recording: "${this.scene}" → ${path.join(dir, name)}.*`);
   }
