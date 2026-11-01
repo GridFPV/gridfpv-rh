@@ -14,7 +14,7 @@ import { DEFAULTS } from './config.js';
 import { Obs } from './obs.js';
 import { Profiles } from './profiles.js';
 import { renderRun } from './render.js';
-import { SceneRecorder } from './sceneRecord.js';
+import { SceneRecorder, SOURCE_RECORD_URL, sourceRecordLoaded } from './sceneRecord.js';
 import { Session } from './session.js';
 import { Timer } from './timer.js';
 
@@ -39,7 +39,7 @@ export class Helper extends EventEmitter {
     this.running = null; // { profile, cfg, timer, obs, recorder, session, startedAt }
     this.status = {
       timer: { connected: false, synced: false, differential: null },
-      obs: { connected: false, recording: false, version: '' }
+      obs: { connected: false, recording: false, version: '', sourceRecord: null }
     };
     this.notice = null; // the last thing worth a banner: a start that failed, say
   }
@@ -94,9 +94,19 @@ export class Helper extends EventEmitter {
     timer.on('synced', (d) => this.setStatus('timer', { synced: true, differential: d }));
     timer.connect();
     const obs = new this.d.Obs(cfg.obs, cfg.obsPass, log);
-    obs.on?.('connected', (info) =>
-      this.setStatus('obs', { connected: true, version: info?.obsVersion ?? '' })
-    );
+    obs.on?.('connected', (info) => {
+      this.setStatus('obs', { connected: true, version: info?.obsVersion ?? '' });
+      // The profile records from a scene: that needs the Source Record plugin in OBS.
+      if (cfg.recordFrom === 'scene')
+        void sourceRecordLoaded(obs.ws).then((loaded) => {
+          this.setStatus('obs', { sourceRecord: loaded });
+          if (!loaded)
+            this.log(
+              `obs: the Source Record plugin is not loaded, and this profile records from the "${cfg.scene}" scene — install it (${SOURCE_RECORD_URL}) and restart OBS, or record from OBS's own recording`
+            );
+        });
+      else this.setStatus('obs', { sourceRecord: null });
+    });
     obs.on?.('closed', () => this.setStatus('obs', { connected: false, recording: false }));
     await obs.connect();
     const recorder = cfg.recordFrom === 'scene' ? new this.d.SceneRecorder(obs, cfg, { log }) : obs;
@@ -149,7 +159,7 @@ export class Helper extends EventEmitter {
     await r.obs.close?.().catch(() => {});
     this.status = {
       timer: { connected: false, synced: false, differential: null },
-      obs: { connected: false, recording: false, version: '' }
+      obs: { connected: false, recording: false, version: '', sourceRecord: null }
     };
     this.changed();
   }
@@ -240,6 +250,7 @@ export const FIELDS = [
     key: 'scene',
     label: 'Scene to record',
     help: 'The clean capture scene (no overlay); needs the Source Record plugin in OBS',
+    link: { href: SOURCE_RECORD_URL, label: 'Source Record releases' },
     group: 'Recording',
     type: 'text',
     choices: 'scenes',

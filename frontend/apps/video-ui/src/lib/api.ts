@@ -19,7 +19,13 @@ export type Snapshot = {
   running: { profile: string; startedAt: number; recordFrom: 'obs' | 'scene' } | null;
   status: {
     timer: { connected: boolean; synced: boolean; differential: number | null };
-    obs: { connected: boolean; recording: boolean; version: string };
+    obs: {
+      connected: boolean;
+      recording: boolean;
+      version: string;
+      /** Whether the Source Record plugin is loaded, when the profile records from a scene; else null. */
+      sourceRecord?: boolean | null;
+    };
   };
   notice: string | null;
   runs: Run[];
@@ -45,6 +51,8 @@ export type Field = {
   choices?: 'scenes' | 'filters';
   /** Shown only when it matters (a scene with several Source Record filters). */
   advanced?: boolean;
+  /** A page worth a link under the hint (the plugin a setting needs). */
+  link?: { href: string; label: string };
   default: string | number | boolean;
 };
 export type ProfilesPayload = {

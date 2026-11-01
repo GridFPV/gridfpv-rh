@@ -35,10 +35,16 @@ class FakeTimer extends EventEmitter {
   }
 }
 class FakeObs extends EventEmitter {
-  constructor(url) {
+  constructor(url, pass) {
     super();
     this.url = url;
-    this.ws = { call: async () => ({}) };
+    this.ws = {
+      call: async (type) => {
+        if (type === 'CallVendorRequest' && pass === 'noplugin')
+          throw new Error('No vendor was found by that name.');
+        return {};
+      }
+    };
   }
   async connect() {
     this.connected = true;
@@ -99,6 +105,27 @@ test('the helper starts a profile, reports both connections, logs, stops, and re
   assert.equal(helper.running.cfg.ffmpeg, '/bin/ffmpeg');
 
   const { timer, obs } = helper.running;
+  await helper.stop();
+
+  // A profile that records from a scene, against an OBS without the plugin: said, with the link.
+  await profiles.save('Scene', {
+    timer: 'http://t:5000',
+    obsPass: 'noplugin',
+    recordFrom: 'scene',
+    scene: 'Clean'
+  });
+  await helper.start('Scene');
+  await new Promise((r) => setImmediate(r));
+  assert.equal(helper.snapshot().status.obs.sourceRecord, false);
+  assert.ok(
+    helper.lines.some((l) =>
+      /Source Record plugin is not loaded.*github\.com\/exeldro/.test(l.text)
+    )
+  );
+  await profiles.save('SceneOk', { timer: 'http://t:5000', recordFrom: 'scene', scene: 'Clean' });
+  await helper.start('SceneOk');
+  await new Promise((r) => setImmediate(r));
+  assert.equal(helper.snapshot().status.obs.sourceRecord, true);
   await helper.stop();
   assert.equal(timer.closed, true);
   assert.equal(obs.closed, true);

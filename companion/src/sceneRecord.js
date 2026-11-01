@@ -19,6 +19,20 @@ import path from 'node:path';
 
 export const VENDOR = 'source-record';
 export const FILTER_KIND = 'source_record_filter';
+/** Where to get the plugin (its Windows installer is among the release assets). */
+export const SOURCE_RECORD_URL = 'https://github.com/exeldro/obs-source-record/releases';
+
+/** Whether OBS has the plugin: a stop for a source that does not exist is harmless either way. */
+export function sourceRecordLoaded(ws) {
+  return ws
+    .call('CallVendorRequest', {
+      vendorName: VENDOR,
+      requestType: 'record_stop',
+      requestData: { source: '\u0000gridfpv-probe' }
+    })
+    .then(() => true)
+    .catch((e) => !/vendor/i.test(e.message ?? ''));
+}
 
 export class SceneRecorder {
   /**
@@ -163,7 +177,7 @@ export class SceneRecorder {
     } catch (e) {
       if (/vendor/i.test(e.message) && /not found|No vendor/i.test(e.message))
         throw new Error(
-          'the Source Record plugin is not loaded in OBS (install it: https://obsproject.com/forum/resources/source-record.1285/)'
+          `the Source Record plugin is not loaded in OBS (install it: ${SOURCE_RECORD_URL})`
         );
       throw e;
     }

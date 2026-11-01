@@ -145,6 +145,10 @@
     await act(() => api.start(editing!));
   }
 
+  const SOURCE_RECORD_URL = 'https://github.com/exeldro/obs-source-record/releases';
+  /** Connected to OBS, the profile records from a scene, and the plugin is not there: amber. */
+  const needsPlugin = (p: Probe) =>
+    p.obs.ok && valueOf('recordFrom') === 'scene' && !p.obs.sourceRecord;
   const connectionWords = (p: Probe) => ({
     timer: p.timer.ok
       ? p.timer.synced
@@ -224,6 +228,10 @@
         />
       {/if}
     </Field>
+    {#if f.link}
+      <a class="fieldlink small" href={f.link.href} target="_blank" rel="noopener">{f.link.label}</a
+      >
+    {/if}
   {/if}
 {/snippet}
 
@@ -231,11 +239,14 @@
   {@const w = connectionWords(p)}
   <ul class="probe" aria-label="Connections">
     <li><Badge tone={p.timer.ok ? 'success' : 'danger'} dot>{w.timer}</Badge></li>
-    <li><Badge tone={p.obs.ok ? 'success' : 'danger'} dot>{w.obs}</Badge></li>
-    {#if p.obs.ok && valueOf('recordFrom') === 'scene' && !p.obs.sourceRecord}
+    <li>
+      <Badge tone={p.obs.ok ? (needsPlugin(p) ? 'warn' : 'success') : 'danger'} dot>{w.obs}</Badge>
+    </li>
+    {#if needsPlugin(p)}
       <li class="muted small">
-        Recording from a scene needs the Source Record plugin in OBS — install it and try again, or
-        record from OBS's own recording.
+        Recording from a scene needs the Source Record plugin in OBS —
+        <a href={SOURCE_RECORD_URL} target="_blank" rel="noopener">get it from its releases page</a
+        >, restart OBS and try again, or record from OBS's own recording.
       </li>
     {/if}
   </ul>
@@ -488,6 +499,10 @@
   }
   .muted {
     color: var(--gf-text-muted);
+  }
+  .fieldlink {
+    display: block;
+    margin-top: calc(-1 * var(--gf-space-2));
   }
   .small {
     font-size: var(--gf-font-size-xs);

@@ -42,7 +42,9 @@
     !running
       ? { status: 'idle', label: 'OBS' }
       : snap!.status.obs.connected
-        ? { status: 'live', label: `OBS ${snap!.status.obs.version || ''}`.trim() }
+        ? running.recordFrom === 'scene' && snap!.status.obs.sourceRecord === false
+          ? { status: 'reconnecting', label: 'OBS — no Source Record plugin' }
+          : { status: 'live', label: `OBS ${snap!.status.obs.version || ''}`.trim() }
         : { status: 'reconnecting', label: 'OBS offline' }
   );
 

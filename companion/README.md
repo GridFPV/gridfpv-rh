@@ -34,7 +34,7 @@ repository's releases page). Install it, and:
 - `obs` — OBS's own Record output, started on staging and stopped after the tail. Right for
   a practice session where nothing else is being recorded.
 - `scene` — a scene of your own (`scene`, e.g. `Clean`: the capture feed, no overlay),
-  recorded by exeldro's **[Source Record](https://obsproject.com/forum/resources/source-record.1285/)**
+  recorded by exeldro's **[Source Record](https://github.com/exeldro/obs-source-record/releases)** (its Windows installer is among the release assets)
   filter to its own file, while OBS's Stream and Record outputs run untouched. The
   race-day shape: OBS streams the program and records the whole day, and every run still
   lands in a clean file. Install Source Record in OBS (0.4.8 or newer; OBS 30–33), add the

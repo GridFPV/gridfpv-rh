@@ -5,7 +5,7 @@
  * Everything is injectable; both connections are closed before returning.
  */
 import { Obs } from './obs.js';
-import { FILTER_KIND, VENDOR } from './sceneRecord.js';
+import { FILTER_KIND, sourceRecordLoaded } from './sceneRecord.js';
 import { Timer } from './timer.js';
 
 export async function probeSettings(
@@ -83,15 +83,7 @@ async function probeObs(cfg, O, timeoutMs, log) {
     }
     // Scenes are listed newest last by OBS; show them as OBS does (top of the list first).
     out.scenes.reverse();
-    // Is the plugin there? A stop for a source that does not exist is harmless either way.
-    out.sourceRecord = await ws
-      .call('CallVendorRequest', {
-        vendorName: VENDOR,
-        requestType: 'record_stop',
-        requestData: { source: '\u0000gridfpv-probe' }
-      })
-      .then(() => true)
-      .catch((e) => !/vendor/i.test(e.message ?? ''));
+    out.sourceRecord = await sourceRecordLoaded(ws);
   } catch (e) {
     out.error = e.message ?? String(e);
   } finally {
