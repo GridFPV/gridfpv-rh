@@ -30,6 +30,9 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
+# Windows hands back verbatim paths (`\\?\D:\…`) for the resource folder; Node refuses one
+# as a script path. `simplified` turns it back into the plain form.
+dunce = "1"
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

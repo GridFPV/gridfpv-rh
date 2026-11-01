@@ -30,7 +30,7 @@ pub fn run() {
         .manage(Sidecar(Mutex::new(None)))
         .setup(|app| {
             let handle = app.handle().clone();
-            let resources = app.path().resource_dir()?;
+            let resources = dunce::simplified(&app.path().resource_dir()?).to_path_buf();
             let companion = resources.join("companion");
             let cli = companion.join("src").join("cli.js");
             let ui = companion.join("ui");
