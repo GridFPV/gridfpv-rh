@@ -6,7 +6,8 @@ Copy a link into an OBS Browser source. They also show on RotorHazard's Streams 
 ## Placement
 
 Where the panel sits is the overlay's own setting, kept by the timer: a corner, how far in
-from its edges, and its size as a percentage. The size and the corner apply to the panel's
+from its edges, its size as a percentage, and how solid its background is — from 0, the
+text alone over the video, to 100, a solid sheet. The size and the corner apply to the panel's
 head — title, clock, pilot and bests; the lap list hangs below the head and grows downward
 whichever corner you chose, so the clock never moves as laps come in. In a bottom corner,
 leave room below for up to six laps. Set it on the Overlays page and the live

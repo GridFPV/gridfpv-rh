@@ -4,7 +4,7 @@ import { expect, test } from '../src/fixtures.js';
  * Where the race overlay sits (#96): set on the Overlays page, kept by the timer, and drawn
  * the same by the live page, the replay page (so every render) and the preview.
  */
-test('Overlay placement: a corner, offsets and size set once show on every page that draws the overlay', async ({
+test('Overlay placement: a corner, offsets, size and background set once show on every page that draws the overlay', async ({
   page,
   rig
 }) => {
@@ -26,11 +26,14 @@ test('Overlay placement: a corner, offsets and size set once show on every page 
   await page.getByLabel('Size', { exact: true }).fill('150');
   await page.getByLabel('Size', { exact: true }).press('Tab');
   await expect(page.getByLabel('Size slider')).toHaveValue('150');
+  await page.getByLabel('Background', { exact: true }).fill('40');
+  await page.getByLabel('Background', { exact: true }).press('Tab');
+  await expect(page.getByLabel('Background slider')).toHaveValue('40');
 
   // The timer holds it.
   await expect
     .poll(async () => JSON.parse((await rig.options())['gridfpv_overlay'] ?? '{}'))
-    .toEqual({ corner: 'bottom-right', x: 40, y: 30, scale: 150 });
+    .toEqual({ corner: 'bottom-right', x: 40, y: 30, scale: 150, opacity: 40 });
 
   // The preview on this page already shows it (its own socket got the broadcast).
   // The preview is the page at 1920×1080, scaled to fit (#97), so the panel is to scale.
@@ -45,7 +48,8 @@ test('Overlay placement: a corner, offsets and size set once show on every page 
         bottom: s.bottom,
         right: s.right,
         transform: s.transform,
-        origin: s.transformOrigin
+        origin: s.transformOrigin,
+        background: s.backgroundColor
       };
     });
   // The live page.
@@ -55,6 +59,7 @@ test('Overlay placement: a corner, offsets and size set once show on every page 
   expect(live.bottom).toBe('30px');
   expect(live.right).toBe('40px');
   expect(live.transform).toBe('matrix(1.5, 0, 0, 1.5, 0, 0)');
+  expect(live.background).toBe('rgba(8, 10, 14, 0.4)');
   // The replay page (what the video companion renders), even before its race is found.
   await page.goto('/grid/live/race?heat=1&round=9');
   await expect(page.locator('.panel')).toHaveAttribute('data-corner', 'bottom-right');
@@ -69,7 +74,7 @@ test('Overlay placement: a corner, offsets and size set once show on every page 
   );
   await expect
     .poll(async () => JSON.parse((await rig.options())['gridfpv_overlay'] ?? '{}'))
-    .toEqual({ corner: 'top-left', x: 24, y: 24, scale: 100 });
+    .toEqual({ corner: 'top-left', x: 24, y: 24, scale: 100, opacity: 90 });
   await page.goto('/grid/live/race');
   await expect(page.locator('.panel')).toHaveAttribute('data-corner', 'top-left');
 });

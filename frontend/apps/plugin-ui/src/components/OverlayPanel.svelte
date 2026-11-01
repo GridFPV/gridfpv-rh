@@ -201,7 +201,8 @@
     color: var(--gf-text);
     font-family: var(--gf-font-family);
   }
-  /* Pinned to a corner and scaled about it by the placement (inline style). */
+  /* Pinned to a corner, scaled about it, and its glass as solid as the placement says
+     (`--panel-alpha`, inline style); at 0 the text stands alone over the video. */
   .panel {
     position: absolute;
     display: flex;
@@ -209,7 +210,7 @@
     min-width: 22rem;
     max-width: 34rem;
     border-radius: 18px;
-    background: rgba(8, 10, 14, 0.9);
+    background: rgba(8, 10, 14, var(--panel-alpha, 0.9));
     border: 1px solid rgba(255, 255, 255, 0.14);
     backdrop-filter: blur(6px);
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
@@ -407,7 +408,7 @@
   /* Dark text on a light panel (`/grid/live/race/light`): the library's light tokens flip
      the semantic colours; only this page's own glass values need restating. */
   .overlay[data-theme='light'] .panel {
-    background: rgba(255, 255, 255, 0.84);
+    background: rgba(255, 255, 255, var(--panel-alpha, 0.9));
     border-color: rgba(0, 0, 0, 0.14);
     text-shadow: none;
   }

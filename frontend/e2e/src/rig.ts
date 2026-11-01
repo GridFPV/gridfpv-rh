@@ -282,13 +282,18 @@ export class Rig {
     x: number;
     y: number;
     scale: number;
+    opacity?: number;
   }): Promise<void> {
     this.emit('gridfpv_overlay_set', p);
     await this.until('overlay placement', async () => {
       const raw = (await this.options())['gridfpv_overlay'];
       if (!raw) return undefined;
       const o = JSON.parse(raw) as Record<string, unknown>;
-      return o.corner === p.corner && o.x === p.x && o.y === p.y && o.scale === p.scale
+      return o.corner === p.corner &&
+        o.x === p.x &&
+        o.y === p.y &&
+        o.scale === p.scale &&
+        (p.opacity == null || o.opacity === p.opacity)
         ? true
         : undefined;
     });
@@ -300,13 +305,15 @@ export class Rig {
       if (!raw) return true;
       try {
         const o = JSON.parse(raw) as Record<string, unknown>;
-        return o.corner === 'top-left' && o.x === 24 && o.y === 24 && o.scale === 100;
+        return (
+          o.corner === 'top-left' && o.x === 24 && o.y === 24 && o.scale === 100 && o.opacity === 90
+        );
       } catch {
         return false;
       }
     };
     if (same((await this.options())['gridfpv_overlay'])) return;
-    this.emit('gridfpv_overlay_set', { corner: 'top-left', x: 24, y: 24, scale: 100 });
+    this.emit('gridfpv_overlay_set', { corner: 'top-left', x: 24, y: 24, scale: 100, opacity: 90 });
     await this.until('overlay placement reset', async () =>
       same((await this.options())['gridfpv_overlay']) ? true : undefined
     );

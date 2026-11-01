@@ -8,6 +8,7 @@ option ``gridfpv_overlay``, read by the live page, the replay page and so every 
 - ``corner``: which corner the panel hangs from.
 - ``x``, ``y``: pixels in from that corner's edges.
 - ``scale``: the panel's size, percent of its natural size.
+- ``opacity``: the panel's background, percent opaque (0 is text alone over the video).
 """
 
 import json
@@ -20,6 +21,8 @@ CORNERS = ("top-left", "top-right", "bottom-left", "bottom-right")
 OFFSET_MAX = 4000
 SCALE_MIN = 25
 SCALE_MAX = 300
+OPACITY_MIN = 0
+OPACITY_MAX = 100
 
 
 class OverlayError(ValueError):
@@ -27,7 +30,7 @@ class OverlayError(ValueError):
 
 
 def _default() -> dict:
-    return {"corner": "top-left", "x": 24, "y": 24, "scale": 100}
+    return {"corner": "top-left", "x": 24, "y": 24, "scale": 100, "opacity": 90}
 
 
 def _int_in(value, lo, hi):
@@ -58,6 +61,9 @@ def load(rhapi) -> dict:
     n = _int_in(data.get("scale"), SCALE_MIN, SCALE_MAX)
     if n is not None:
         out["scale"] = n
+    n = _int_in(data.get("opacity"), OPACITY_MIN, OPACITY_MAX)
+    if n is not None:
+        out["opacity"] = n
     return out
 
 
@@ -80,5 +86,12 @@ def save(rhapi, data) -> dict:
         if n is None:
             raise OverlayError(f"the size must be between {SCALE_MIN} and {SCALE_MAX} percent")
         out["scale"] = n
+    if "opacity" in data:
+        n = _int_in(data["opacity"], OPACITY_MIN, OPACITY_MAX)
+        if n is None:
+            raise OverlayError(
+                f"the background must be between {OPACITY_MIN} and {OPACITY_MAX} percent"
+            )
+        out["opacity"] = n
     rhapi.db.option_set(OPT_OVERLAY, json.dumps(out))
     return out

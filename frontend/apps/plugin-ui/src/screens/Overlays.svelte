@@ -19,6 +19,8 @@
     CORNER_LABELS,
     CORNERS,
     DEFAULT_PLACEMENT,
+    OPACITY_MAX,
+    OPACITY_MIN,
     SCALE_MAX,
     SCALE_MIN,
     type Corner
@@ -192,6 +194,32 @@
                   aria-label="Size slider"
                   disabled={placing}
                   onchange={(e: Event) => place({ scale: num(e) })}
+                />
+              </div>
+              <div class="placerow">
+                <label class="field">
+                  <span>Background (%)</span>
+                  <Input
+                    type="number"
+                    min={String(OPACITY_MIN)}
+                    max={String(OPACITY_MAX)}
+                    step="5"
+                    value={String(placement.opacity)}
+                    aria-label="Background"
+                    disabled={placing}
+                    onchange={(e: Event) => place({ opacity: num(e) })}
+                  />
+                </label>
+                <input
+                  class="slider"
+                  type="range"
+                  min={OPACITY_MIN}
+                  max={OPACITY_MAX}
+                  step="5"
+                  value={placement.opacity}
+                  aria-label="Background slider"
+                  disabled={placing}
+                  onchange={(e: Event) => place({ opacity: num(e) })}
                 />
                 <button
                   type="button"
