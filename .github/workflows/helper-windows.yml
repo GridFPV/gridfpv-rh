@@ -28,6 +28,9 @@ jobs:
   build:
     name: windows — NSIS installer
     runs-on: windows-latest
+    # The repository's default token is read-only; publishing the release needs to write.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
 
