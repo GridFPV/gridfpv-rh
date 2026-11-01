@@ -8,6 +8,17 @@ on:
   workflow_dispatch:
   push:
     tags: ['video-v*']
+    # While the helper is built on its branch (GitHub only dispatches a workflow that exists
+    # on the default branch): a push that touches the helper builds it.
+    branches: ['video-helper-2']
+    paths:
+      - 'helper/**'
+      - 'companion/**'
+      - 'frontend/apps/video-ui/**'
+      - 'frontend/packages/components/**'
+      - 'dev/stage_helper.py'
+      - 'dev/package_companion.py'
+      - '.github/workflows/helper-windows.yml'
 
 concurrency:
   group: helper-windows-${{ github.ref }}

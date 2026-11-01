@@ -146,7 +146,12 @@ test('Replay overlay: a saved race at time t, seekable, and the marshalled laps 
   await page.goto('/grid/overlays');
   // Replay and the companion are folded by default.
   await page.getByRole('button', { name: 'Video companion' }).click();
-  const dl = page.getByRole('link', { name: 'Download for Windows (zip)' });
+  // Two forms (#99): the desktop helper's installer lives on the releases page; the console
+  // zip is inside the plugin.
+  await expect(
+    page.getByRole('link', { name: /GridFPV Video for Windows \(installer/ })
+  ).toHaveAttribute('href', /github\.com\/GridFPV\/gridfpv-rh\/releases/);
+  const dl = page.getByRole('link', { name: /Console companion \(zip/ });
   await expect(dl).toHaveAttribute('href', '/grid/downloads/gridfpv-video-win64.zip');
   const zip = await page.request.get('/grid/downloads/gridfpv-video-win64.zip');
   expect(zip.status()).toBe(200);
