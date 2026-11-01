@@ -16,9 +16,14 @@ repository's releases page). Install it, and:
 
 - **Profiles** (the Profiles tab): a named set of settings, kept per user in
   `%APPDATA%\GridFPV Video\profiles\*.json` — the timer, OBS, what records each run, where
-  files go, the look of the render. Add, duplicate, rename, delete; the last one used starts
-  selected. A `gridfpv-video.json` beside the console program is imported as the first
-  profile.
+  files go, the look of the render. A new profile asks for the timer and OBS first and
+  **tries both** before showing the rest, so the rest can offer what OBS has — its scenes,
+  with the ones carrying a Source Record filter marked — instead of asking for names typed;
+  _Try the connections_ does the same on an existing profile. Paths have a **Browse…**
+  button (the OS's own dialog; a folder browser of the helper's when there is none). The
+  Source Record filter's name is only asked when a scene carries more than one. Add,
+  duplicate, rename, delete; the last one used starts selected. A `gridfpv-video.json`
+  beside the console program is imported as the first profile.
 - **Start / Stop** in the header with the profile to use; two pills say whether the timer
   is synced and OBS is connected.
 - **Session** shows every run this session knows — recording, finishing, waiting for the
@@ -43,15 +48,15 @@ The console form below does everything the window does, from a terminal; `gridfp
 
 ## What it does on race day
 
-| Timer says                     | Companion does                                                                              |
-| ------------------------------ | ------------------------------------------------------------------------------------------- |
-| Staging                        | starts the recording — OBS's own, or the clean scene's (Source Record) — unless one is on   |
-| Start                          | notes how far into the recording the start signal is (the timer's clock, synced)            |
-| Stop                           | records a few more seconds, stops OBS, writes `<recording>.gridfpv.json`                    |
-| Round saved                    | names the run from the timer (`RaceGOW {season} {track} Round {round}`) and renders         |
-| Ready, nothing saved (Discard) | moves the recording to `trash/` beside it (never deletes; `trashDiscarded: false` keeps it) |
-| Results change (a marshal)     | re-renders every run whose laps differ from what was last rendered                          |
-| A round deleted in Grid        | moves its recording and renders to `trash/`                                                 |
+| Timer says                     | Companion does                                                                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Staging                        | starts the recording — OBS's own, or the clean scene's (Source Record) — unless one is on                                             |
+| Start                          | notes how far into the recording the start signal is (the timer's clock, synced)                                                      |
+| Stop                           | records a few more seconds, stops OBS, writes `<recording>.gridfpv.json`                                                              |
+| Round saved                    | names the run from the timer (`RaceGOW {season} {track} Round {round}`) and renders                                                   |
+| Ready, nothing saved (Discard) | after `discardAfterSeconds` (20) with no new round, moves the recording to `trash/` (never deletes; `trashDiscarded: false` keeps it) |
+| Results change (a marshal)     | re-renders every run whose laps differ from what was last rendered                                                                    |
+| A round deleted in Grid        | moves its recording and renders to `trash/`                                                                                           |
 
 Renders are idempotent on the laps: the same laps never render twice.
 

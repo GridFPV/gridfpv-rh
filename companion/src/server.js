@@ -13,6 +13,8 @@
  *   POST /api/start                      { profile }
  *   POST /api/stop
  *   POST /api/render                     { sidecar }
+ *   POST /api/probe                      { settings } → { timer: {ok,…}, obs: {ok, scenes, …} } — tried, then closed
+ *   POST /api/pick                       { kind: 'folder'|'file', start } → { path } | { path: null } | { unsupported: true }
  *   POST /api/open                       { path } — the folder (or file) in the OS's file manager
  *   GET  /api/browse?dir=                list a folder (for picking one)
  *   GET  /*                              the window's files from `uiDir` (index.html fallback)
@@ -24,6 +26,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { DEFAULTS } from './config.js';
 import { FIELDS } from './helper.js';
+import { pickPath } from './pick.js';
+import { probeSettings } from './probe.js';
+import { Profiles } from './profiles.js';
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -42,7 +47,9 @@ export function startServer({
   port = 0,
   host = '127.0.0.1',
   uiDir = null,
-  log = () => {}
+  log = () => {},
+  probe = probeSettings,
+  pick = pickPath
 }) {
   const clients = new Set();
   const send = (res, event, data) =>
@@ -117,6 +124,15 @@ export function startServer({
       const { sidecar } = await body(req);
       helper.render(sidecar).catch((e) => helper.log(`render failed: ${e.message}`));
       return json(res, 202, { ok: true });
+    }
+    if (m === 'POST' && head === 'probe') {
+      const { settings } = await body(req);
+      return json(res, 200, await probe(Profiles.effective(settings ?? {})));
+    }
+    if (m === 'POST' && head === 'pick') {
+      const { kind, start } = await body(req);
+      const r = await pick(kind === 'file' ? 'file' : 'folder', start || '');
+      return json(res, 200, r && typeof r === 'object' ? r : { path: r });
     }
     if (m === 'POST' && head === 'open') {
       const { path: target } = await body(req);

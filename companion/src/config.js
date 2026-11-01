@@ -32,8 +32,13 @@ export const DEFAULTS = Object.freeze({
   outDir: '',
   /** Seconds of recording kept after the race stops, so the last lap and the FINISHED clock are in the file. */
   tailSeconds: 3,
-  /** Seconds after the timer reads Ready with no saved round before the recording counts as discarded. */
-  discardAfterSeconds: 8,
+  /**
+   * After a stop, the timer goes Ready on Save or on Discard alike; a save shows up as a new
+   * round in the race list within a second or two. This is how long to wait for that round
+   * after Ready before the run counts as discarded (its recording then goes to trash/, never
+   * deleted). Nothing is timed while the race sits stopped waiting for the director.
+   */
+  discardAfterSeconds: 20,
   /** A discarded run's recording goes to `trash/` beside it (never deleted); false leaves it in place. */
   trashDiscarded: true,
   /** Rendered video: the recording with the overlay composited (needs ffmpeg with libx264). */

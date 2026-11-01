@@ -117,7 +117,17 @@ test('the server answers the window: status, profiles round trip, start/stop, an
     profiles,
     deps: { Timer: FakeTimer, Obs: FakeObs, ffmpegPath: async () => 'ffmpeg' }
   });
-  const srv = await startServer({ helper, port: 0, uiDir });
+  const srv = await startServer({
+    helper,
+    port: 0,
+    uiDir,
+    probe: async (cfg) => ({
+      timer: { ok: cfg.timer === 'http://t:5000' },
+      obs: { ok: true, scenes: [{ name: 'Clean', sourceRecordFilters: [] }] }
+    }),
+    pick: async (kind, start) =>
+      kind === 'folder' ? `/picked/${start || 'home'}` : { unsupported: true }
+  });
   const api = async (method, p, data) => {
     const r = await fetch(srv.origin + p, {
       method,
@@ -179,6 +189,16 @@ test('the server answers the window: status, profiles round trip, start/stop, an
 
     r = await api('DELETE', '/api/profiles/Sunday');
     assert.deepEqual((await api('GET', '/api/profiles')).body.profiles, []);
+    // The connections tried from a few settings (defaults filled in), and the OS's picker.
+    r = await api('POST', '/api/probe', { settings: { timer: 'http://t:5000/' } });
+    assert.deepEqual(r.body, {
+      timer: { ok: true },
+      obs: { ok: true, scenes: [{ name: 'Clean', sourceRecordFilters: [] }] }
+    });
+    r = await api('POST', '/api/pick', { kind: 'folder', start: 'D:' });
+    assert.deepEqual(r.body, { path: '/picked/D:' });
+    r = await api('POST', '/api/pick', { kind: 'file' });
+    assert.deepEqual(r.body, { unsupported: true });
     r = await api('GET', '/api/browse?dir=' + encodeURIComponent(dir));
     assert.deepEqual(r.body.folders, ['profiles', 'ui']);
     assert.equal((await api('GET', '/api/nothing')).status, 404);

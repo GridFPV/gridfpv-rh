@@ -37,6 +37,14 @@ export type Field = {
   min?: number;
   max?: number;
   when?: Record<string, string>;
+  /** The first page of a new profile: the connections. */
+  step?: number;
+  /** A path a picker can fill. */
+  kind?: 'folder' | 'file';
+  /** Offered from a probe of OBS instead of typed. */
+  choices?: 'scenes' | 'filters';
+  /** Shown only when it matters (a scene with several Source Record filters). */
+  advanced?: boolean;
   default: string | number | boolean;
 };
 export type ProfilesPayload = {
@@ -44,6 +52,23 @@ export type ProfilesPayload = {
   lastProfile: string | null;
   fields: Field[];
   defaults: Settings;
+};
+export type Probe = {
+  timer: {
+    ok: boolean;
+    synced?: boolean;
+    differential?: number | null;
+    heats?: number;
+    error?: string | null;
+  };
+  obs: {
+    ok: boolean;
+    version?: string;
+    recordDirectory?: string;
+    scenes?: { name: string; sourceRecordFilters: string[] }[];
+    sourceRecord?: boolean;
+    error?: string | null;
+  };
 };
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -70,6 +95,9 @@ export const api = {
   stop: () => call<Snapshot>('POST', '/api/stop'),
   render: (sidecar: string) => call<{ ok: true }>('POST', '/api/render', { sidecar }),
   open: (path: string) => call<{ ok: true }>('POST', '/api/open', { path }),
+  probe: (settings: Settings) => call<Probe>('POST', '/api/probe', { settings }),
+  pick: (kind: 'folder' | 'file', start?: string) =>
+    call<{ path?: string | null; unsupported?: boolean }>('POST', '/api/pick', { kind, start }),
   browse: (dir?: string) =>
     call<{ dir: string; parent: string | null; folders: string[] }>(
       'GET',

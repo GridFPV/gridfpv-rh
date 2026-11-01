@@ -186,31 +186,45 @@ export class Helper extends EventEmitter {
   }
 }
 
-/** What the window asks for, in order; keys are config keys (`DEFAULTS`). */
+/**
+ * What the window asks for, in order; keys are config keys (`DEFAULTS`). `step: 1` is the
+ * first page of a new profile — the connections — tried before the rest is shown, so the
+ * rest can offer choices (`choices`: OBS's scenes, the Source Record filters on the chosen
+ * scene) instead of asking for them typed. `kind` marks a path a picker can fill.
+ */
 export const FIELDS = [
   {
     key: 'timer',
     label: 'Timer address',
     help: 'RotorHazard as in the browser, e.g. http://recon-nh.local:5000',
     group: 'Timer',
-    type: 'text'
+    type: 'text',
+    step: 1
   },
   {
     key: 'timerUser',
     label: 'RotorHazard admin user',
     help: 'Blank if RotorHazard has no login',
     group: 'Timer',
-    type: 'text'
+    type: 'text',
+    step: 1
   },
-  { key: 'timerPass', label: 'RotorHazard admin password', group: 'Timer', type: 'password' },
+  {
+    key: 'timerPass',
+    label: 'RotorHazard admin password',
+    group: 'Timer',
+    type: 'password',
+    step: 1
+  },
   {
     key: 'obs',
     label: 'OBS WebSocket address',
-    help: 'Tools → WebSocket Server Settings in OBS',
+    help: 'Tools → WebSocket Server Settings in OBS; this machine is ws://127.0.0.1:4455',
     group: 'OBS',
-    type: 'text'
+    type: 'text',
+    step: 1
   },
-  { key: 'obsPass', label: 'OBS WebSocket password', group: 'OBS', type: 'password' },
+  { key: 'obsPass', label: 'OBS WebSocket password', group: 'OBS', type: 'password', step: 1 },
   {
     key: 'recordFrom',
     label: 'Record each run from',
@@ -228,22 +242,26 @@ export const FIELDS = [
     help: 'The clean capture scene (no overlay); needs the Source Record plugin in OBS',
     group: 'Recording',
     type: 'text',
+    choices: 'scenes',
     when: { recordFrom: 'scene' }
   },
   {
     key: 'sceneFilter',
-    label: 'Source Record filter name',
-    help: 'Blank finds the first one on the scene, or lets Source Record make one',
+    label: 'Source Record filter on that scene',
+    help: 'Only when the scene carries more than one; otherwise the one it has is used, or Source Record makes one',
     group: 'Recording',
     type: 'text',
-    when: { recordFrom: 'scene' }
+    choices: 'filters',
+    when: { recordFrom: 'scene' },
+    advanced: true
   },
   {
     key: 'recordDir',
     label: 'Recording folder',
-    help: "Blank: the filter's own folder, else OBS's recording folder",
+    help: "Blank: where the filter is set to write, else OBS's recording folder",
     group: 'Recording',
     type: 'text',
+    kind: 'folder',
     when: { recordFrom: 'scene' }
   },
   {
@@ -256,11 +274,12 @@ export const FIELDS = [
   },
   {
     key: 'discardAfterSeconds',
-    label: 'Seconds before an unsaved run counts as discarded',
+    label: 'Seconds to wait for the save after Ready',
+    help: 'After a stop the timer goes Ready on Save or Discard alike; a save appears as a new round within a second or two. Past this wait the run counts as discarded and its recording moves to trash/ (never deleted). The clock does not run while the race sits stopped.',
     group: 'Recording',
     type: 'number',
-    min: 2,
-    max: 120
+    min: 5,
+    max: 300
   },
   {
     key: 'trashDiscarded',
@@ -273,7 +292,8 @@ export const FIELDS = [
     label: 'Renders folder',
     help: 'Blank: beside each recording',
     group: 'Renders',
-    type: 'text'
+    type: 'text',
+    kind: 'folder'
   },
   {
     key: 'layout',
@@ -329,7 +349,8 @@ export const FIELDS = [
     label: 'ffmpeg',
     help: 'Blank or "ffmpeg": the one the helper fetched, or on the PATH',
     group: 'Tools',
-    type: 'text'
+    type: 'text',
+    kind: 'file'
   },
   {
     key: 'browserChannel',
