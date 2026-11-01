@@ -1,6 +1,6 @@
 {
   "name": "@gridfpv/racegow-video",
-  "version": "0.10.6",
+  "version": "0.10.7",
   "description": "RaceGOW video companion for GridFPV: records clean in OBS on the timer's race events, writes a sidecar, and renders the corrected overlay onto the recording after every save and marshal (#96).",
   "type": "module",
   "private": true,

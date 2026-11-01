@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import App from '../src/App.svelte';
 import { rh } from '../src/lib/rh.svelte.js';
-import { go } from '../src/lib/router.svelte.js';
+import { back, go, route } from '../src/lib/router.svelte.js';
 
 describe('App shell', () => {
   beforeEach(() => {
@@ -77,6 +77,25 @@ describe('App shell', () => {
     expect(screen.getByRole('heading', { name: 'Seats' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Seat 1' })).toBeInTheDocument();
     expect(screen.getByText('Start capture')).toBeInTheDocument();
+  });
+});
+
+describe('router back()', () => {
+  it('returns to the page a modal was opened from, or to the fallback after a cold load', async () => {
+    // A cold load of /grid/seats/0 (replace: no in-app history): back() takes the fallback.
+    go('seats/0', true);
+    back('run');
+    expect(route()).toBe('run');
+    expect(window.location.pathname).toBe('/grid/run');
+    // Opened in-app from Run: back() is the browser's back, and the modal's URL is gone.
+    go('seats/0');
+    expect(route()).toBe('seats/0');
+    const popped = new Promise<void>((r) =>
+      window.addEventListener('popstate', () => r(), { once: true })
+    );
+    back('seats');
+    await popped;
+    expect(route()).toBe('run');
   });
 });
 

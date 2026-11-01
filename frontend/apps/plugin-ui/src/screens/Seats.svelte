@@ -8,7 +8,7 @@
   import TuningPanel from '../components/TuningPanel.svelte';
   import SeatTune from './SeatTune.svelte';
   import { refreshLevels, rh, type WriteResult } from '../lib/rh.svelte.js';
-  import { go, route } from '../lib/router.svelte.js';
+  import { back, route } from '../lib/router.svelte.js';
   import { raceLockReason } from '../lib/seats.js';
 
   const timer = rh();
@@ -30,8 +30,10 @@
     return { ...l, duration: plan.duration };
   };
 
-  // /grid/seats/N opens the tuning modal over this page, so the link survives a refresh
-  // and closing it is just navigating back to /grid/seats.
+  // /grid/seats/N opens the tuning modal over this page, so the link survives a refresh.
+  // Closing it goes back to the page it was opened from — Run, say, whose seat card links
+  // here — and after a refresh or a pasted link, to Seats (Run in RaceGOW mode, which has
+  // no Seats page in its nav).
   const tuneSeat = $derived.by(() => {
     const m = /^seats\/(\d+)$/.exec(route());
     return m ? Number(m[1]) : null;
@@ -98,7 +100,12 @@
   {/if}
 
   {#if tuneSeat != null}
-    <Dialog open={true} size="wide" title="Seat {tuneSeat + 1}" onclose={() => go('seats')}>
+    <Dialog
+      open={true}
+      size="wide"
+      title="Seat {tuneSeat + 1}"
+      onclose={() => back(timer.mode === 'racegow' ? 'run' : 'seats')}
+    >
       <SeatTune seatIndex={tuneSeat} />
     </Dialog>
   {/if}

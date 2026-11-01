@@ -123,4 +123,13 @@ test('RaceGOW: a new season, the pilot, two tracks — and RotorHazard holds the
   const h2after = (await rig.heats()).find((h) => h.heat_id === h2.heat_id)!;
   expect(h2after.nodes_pilots['1']).toBe(ryan!.pilot_id ?? ryan!.id);
   expect(h2after.nodes_pilots['0'] ?? 0).not.toBe(ryan!.pilot_id ?? ryan!.id);
+
+  // Tuning the seat opens the modal at /grid/seats/1; closing it comes back to Run, the
+  // page it was opened from, not to a Seats page this mode has no nav for.
+  await page.getByRole('link', { name: 'Tune this seat' }).click();
+  await expect(page).toHaveURL(/\/grid\/seats\/1$/);
+  await expect(page.getByRole('dialog').getByRole('heading', { name: 'Seat 2' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page).toHaveURL(/\/grid\/run$/);
+  await expect(page.getByRole('combobox', { name: 'On the timer' })).toBeVisible();
 });

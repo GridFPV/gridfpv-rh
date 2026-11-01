@@ -6,7 +6,12 @@
 
 export const BASE = '/grid';
 
-const state = $state({ path: normalize(window.location.pathname) });
+/**
+ * `from` is the route before the last in-app navigation, or null when the current page was
+ * reached by a load, a refresh or the browser's own back/forward — i.e. when the previous
+ * history entry is not known to be ours.
+ */
+const state = $state({ path: normalize(window.location.pathname), from: null as string | null });
 
 /** The current path relative to BASE: '' for the landing, 'seats', 'live/race', … */
 export function route(): string {
@@ -25,7 +30,18 @@ export function go(path: string, replace = false): void {
   const url = rel ? `${BASE}/${rel}` : BASE;
   if (replace) history.replaceState(null, '', url);
   else history.pushState(null, '', url);
+  state.from = replace ? null : state.path;
   state.path = rel;
+}
+
+/**
+ * Leave a page that sits over another — the seat tuning modal — for the page it was opened
+ * from: the previous history entry when that was an in-app navigation (so the modal's URL
+ * does not linger behind the back button), else `fallback`, which takes the modal's place.
+ */
+export function back(fallback: string): void {
+  if (state.from != null) history.back();
+  else go(fallback, true);
 }
 
 /** Absolute href for a route, for <a> tags so middle-click and copy-link work. */
@@ -46,4 +62,5 @@ export function link(event: MouseEvent): void {
 
 window.addEventListener('popstate', () => {
   state.path = normalize(window.location.pathname);
+  state.from = null;
 });
