@@ -58,6 +58,7 @@ export class Session extends EventEmitter {
     if (this.recording)
       out.push({
         state: this.recording.endMs == null ? 'recording' : 'tail',
+        trashing: this.recording.trashOnStop ?? false,
         heat_id: this.recording.heatId,
         round: null,
         name: null,
@@ -139,24 +140,29 @@ export class Session extends EventEmitter {
       endMs: null,
       startedAt: new Date().toISOString()
     };
-    try {
-      const st = await this.d.obs.recordStatus();
-      if (!st.active) {
-        await this.d.obs.startRecord({ heatId: race.heatId });
-        // The file's time zero on our clock: startRecord returns as the output begins.
-        this.recording.outputStartLocal = this.d.now();
-        this.log(`recording: started for heat ${race.heatId}`);
-      } else {
-        // Already running: its time zero can only be guessed from the duration counter, which
-        // lags the file by the encoder's queue; the stop measures that lag and corrects it.
-        this.recording.outputStartLocal = null;
-        this.recording.counterStartLocal = this.d.now() - st.durationMs;
-        this.log(`recording: already on (${Math.round(st.durationMs / 1000)} s in); using it`);
+    const rec = this.recording;
+    // An abort (Ready before the start, or the window's Trash) waits for this before stopping.
+    rec.starting = (async () => {
+      try {
+        const st = await this.d.obs.recordStatus();
+        if (!st.active) {
+          await this.d.obs.startRecord({ heatId: race.heatId });
+          // The file's time zero on our clock: startRecord returns as the output begins.
+          rec.outputStartLocal = this.d.now();
+          this.log(`recording: started for heat ${race.heatId}`);
+        } else {
+          // Already running: its time zero can only be guessed from the duration counter, which
+          // lags the file by the encoder's queue; the stop measures that lag and corrects it.
+          rec.outputStartLocal = null;
+          rec.counterStartLocal = this.d.now() - st.durationMs;
+          this.log(`recording: already on (${Math.round(st.durationMs / 1000)} s in); using it`);
+        }
+      } catch (e) {
+        this.log(`recording: OBS refused to start: ${e.message}`);
+        if (this.recording === rec) this.recording = null;
       }
-    } catch (e) {
-      this.log(`recording: OBS refused to start: ${e.message}`);
-      this.recording = null;
-    }
+    })();
+    await rec.starting;
     this.changed();
   }
 
@@ -182,8 +188,16 @@ export class Session extends EventEmitter {
     }
   }
 
-  /** Ready after a stop: saved or discarded. race_list tells which; if it says nothing in time, it was a discard. */
+  /**
+   * Ready after a stop: saved or discarded. race_list tells which; if it says nothing in time,
+   * it was a discard. Ready while the recording is still on — the race was stopped (or
+   * discarded) during the countdown, so RotorHazard went straight back to Ready without a
+   * Done — ends the recording: there was no race, and the file goes to trash.
+   */
   onReady() {
+    const rec = this.recording;
+    if (rec && rec.endMs == null)
+      this.tasks = this.tasks.then(() => this.abort(rec, 'stopped before the start'));
     let any = false;
     for (const rec of [this.recording, ...this.pending]) {
       if (!rec || rec.endMs == null || rec.readyAt) continue;
@@ -291,12 +305,80 @@ export class Session extends EventEmitter {
     await writeSidecar(sidecarFile, data);
     rec.sidecarFile = sidecarFile;
     rec.data = data;
-    this.pending.push(rec);
     this.recording = null;
+    if (rec.trashOnStop) {
+      // Trashed from the window while the tail ran: it never waits for the save.
+      this.d.clearTimeout(rec.discardTimer);
+      await this.trash(sidecarFile, data, 'run trashed');
+      this.changed();
+      return;
+    }
+    this.pending.push(rec);
     this.changed();
     // The save may already have been listed while the tail ran — or not asked for yet.
     this.onRaceList(this.d.timer.raceList);
     this.askRaceList();
+  }
+
+  /**
+   * End a recording that will not be a run: stop OBS and move what it wrote to trash. The
+   * race was stopped during the countdown, or the window asked.
+   */
+  async abort(rec, why) {
+    if (this.recording !== rec) return;
+    await rec.starting;
+    if (this.recording !== rec) return; // OBS refused the start: nothing to stop
+    this.recording = null;
+    this.changed();
+    try {
+      const stopped = await this.d.obs.stopRecord();
+      const file = typeof stopped === 'string' || stopped == null ? stopped : stopped.file;
+      const overlaid = typeof stopped === 'object' && stopped ? (stopped.overlaid ?? null) : null;
+      this.log(`recording: ${why}; stopped → ${file ?? '?'}`);
+      if (!file) return;
+      // A recording OBS already had going before the staging is not ours to throw away.
+      if (rec.outputStartLocal == null)
+        this.log(`recording: kept — OBS was recording before the staging (${file})`);
+      else
+        await this.trash(
+          sidecarPathFor(file),
+          { recording: file, overlaid_recording: overlaid },
+          `run trashed (${why})`
+        );
+    } catch (e) {
+      this.log(`recording: ${why}, but OBS could not stop: ${e.message}`);
+    }
+    this.changed();
+  }
+
+  /**
+   * The window's Trash: a run that is recording, finishing or waiting for the save goes to
+   * trash now — no need to sit out the discard wait before the next race. Matched by sidecar
+   * (once it has one) or by when it started.
+   */
+  trashRun({ sidecar, startedAt } = {}) {
+    const live = this.recording;
+    if (live && (startedAt ? live.startedAt === startedAt : !sidecar)) {
+      if (live.endMs == null) {
+        this.tasks = this.tasks.then(() => this.abort(live, 'trashed from the window'));
+      } else {
+        live.trashOnStop = true; // the tail is still recording; finishRecording trashes
+        this.log('run trashed: the recording stops after the tail and goes to trash');
+        this.changed();
+      }
+      return this.tasks;
+    }
+    const rec = this.pending.find((r) =>
+      sidecar ? r.sidecarFile === sidecar : r.startedAt === startedAt
+    );
+    if (!rec) throw new Error('no such run is waiting: it may already be saved or discarded');
+    this.d.clearTimeout(rec.discardTimer);
+    this.pending = this.pending.filter((x) => x !== rec);
+    this.tasks = this.tasks.then(async () => {
+      await this.trash(rec.sidecarFile, rec.data, 'run trashed');
+      this.changed();
+    });
+    return this.tasks;
   }
 
   // ---- save / discard ----

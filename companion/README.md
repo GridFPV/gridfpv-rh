@@ -82,6 +82,8 @@ The console form below does everything the window does, from a terminal; `gridfp
 | Stop                           | records a few more seconds, stops OBS, writes `<recording>.gridfpv.json`                                                              |
 | Round saved                    | names the run from the timer (`RaceGOW {season} {track} Round {round}`) and renders                                                   |
 | Ready, nothing saved (Discard) | after `discardAfterSeconds` (20) with no new round, moves the recording to `trash/` (never deletes; `trashDiscarded: false` keeps it) |
+| Ready during the countdown     | a stop before the start never goes through Done: the recording ends at once and goes to `trash/`                                      |
+| Trash, in the window           | a run that is recording, finishing or waiting for the save goes to `trash/` now — no need to wait out `discardAfterSeconds`           |
 | Results change (a marshal)     | re-renders every run whose laps differ from what was last rendered                                                                    |
 | A round deleted in Grid        | moves its recording and renders to `trash/`                                                                                           |
 

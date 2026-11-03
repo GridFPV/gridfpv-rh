@@ -6,7 +6,7 @@
 # Built per platform (webkit on Linux, WebView2 on Windows): see .github/workflows/helper-windows.yml.
 [package]
 name = "gridfpv-video"
-version = "0.11.0"
+version = "0.11.1"
 edition = "2021"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/GridFPV/gridfpv-rh"

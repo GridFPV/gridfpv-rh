@@ -42,6 +42,25 @@
   const title = (r: Run) =>
     r.name ?? (r.round != null ? `Heat ${r.heat_id} · Round ${r.round}` : `Heat ${r.heat_id}`);
 
+  /** A run the window can send to trash: recording, finishing, or waiting for the save. */
+  const trashable = (r: Run) =>
+    (r.state === 'recording' || r.state === 'tail' || r.state === 'waiting') && !r.trashing;
+  const key = (r: Run) => r.sidecar ?? `live-${r.heat_id}-${r.started_at}`;
+  // Trash asks twice: the first click arms the button for a few seconds, the second sends.
+  let armed = $state<string | null>(null);
+  let armTimer: ReturnType<typeof setTimeout> | undefined;
+  function trash(r: Run) {
+    if (armed !== key(r)) {
+      armed = key(r);
+      clearTimeout(armTimer);
+      armTimer = setTimeout(() => (armed = null), 5000);
+      return;
+    }
+    clearTimeout(armTimer);
+    armed = null;
+    void act(() => api.trash({ sidecar: r.sidecar, started_at: r.started_at }));
+  }
+
   const logText = $derived(ui.log.map((l) => `${l.at.slice(11, 19)}  ${l.text}`).join('\n'));
   let logOpen = $state(true);
   let logEl = $state<HTMLElement>();
@@ -120,6 +139,19 @@
                 <Button size="sm" variant="ghost" onclick={() => act(() => api.render(r.sidecar!))}
                   >{r.rendered_at ? 'Render again' : 'Render'}</Button
                 >
+              {/if}
+              {#if trashable(r)}
+                <Button
+                  size="sm"
+                  variant={armed === key(r) ? 'danger' : 'ghost'}
+                  disabled={ui.busy}
+                  title={r.state === 'waiting'
+                    ? 'Move this recording to trash now instead of waiting out the save'
+                    : 'Stop this recording and move it to trash'}
+                  onclick={() => trash(r)}>{armed === key(r) ? 'Really trash?' : 'Trash'}</Button
+                >
+              {:else if r.trashing}
+                <span class="muted small">to trash after the tail</span>
               {/if}
             </td>
           </tr>

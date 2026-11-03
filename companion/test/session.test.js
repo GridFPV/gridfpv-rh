@@ -452,3 +452,127 @@ test('a save takes its lap baseline from the timer, not the page: a format whose
   assert.ok(logs.some((l) => l === 'laps changed for Open Class Heat 2 Round 3'));
   await fs.rm(dir, { recursive: true });
 });
+
+test('a stop during the countdown (Ready, never Done) ends the recording and trashes it — the next staging records afresh', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'gridfpv-session-'));
+  const { timer, obs, deps, advance, tick } = rig();
+  obs.file = path.join(dir, 'rec.mkv');
+  await fs.writeFile(obs.file, '');
+  const s = new Session(
+    { tailSeconds: 1, discardAfterSeconds: 8, trashDiscarded: true },
+    deps
+  ).start();
+  timer.emit('stage_ready', { status: 3, heatId: 4, nextRound: 7, startsAt: 605, stagingAt: 600 });
+  await tick();
+  assert.equal(obs.active, true);
+  assert.equal(s.runs()[0].state, 'recording');
+  // Stopped two seconds into the countdown: RotorHazard goes straight back to Ready.
+  await advance(2000);
+  timer.emit('race_status', { status: 0, heatId: 4, nextRound: 7 });
+  await s.tasks;
+  await tick();
+  assert.equal(obs.active, false, 'OBS stopped');
+  assert.equal(s.recording, null);
+  assert.deepEqual(s.pending, []);
+  assert.deepEqual(s.runs(), []);
+  assert.deepEqual(await fs.readdir(path.join(dir, 'trash')), ['rec.mkv']);
+  // Staging again records again.
+  await fs.writeFile(obs.file, '');
+  timer.emit('stage_ready', { status: 3, heatId: 4, nextRound: 7, startsAt: 615, stagingAt: 610 });
+  await tick();
+  assert.equal(obs.active, true);
+  assert.equal(s.runs()[0].state, 'recording');
+  await fs.rm(dir, { recursive: true });
+});
+
+test('Trash from the window: a run waiting for the save goes to trash at once; one in its tail goes after the stop; one recording stops now', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'gridfpv-session-'));
+  const { timer, obs, deps, advance, tick } = rig();
+  const s = new Session(
+    { tailSeconds: 3, discardAfterSeconds: 60, trashDiscarded: false },
+    deps
+  ).start();
+  const race = async (file, stopAfterMs) => {
+    obs.file = path.join(dir, file);
+    await fs.writeFile(obs.file, '');
+    timer.emit('stage_ready', {
+      status: 3,
+      heatId: 4,
+      nextRound: 7,
+      startsAt: 602,
+      stagingAt: 600
+    });
+    await tick();
+    await advance(2000);
+    timer.emit('race_status', {
+      status: 1,
+      heatId: 4,
+      nextRound: 7,
+      startsAt: 602,
+      stagingAt: 600
+    });
+    await tick();
+    await advance(stopAfterMs);
+    timer.emit('race_status', {
+      status: 2,
+      heatId: 4,
+      nextRound: 7,
+      startsAt: 602,
+      stagingAt: 600
+    });
+    await tick();
+  };
+
+  // 1. Waiting for the save (a long discard wait): Trash does not wait it out.
+  await race('one.mkv', 5000);
+  await advance(3000);
+  timer.emit('race_status', { status: 0, heatId: 4, nextRound: 7 });
+  await tick();
+  assert.equal(s.runs()[0].state, 'waiting');
+  await s.trashRun({ sidecar: s.runs()[0].sidecar, started_at: null });
+  assert.deepEqual(s.pending, []);
+  assert.deepEqual(s.runs(), []);
+  assert.deepEqual((await fs.readdir(path.join(dir, 'trash'))).sort(), [
+    'one.mkv',
+    'one.mkv.gridfpv.json'
+  ]);
+  // The save that is not coming never matters; the next race's baseline is unaffected.
+  await advance(60_000);
+
+  // 2. In the tail: the recording still stops cleanly, then goes to trash instead of waiting.
+  await race('two.mkv', 5000);
+  const live = s.runs()[0];
+  assert.equal(live.state, 'tail');
+  await s.trashRun({ sidecar: live.sidecar, startedAt: live.started_at });
+  assert.equal(s.runs()[0].trashing, true);
+  assert.equal(obs.active, true, 'the tail keeps recording');
+  await advance(3000);
+  await s.tasks;
+  await tick();
+  assert.equal(obs.active, false);
+  assert.deepEqual(s.runs(), []);
+  assert.ok((await fs.readdir(path.join(dir, 'trash'))).includes('two.mkv'));
+
+  // 3. Recording (the race is on): Trash stops OBS now.
+  obs.file = path.join(dir, 'three.mkv');
+  await fs.writeFile(obs.file, '');
+  timer.emit('stage_ready', { status: 3, heatId: 4, nextRound: 7, startsAt: 602, stagingAt: 600 });
+  await tick();
+  await advance(4000);
+  await s.trashRun({ sidecar: null, startedAt: s.runs()[0].started_at });
+  assert.equal(obs.active, false);
+  assert.deepEqual(s.runs(), []);
+  assert.ok((await fs.readdir(path.join(dir, 'trash'))).includes('three.mkv'));
+  // Its stop arriving later is nothing to the session.
+  timer.emit('race_status', { status: 2, heatId: 4, nextRound: 7, startsAt: 602, stagingAt: 600 });
+  timer.emit('race_status', { status: 0, heatId: 4, nextRound: 7 });
+  await tick();
+  assert.deepEqual(s.runs(), []);
+
+  // An unknown run is an error the window can show.
+  assert.throws(
+    () => s.trashRun({ sidecar: path.join(dir, 'nope.json'), startedAt: null }),
+    /no such run/
+  );
+  await fs.rm(dir, { recursive: true });
+});

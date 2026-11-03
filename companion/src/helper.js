@@ -215,6 +215,13 @@ export class Helper extends EventEmitter {
     return out;
   }
 
+  /** A run that is recording, finishing or waiting for the save: to trash, now (#107). */
+  trash(which) {
+    const session = this.running?.session;
+    if (!session) throw new Error('no session is running');
+    return session.trashRun(which);
+  }
+
   /** Every run of the running session that needs a render, rendered — one at a time, in order. */
   renderAll() {
     const session = this.running?.session;
@@ -327,7 +334,7 @@ export const FIELDS = [
   {
     key: 'discardAfterSeconds',
     label: 'Seconds to wait for the save after Ready',
-    help: 'After a stop the timer goes Ready on Save or Discard alike; a save appears as a new round within a second or two. Past this wait the run counts as discarded and its recording moves to trash/ (never deleted). The clock does not run while the race sits stopped.',
+    help: 'After a stop the timer goes Ready on Save or Discard alike; a save appears as a new round within a second or two. Past this wait the run counts as discarded and its recording moves to trash/ (never deleted). The clock does not run while the race sits stopped. A long wait is safe: a run you know is a discard can be sent to trash at once with its Trash button.',
     group: 'Recording',
     type: 'number',
     min: 5,

@@ -138,6 +138,11 @@ export function startServer({
       const r = await pick(kind === 'file' ? 'file' : 'folder', start || '');
       return json(res, 200, r && typeof r === 'object' ? r : { path: r });
     }
+    if (m === 'POST' && head === 'trash') {
+      const { sidecar, started_at: startedAt } = await body(req);
+      await helper.trash({ sidecar: sidecar || null, startedAt: startedAt || null });
+      return json(res, 200, helper.snapshot());
+    }
     if (m === 'POST' && head === 'render-all') {
       helper.renderAll().catch((e) => helper.log(`render all failed: ${e.message}`));
       return json(res, 202, { ok: true });

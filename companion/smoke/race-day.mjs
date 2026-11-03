@@ -8,6 +8,7 @@
  *      (composite .mp4 + overlay .webm, named from the timer, the clock aligned)
  *   2. a marshal (one lap deleted through resave_laps) → the run re-renders, once
  *   3. stage, stop, discard → that recording lands in trash/
+ *   4. stage, stop during the countdown → the recording ends and lands in trash/
  *
  *   make rig-up obs-up && make video-test
  */
@@ -505,6 +506,31 @@ const trashed = await until(
 );
 log(`discarded run in trash/: ${trashed.join(', ')}`);
 if ((await rounds(heat.heat_id)) !== 1) fail('the discard saved a round');
+
+// ---- 4. a stop during the countdown: RotorHazard goes Ready without a Done; the recording must end ----
+const before4 = new Set(await fs.readdir(RECORDINGS));
+const trash4 = new Set(await fs.readdir(path.join(RECORDINGS, 'trash')));
+rig.emit('stage_race');
+await until('staging', async () => (await raceStatus()) === 3, 10_000, 50);
+await until('the countdown recording', async () => session.recording ?? null, 10_000, 50);
+await sleep(700);
+rig.emit('stop_race');
+await until('ready, never racing', async () => (await raceStatus()) === 0, 10_000, 50);
+const aborted = await until(
+  'the countdown recording stopped and in trash/',
+  async () => {
+    if (session.recording) return null;
+    const now = await fs.readdir(RECORDINGS);
+    if (now.some((n) => !before4.has(n) && n !== 'trash')) return null;
+    const trash = (await fs.readdir(path.join(RECORDINGS, 'trash'))).filter((n) => !trash4.has(n));
+    return trash.some((n) => /\.(mkv|mp4|mov)$/.test(n)) ? trash : null;
+  },
+  30_000,
+  500
+);
+log(`stop during the countdown: recording ended, in trash/: ${aborted.join(', ')}`);
+if (session.pending.length) fail('a countdown recording is waiting for a save');
+if ((await rounds(heat.heat_id)) !== 1) fail('the countdown stop saved a round');
 
 if (RECORD_FROM === 'scene') {
   const st = await obs.recordStatus();

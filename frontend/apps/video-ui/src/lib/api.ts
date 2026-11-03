@@ -16,6 +16,8 @@ export type Run = {
   deliverable?: string | null;
   /** Why a render is wanted, when one is. */
   needs_render?: string | null;
+  /** A live run the window has sent to trash: it stops after the tail and goes straight there. */
+  trashing?: boolean;
   sidecar: string | null;
   started_at: string | null;
   rendered_at?: string | null;
@@ -113,6 +115,8 @@ export const api = {
   stop: () => call<Snapshot>('POST', '/api/stop'),
   render: (sidecar: string) => call<{ ok: true }>('POST', '/api/render', { sidecar }),
   renderAll: () => call<{ ok: true }>('POST', '/api/render-all'),
+  trash: (run: { sidecar: string | null; started_at: string | null }) =>
+    call<Snapshot>('POST', '/api/trash', run),
   open: (path: string) => call<{ ok: true }>('POST', '/api/open', { path }),
   probe: (settings: Settings, opts: { only?: 'obs' | 'timer'; timeoutMs?: number } = {}) =>
     call<Probe>('POST', '/api/probe', { settings, ...opts }),
